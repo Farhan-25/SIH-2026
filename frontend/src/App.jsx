@@ -58,7 +58,6 @@ export default function App() {
           <div className="brand-icon">🚢</div>
           <div className="brand-text">
             <h2>FreightIQ</h2>
-            <span>SIH 2026</span>
           </div>
         </div>
 

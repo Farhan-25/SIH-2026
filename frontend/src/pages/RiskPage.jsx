@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Plot from 'react-plotly.js'
 import {
   MdSecurity, MdWarning, MdWaves, MdAnchor,
   MdTrendingUp
 } from 'react-icons/md'
+import { getRiskAssessment } from '../api/client'
 
 const DEMO_RISK = {
   composite_risk_score: 42.5,
@@ -57,7 +58,20 @@ function severityClass(s) {
 }
 
 export default function RiskPage() {
-  const [risk] = useState(DEMO_RISK)
+  const [risk, setRisk] = useState(DEMO_RISK)
+
+  useEffect(() => {
+    getRiskAssessment({
+      origin_port_id: 'newcastle',
+      dest_port_id: 'paradip',
+      dest_lat: 20.2649,
+      dest_lon: 86.6286,
+    })
+      .then(data => {
+        if (data?.composite_risk_score !== undefined) setRisk(data)
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

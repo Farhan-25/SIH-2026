@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Plot from 'react-plotly.js'
 import {
   MdTrendingUp, MdCompareArrows, MdPlayArrow,
   MdTimer, MdLock
 } from 'react-icons/md'
+import { getMarketTiming } from '../api/client'
 
 const DEMO_TIMING = {
   signal: 'ENTER_NOW_SPOT',
@@ -66,9 +67,21 @@ const generateRateCurve = () => {
 }
 
 export default function StrategyPage() {
-  const [timing] = useState(DEMO_TIMING)
+  const [timing, setTiming] = useState(DEMO_TIMING)
   const signalInfo = SIGNAL_CONFIG[timing.signal] || SIGNAL_CONFIG.ENTER_NOW_SPOT
   const curve = generateRateCurve()
+
+  useEffect(() => {
+    getMarketTiming({
+      current_spot_rate: 14.82,
+      vessel_class: 'Panamax',
+      target_volume_mt: 75000,
+    })
+      .then(data => {
+        if (data?.signal) setTiming(prev => ({ ...prev, ...data }))
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

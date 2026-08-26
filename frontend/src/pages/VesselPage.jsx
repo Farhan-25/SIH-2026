@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Plot from 'react-plotly.js'
 import {
@@ -28,11 +28,12 @@ const DESTINATIONS = [
 ]
 
 const DEMO_RESULTS = {
+  recommended_vessel_name: 'MV Pacific Harmony',
   recommended_vessel_class: 'Panamax',
   recommended_total_cost_usd_per_mt: 16.42,
   all_vessel_evaluations: [
     {
-      vessel_class: 'Handysize', is_feasible: true, intake_capacity_mt: 35000,
+      vessel_name: 'MV Atlantic Runner', vessel_class: 'Handysize', operator: 'Pacific Basin', is_feasible: true, intake_capacity_mt: 35000,
       total_landed_cost_usd_per_mt: 26.80, base_freight_usd_per_mt: 24.50,
       port_charges_usd_per_mt: 1.10, lighterage_cost_usd_per_mt: 0,
       demurrage_risk_usd_per_mt: 0.85, rejection_reasons: [],
@@ -40,7 +41,7 @@ const DEMO_RESULTS = {
       estimated_discharge_days: 2.1,
     },
     {
-      vessel_class: 'Supramax', is_feasible: true, intake_capacity_mt: 58000,
+      vessel_name: 'MV Star Horizon', vessel_class: 'Supramax', operator: 'Star Bulk', is_feasible: true, intake_capacity_mt: 58000,
       total_landed_cost_usd_per_mt: 21.20, base_freight_usd_per_mt: 20.50,
       port_charges_usd_per_mt: 0.42, lighterage_cost_usd_per_mt: 0,
       demurrage_risk_usd_per_mt: 0.28, rejection_reasons: [],
@@ -48,7 +49,7 @@ const DEMO_RESULTS = {
       estimated_discharge_days: 3.5,
     },
     {
-      vessel_class: 'Panamax', is_feasible: true, intake_capacity_mt: 75000,
+      vessel_name: 'MV Pacific Harmony', vessel_class: 'Panamax', operator: 'Diana Shipping', is_feasible: true, intake_capacity_mt: 75000,
       total_landed_cost_usd_per_mt: 16.42, base_freight_usd_per_mt: 16.50,
       port_charges_usd_per_mt: 0.25, lighterage_cost_usd_per_mt: 0,
       demurrage_risk_usd_per_mt: 0.12, rejection_reasons: [],
@@ -56,20 +57,12 @@ const DEMO_RESULTS = {
       estimated_discharge_days: 4.5,
     },
     {
-      vessel_class: 'Capesize', is_feasible: false, intake_capacity_mt: 180000,
+      vessel_name: 'MV Berge Everest', vessel_class: 'Capesize', operator: 'Berge Bulk', is_feasible: false, intake_capacity_mt: 180000,
       total_landed_cost_usd_per_mt: null, base_freight_usd_per_mt: 12.80,
       port_charges_usd_per_mt: 0.18, lighterage_cost_usd_per_mt: 0,
-      demurrage_risk_usd_per_mt: 0, rejection_reasons: ['Draft 18.2m exceeds Paradip max draft (14.5m)', 'LOA 292m exceeds Paradip max LOA (280m)'],
+      demurrage_risk_usd_per_mt: 0, rejection_reasons: ['Draft 18.2m exceeds Paradip max draft (14.5m)'],
       operational_warnings: [],
       estimated_discharge_days: 0,
-    },
-    {
-      vessel_class: 'Kamsarmax', is_feasible: true, intake_capacity_mt: 82000,
-      total_landed_cost_usd_per_mt: 15.90, base_freight_usd_per_mt: 15.50,
-      port_charges_usd_per_mt: 0.22, lighterage_cost_usd_per_mt: 0,
-      demurrage_risk_usd_per_mt: 0.18, rejection_reasons: [],
-      operational_warnings: [],
-      estimated_discharge_days: 4.9,
     },
   ],
 }
@@ -96,13 +89,17 @@ export default function VesselPage() {
     setLoading(false)
   }, [origin, dest, cargo])
 
+  useEffect(() => {
+    runOptimization()
+  }, [runOptimization])
+
   const feasible = results.all_vessel_evaluations.filter(v => v.is_feasible)
     .sort((a, b) => a.total_landed_cost_usd_per_mt - b.total_landed_cost_usd_per_mt)
   const infeasible = results.all_vessel_evaluations.filter(v => !v.is_feasible)
 
   // Cost breakdown chart
   const costData = feasible.map(v => ({
-    vessel: v.vessel_class,
+    vessel: v.vessel_name,
     freight: v.base_freight_usd_per_mt,
     port: v.port_charges_usd_per_mt,
     lighterage: v.lighterage_cost_usd_per_mt,
@@ -114,7 +111,7 @@ export default function VesselPage() {
       <div className="section-header">
         <div>
           <h1>Vessel Optimization</h1>
-          <p>Physical constraint evaluation and landed cost ranking for all dry bulk vessel classes</p>
+          <p>Physical constraint evaluation and landed cost ranking for specific active bulk carriers</p>
         </div>
       </div>
 
@@ -149,7 +146,7 @@ export default function VesselPage() {
       </div>
 
       {/* ─── Recommendation Banner ─── */}
-      {results.recommended_vessel_class && (
+      {(results.recommended_vessel_name || results.recommended_vessel_class) && (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -168,7 +165,10 @@ export default function VesselPage() {
               ✦ Recommended Vessel
             </div>
             <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, marginTop: 4 }}>
-              {results.recommended_vessel_class}
+              {results.recommended_vessel_name || results.recommended_vessel_class}
+            </div>
+            <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)' }}>
+              {results.recommended_vessel_class} Class
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -201,10 +201,15 @@ export default function VesselPage() {
               {[...feasible, ...infeasible].map((v, i) => (
                 <tr key={i} style={{ opacity: v.is_feasible ? 1 : 0.5 }}>
                   <td style={{ fontWeight: 600 }}>
-                    {v.vessel_class}
-                    {v.vessel_class === results.recommended_vessel_class && (
-                      <span className="badge badge-success" style={{ marginLeft: 8 }}>BEST</span>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {v.vessel_name}
+                      {(v.vessel_name === results.recommended_vessel_name || v.vessel_class === results.recommended_vessel_class) && (
+                        <span className="badge badge-success">BEST</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400, marginTop: 4 }}>
+                      {v.vessel_class} • {v.operator || 'Unknown Operator'}
+                    </div>
                   </td>
                   <td>
                     {v.is_feasible ? (

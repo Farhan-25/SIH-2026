@@ -37,4 +37,8 @@ export const getRiskAssessment = (params) =>
 export const getMarketTiming = (params) =>
   api.post('/market-timing', params).then(r => r.data)
 
+// ─── Dashboard (Live Aggregated Data) ────────────────────
+export const getDashboard = () =>
+  api.get('/dashboard').then(r => r.data)
+
 export default api
