@@ -32,11 +32,19 @@ def compute_evaluation_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[s
     else:
         mda = 100.0
 
+    # R-squared score
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2) + 1e-8
+    r2 = 1.0 - (ss_res / ss_tot)
+
     return {
         "rmse": round(float(rmse), 3),
+        "rmse_usd": round(float(rmse), 3),
         "mae": round(float(mae), 3),
+        "mae_usd": round(float(mae), 3),
         "mape_pct": round(float(mape), 2),
-        "mda_pct": round(float(mda), 2)
+        "mda_pct": round(float(mda), 2),
+        "r2_score": round(float(r2), 4)
     }
 
 
