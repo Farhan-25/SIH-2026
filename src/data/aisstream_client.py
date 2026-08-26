@@ -49,7 +49,7 @@ class AISPortCongestionTracker:
 
         vessels_seen = []
         try:
-            async with websockets.connect(AISSTREAM_WS_URL, timeout=8) as ws:
+            async with websockets.connect(AISSTREAM_WS_URL, open_timeout=10) as ws:
                 await ws.send(json.dumps(subscription_message))
                 end_time = asyncio.get_event_loop().time() + duration_seconds
 

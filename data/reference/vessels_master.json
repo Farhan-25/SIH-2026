@@ -147,5 +147,105 @@
       "baltic_index_proxy": "BCI",
       "suitable_routes_notes": "Optimized for Australia (Newcastle / Hay Point) to Gangavaram / Dhamra mega-coal shipments."
     }
-  }
+  },
+  "active_fleet": [
+    {
+      "vessel_name": "MV Atlantic Runner",
+      "vessel_class": "Handysize",
+      "operator": "Pacific Basin",
+      "flag": "HKG",
+      "year_built": 2018
+    },
+    {
+      "vessel_name": "MV Oriental Dawn",
+      "vessel_class": "Handysize",
+      "operator": "Clipper Group",
+      "flag": "PAN",
+      "year_built": 2015
+    },
+    {
+      "vessel_name": "MV Star Horizon",
+      "vessel_class": "Supramax",
+      "operator": "Star Bulk",
+      "flag": "LBR",
+      "year_built": 2019
+    },
+    {
+      "vessel_name": "MV Eagle Crest",
+      "vessel_class": "Supramax",
+      "operator": "Eagle Bulk",
+      "flag": "MHL",
+      "year_built": 2014
+    },
+    {
+      "vessel_name": "MV Eco Explorer",
+      "vessel_class": "Ultramax",
+      "operator": "Scorpio Bulkers",
+      "flag": "SGP",
+      "year_built": 2021
+    },
+    {
+      "vessel_name": "MV Nordic Ranger",
+      "vessel_class": "Ultramax",
+      "operator": "Norden",
+      "flag": "DNK",
+      "year_built": 2022
+    },
+    {
+      "vessel_name": "MV Pacific Harmony",
+      "vessel_class": "Panamax",
+      "operator": "Diana Shipping",
+      "flag": "MHL",
+      "year_built": 2017
+    },
+    {
+      "vessel_name": "MV Golden Era",
+      "vessel_class": "Panamax",
+      "operator": "Golden Ocean",
+      "flag": "NOR",
+      "year_built": 2016
+    },
+    {
+      "vessel_name": "MV Bulk Jupiter",
+      "vessel_class": "Kamsarmax",
+      "operator": "Genco Shipping",
+      "flag": "MHL",
+      "year_built": 2020
+    },
+    {
+      "vessel_name": "MV Crimson Tide",
+      "vessel_class": "Kamsarmax",
+      "operator": "Oldendorff",
+      "flag": "LBR",
+      "year_built": 2018
+    },
+    {
+      "vessel_name": "MV Berge Everest",
+      "vessel_class": "Capesize",
+      "operator": "Berge Bulk",
+      "flag": "IOM",
+      "year_built": 2016
+    },
+    {
+      "vessel_name": "MV Navios Stellar",
+      "vessel_class": "Capesize",
+      "operator": "Navios Maritime",
+      "flag": "PAN",
+      "year_built": 2014
+    },
+    {
+      "vessel_name": "MV Gargantua",
+      "vessel_class": "Newcastlemax",
+      "operator": "Bocimar",
+      "flag": "BEL",
+      "year_built": 2021
+    },
+    {
+      "vessel_name": "MV Oredigger",
+      "vessel_class": "Newcastlemax",
+      "operator": "Vale",
+      "flag": "SGP",
+      "year_built": 2022
+    }
+  ]
 }
