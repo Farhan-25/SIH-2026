@@ -4,9 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   MdDashboard, MdShowChart, MdDirectionsBoat,
   MdMap, MdSecurity, MdTrendingUp, MdNotifications,
-  MdSettings
+  MdSettings, MdHome
 } from 'react-icons/md'
 
+import LandingPage from './pages/LandingPage'
 import DashboardPage from './pages/DashboardPage'
 import ForecastPage from './pages/ForecastPage'
 import VesselPage from './pages/VesselPage'
@@ -15,7 +16,8 @@ import RiskPage from './pages/RiskPage'
 import StrategyPage from './pages/StrategyPage'
 
 const navItems = [
-  { to: '/', icon: <MdDashboard />, label: 'Dashboard', section: 'Overview' },
+  { to: '/', icon: <MdHome />, label: 'Product Landing', section: 'Overview' },
+  { to: '/dashboard', icon: <MdDashboard />, label: 'Command Center', section: 'Overview' },
   { to: '/forecast', icon: <MdShowChart />, label: 'Forecast', section: 'Analytics' },
   { to: '/vessels', icon: <MdDirectionsBoat />, label: 'Vessels', section: 'Analytics' },
   { to: '/routes', icon: <MdMap />, label: 'Route Map', section: 'Analytics' },
@@ -31,7 +33,8 @@ const pageTransition = {
 }
 
 const pageTitles = {
-  '/': 'Command Center',
+  '/': 'Product Landing Page',
+  '/dashboard': 'Command Center',
   '/forecast': 'Freight Rate Forecasting',
   '/vessels': 'Vessel Optimization',
   '/routes': 'Maritime Route Intelligence',
@@ -43,12 +46,26 @@ export default function App() {
   const location = useLocation()
   const [alertCount] = useState(3)
 
+  const isLandingPage = location.pathname === '/'
+
   // Group nav items by section
   const sections = navItems.reduce((acc, item) => {
     if (!acc[item.section]) acc[item.section] = []
     acc[item.section].push(item)
     return acc
   }, {})
+
+  if (isLandingPage) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div key={location.pathname} {...pageTransition}>
+          <Routes location={location}>
+            <Route path="/" element={<LandingPage />} />
+          </Routes>
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
 
   return (
     <div className="app-layout">
@@ -121,7 +138,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           <motion.div key={location.pathname} {...pageTransition}>
             <Routes location={location}>
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/forecast" element={<ForecastPage />} />
               <Route path="/vessels" element={<VesselPage />} />
               <Route path="/routes" element={<RouteMapPage />} />
