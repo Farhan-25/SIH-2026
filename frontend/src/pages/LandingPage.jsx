@@ -67,7 +67,6 @@ export default function LandingPage() {
           <span className="brand-logo">🚢</span>
           <div className="brand-title-group">
             <span className="brand-name">FreightIQ</span>
-            <span className="brand-badge">SIH26006</span>
           </div>
         </div>
 
@@ -484,8 +483,8 @@ export default function LandingPage() {
       {/* ──── National Impact Section ──── */}
       <section id="impact" className="landing-section bg-alt">
         <div className="section-header center">
-          <span className="section-tag">SIH26006 Problem Statement</span>
-          <h2 className="section-title">National Logistics Impact</h2>
+          <span className="section-tag">National Impact</span>
+          <h2 className="section-title">Logistics Impact</h2>
           <p className="section-subtitle">
             Optimizing energy and raw material supply chains for India's heavy industrial hub.
           </p>
@@ -523,7 +522,7 @@ export default function LandingPage() {
         <div className="footer-content">
           <div className="footer-brand">
             <div className="brand-logo">🚢</div>
-            <h3>FreightIQ (SIH26006)</h3>
+            <h3>FreightIQ</h3>
             <p>Intelligent Freight Forecasting & Vessel Chartering Optimization Platform.</p>
           </div>
 
@@ -547,7 +546,6 @@ export default function LandingPage() {
         </div>
 
         <div className="footer-bottom">
-          <span>Developed for Smart India Hackathon 2026 (SIH26006)</span>
           <span>© 2026 FreightIQ Team. All rights reserved.</span>
         </div>
       </footer>

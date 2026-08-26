@@ -132,10 +132,12 @@ export default function DashboardPage() {
             <div className="kpi-icon">{kpi.icon}</div>
             <div className="kpi-value">{kpi.value}</div>
             <div className="kpi-label">{kpi.label}</div>
-            <span className={`kpi-trend ${kpi.trendDir === 'up' ? 'up' : 'down'}`}>
-              {kpi.trendDir === 'up' ? <MdTrendingUp size={12}/> : <MdTrendingDown size={12}/>}
-              {kpi.trend}
-            </span>
+            {kpi.trend && (
+              <span className={`kpi-trend ${kpi.trendDir === 'up' ? 'up' : 'down'}`}>
+                {kpi.trendDir === 'up' ? <MdTrendingUp size={12}/> : <MdTrendingDown size={12}/>}
+                {kpi.trend}
+              </span>
+            )}
             {kpi.subtitle && (
               <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 2 }}>{kpi.subtitle}</div>
             )}
@@ -156,7 +158,7 @@ export default function DashboardPage() {
           )}
           {alerts.map((alert, i) => (
             <div key={i} className={`alert-card ${alert.severity}`}>
-              <div style={{ marginRight: 8, fontSize: '1.2rem' }}>{severityIcon[alert.severity]}</div>
+              <div style={{ marginRight: 8, fontSize: '1.2rem' }}>{severityIcon[alert.severity?.toLowerCase()] || severityIcon.info}</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 'var(--font-size-base)', marginBottom: 4 }}>
                   {alert.title}

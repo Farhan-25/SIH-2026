@@ -1,5 +1,5 @@
 /* ============================================================
-   SIH26006 — Freight Intelligence Platform
+   FreightIQ — Freight Intelligence Platform
    Global Design System: Dark Glassmorphism + Ocean Theme
    ============================================================ */
 
@@ -580,6 +580,11 @@ select.form-control {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);
   margin-top: var(--space-xs);
+}
+.section-header.center {
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
 }
 
 /* ----- Grid Layouts ----- */
