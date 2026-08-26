@@ -53,21 +53,23 @@
 | **Backend Modules** | | |
 | [src/api/main.py](file:///d:/SIH-2026/src/api/main.py) | FastAPI v2.0 — enhanced with SHAP, risk, market-timing endpoints | ✅ Upgraded |
 | [src/data/db_manager.py](file:///d:/SIH-2026/src/data/db_manager.py) | Relational SQLite query interface | ✅ |
-| [src/models/ml_forecasting.py](file:///d:/SIH-2026/src/models/ml_forecasting.py) | XGBoost + Quantile regressor | ✅ |
+| [src/models/ml_forecasting.py](file:///d:/SIH-2026/src/models/ml_forecasting.py) | XGBoost + LightGBM + ElasticNet Ensemble | ✅ |
+| [src/models/deep_learning_forecaster.py](file:///d:/SIH-2026/src/models/deep_learning_forecaster.py) | PyTorch BiLSTM + Multi-Head Attention | ✅ New |
 | [src/optimization/vessel_optimizer.py](file:///d:/SIH-2026/src/optimization/vessel_optimizer.py) | Physical constraint solver & landed cost engine | ✅ |
 | [src/optimization/market_timing.py](file:///d:/SIH-2026/src/optimization/market_timing.py) | Spot vs Contract strategy engine | ✅ |
 | [src/risk/risk_engine.py](file:///d:/SIH-2026/src/risk/risk_engine.py) | Corridor risk engine (AIS + Weather + Volatility) | ✅ |
+| [train_models.py](file:///d:/SIH-2026/train_models.py) | Pipeline to train and evaluate ML & Deep models | ✅ New |
 | **React Frontend (v2.0)** | | |
-| [frontend/vite.config.js](file:///d:/SIH-2026/frontend/vite.config.js) | Vite config with proxy to FastAPI | ✅ New |
-| [frontend/src/index.css](file:///d:/SIH-2026/frontend/src/index.css) | Dark glassmorphism design system | ✅ New |
-| [frontend/src/App.jsx](file:///d:/SIH-2026/frontend/src/App.jsx) | Main app with sidebar, header, page routing | ✅ New |
-| [frontend/src/api/client.js](file:///d:/SIH-2026/frontend/src/api/client.js) | Axios API client for FastAPI | ✅ New |
-| [frontend/src/pages/DashboardPage.jsx](file:///d:/SIH-2026/frontend/src/pages/DashboardPage.jsx) | KPI cards, alerts, scenarios, system status | ✅ New |
-| [frontend/src/pages/ForecastPage.jsx](file:///d:/SIH-2026/frontend/src/pages/ForecastPage.jsx) | Plotly chart, SHAP drivers, model metrics | ✅ New |
-| [frontend/src/pages/VesselPage.jsx](file:///d:/SIH-2026/frontend/src/pages/VesselPage.jsx) | Feasibility matrix, cost breakdown chart | ✅ New |
-| [frontend/src/pages/RouteMapPage.jsx](file:///d:/SIH-2026/frontend/src/pages/RouteMapPage.jsx) | Leaflet map, trade lanes, congestion overlay | ✅ New |
-| [frontend/src/pages/RiskPage.jsx](file:///d:/SIH-2026/frontend/src/pages/RiskPage.jsx) | Risk gauge, trend chart, alert cards | ✅ New |
-| [frontend/src/pages/StrategyPage.jsx](file:///d:/SIH-2026/frontend/src/pages/StrategyPage.jsx) | Signal card, forward curve, strategy table | ✅ New |
+| [frontend/vite.config.js](file:///d:/SIH-2026/frontend/vite.config.js) | Vite config with proxy to FastAPI | ✅ |
+| [frontend/src/index.css](file:///d:/SIH-2026/frontend/src/index.css) | Dark glassmorphism design system | ✅ |
+| [frontend/src/App.jsx](file:///d:/SIH-2026/frontend/src/App.jsx) | Main app with sidebar, header, page routing | ✅ |
+| [frontend/src/api/client.js](file:///d:/SIH-2026/frontend/src/api/client.js) | Axios API client for FastAPI (Dashboard added) | ✅ Updated |
+| [frontend/src/pages/DashboardPage.jsx](file:///d:/SIH-2026/frontend/src/pages/DashboardPage.jsx) | Dynamic live KPIs, alerts, real system status | ✅ Updated |
+| [frontend/src/pages/ForecastPage.jsx](file:///d:/SIH-2026/frontend/src/pages/ForecastPage.jsx) | Plotly chart, SHAP drivers, model metrics | ✅ |
+| [frontend/src/pages/VesselPage.jsx](file:///d:/SIH-2026/frontend/src/pages/VesselPage.jsx) | Feasibility matrix, cost breakdown chart | ✅ |
+| [frontend/src/pages/RouteMapPage.jsx](file:///d:/SIH-2026/frontend/src/pages/RouteMapPage.jsx) | Leaflet map, trade lanes, congestion overlay | ✅ |
+| [frontend/src/pages/RiskPage.jsx](file:///d:/SIH-2026/frontend/src/pages/RiskPage.jsx) | Risk gauge, trend chart, live API wired | ✅ Updated |
+| [frontend/src/pages/StrategyPage.jsx](file:///d:/SIH-2026/frontend/src/pages/StrategyPage.jsx) | Signal card, live API wired | ✅ Updated |
 | **Testing** | | |
 | [tests/test_system.py](file:///d:/SIH-2026/tests/test_system.py) | Automated pytest suite | ✅ |
 
@@ -82,10 +84,10 @@
 
 ## 🧭 Current Phase & Next Actions
 
-- **Current Phase**: **v2.0 Upgrade Complete (Phases 0–5)**
+- **Current Phase**: **Live Data Integration & Deep Learning Complete**
 - **Frontend**: React + Vite running at `http://localhost:3000` | Backend: FastAPI at `http://localhost:8000`
 - **Next Immediate Steps**:
-  1. Phase 6: Deep learning (LSTM/TFT), genetic optimizer, NLP sentiment.
+  1. Multi-Parcel Fleet Scheduler (Genetic Optimizer).
   2. PDF/Excel report export.
   3. Docker + CI/CD pipeline.
   4. Git commit & push when requested.
@@ -101,4 +103,4 @@
 | 2026-08-25T13:25 | Phase 1: Data ingestion pipelines, master datasets, API clients. | All data + client files |
 | 2026-08-25T13:30 | Phase 2–5: ML Forecaster, Vessel Optimizer, Risk Engine, FastAPI, Streamlit (original v1). | All backend modules |
 | 2026-08-25T13:45 | **v2.0 MAJOR UPGRADE**: Deleted Streamlit, created `pyproject.toml` + `__init__.py` packaging, scaffolded React + Vite frontend, built 6 premium dark-theme pages (Dashboard, Forecast, Vessels, Route Map, Risk, Strategy), enhanced FastAPI with 3 new endpoints, verified full stack running. | `pyproject.toml`, `__init__.py` (×7), `vite.config.js`, `index.css`, `App.jsx`, `client.js`, 6 page components, `main.py` (API), `requirements.txt`, `.gitignore`, `task.md`, `memory.md` |
-
+| 2026-08-25T20:15 | **Deep Learning & Dynamic APIs**: Added PyTorch BiLSTM+Attention model. Updated Dashboard, Risk, and Strategy pages to use real live APIs fetching FRED and OGD data. | `main.py`, `deep_learning_forecaster.py`, `train_models.py`, `DashboardPage.jsx`, `RiskPage.jsx`, `StrategyPage.jsx`, `client.js`, `README.md`, `memory.md` |

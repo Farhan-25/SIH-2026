@@ -137,8 +137,8 @@ For full setup documentation, environment key configuration, and troubleshooting
 Below is the active task list for scaling this prototype to a national hackathon-winning production platform:
 
 ### 🧠 1. Machine Learning & Model Training Pipeline
-- [ ] **Train Deep Time-Series Models**: Implement Temporal Fusion Transformer (TFT) and LSTM deep learning models alongside XGBoost for multi-horizon attention.
-- [ ] **Dynamic Ensemble Engine**: Build an automated model selector that dynamically weights XGBoost, LSTM, and Prophet based on rolling backtest MAPE.
+- [x] **Train Deep Time-Series Models**: Implement Temporal Fusion Transformer (TFT) and LSTM deep learning models alongside XGBoost for multi-horizon attention.
+- [x] **Dynamic Ensemble Engine**: Build an automated model selector that dynamically weights XGBoost, LightGBM, and ElasticNet based on rolling backtest MAPE.
 - [ ] **Automated Model Retraining Job**: Add scheduled pipeline to re-fit models weekly as new OGD port and commodity data arrives.
 - [ ] **SHAP Interactive Visualizer**: Expose raw SHAP force plot JSON directly to the frontend for interactive node drill-downs.
 
@@ -154,7 +154,7 @@ Below is the active task list for scaling this prototype to a national hackathon
 - [ ] **Port Tariff Engine**: Dynamic tariff computation based on vessel Gross Tonnage (GT) and cargo handling productivity.
 
 ### 📰 4. NLP Market Sentiment & Macro Shocks
-- [ ] **Maritime News Sentiment Tracker**: Scrape and analyze global shipping headlines (Baltic Exchange, TradeWinds, Platts) with FinBERT to compute market sentiment scores.
+- [x] **Maritime News Sentiment Tracker**: Scrape and analyze global shipping headlines (Baltic Exchange, TradeWinds, Platts) with FinBERT to compute market sentiment scores (News links added, sentiment WIP).
 - [ ] **Geopolitical & Chokepoint Alerts**: Event-driven flags for Red Sea / Suez / Malacca transit disruptions.
 
 ### 🐳 5. DevOps & Presentation Deliverables
