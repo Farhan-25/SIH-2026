@@ -24,6 +24,11 @@ from pathlib import Path
 # Enforce no bytecode generation in this process and all child processes
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
@@ -53,18 +58,18 @@ def git_sync():
 
     try:
         # Check if git is available
-        subprocess.run(["git", "--version"], check=True, capture_output=True)
+        subprocess.run(["git", "--version"], check=True, capture_output=True, timeout=5)
         
         # Fetch remote changes
-        fetch_res = subprocess.run(["git", "fetch", "--all"], cwd=PROJECT_ROOT, capture_output=True, text=True)
+        fetch_res = subprocess.run(["git", "fetch", "--all"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=10)
         if fetch_res.returncode == 0:
             print("✅ Git fetch completed.")
         
         # Check if behind remote
-        status_res = subprocess.run(["git", "status", "-uno"], cwd=PROJECT_ROOT, capture_output=True, text=True)
+        status_res = subprocess.run(["git", "status", "-uno"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=5)
         if "Your branch is behind" in status_res.stdout:
             print("⬇️ Remote changes found. Pulling latest code...")
-            pull_res = subprocess.run(["git", "pull", "--rebase"], cwd=PROJECT_ROOT, capture_output=True, text=True)
+            pull_res = subprocess.run(["git", "pull", "--rebase"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=15)
             print(pull_res.stdout)
         else:
             print("✨ Local repository is already up to date.")

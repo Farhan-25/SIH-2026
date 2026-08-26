@@ -9,10 +9,22 @@ import time
 from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 import pandas as pd
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import Dataset, DataLoader
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+    class Dataset:
+        pass
+    class _NNModuleMock:
+        pass
+    class _NNMock:
+        Module = _NNModuleMock
+    nn = _NNMock()
+
 from sklearn.preprocessing import StandardScaler
 
 from src.models.feature_engineering import FreightFeatureEngineer
@@ -144,7 +156,10 @@ class DeepLearningFreightForecaster:
         self.scaler_X = StandardScaler()
         self.scaler_y = StandardScaler()
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if HAS_TORCH:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            self.device = "cpu"
         self.model = None
         self.history = {"train_loss": [], "val_loss": [], "val_mape": [], "epochs": []}
         self.metrics = {}
