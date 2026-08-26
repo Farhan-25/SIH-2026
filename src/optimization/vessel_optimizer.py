@@ -23,10 +23,35 @@ class VesselConstraintOptimizer:
             self.global_ports = pdata["global_load_ports"]
 
         with open(vessels_path, "r") as f:
-            self.vessels = json.load(f)["vessel_classes"]
+            v_data = json.load(f)
+            self.vessels = v_data["vessel_classes"]
+            self.active_fleet = v_data.get("active_fleet", [])
 
         with open(routes_path, "r") as f:
             self.routes = {r["route_id"]: r for r in json.load(f)["trade_routes"]}
+
+    PORT_ALIASES = {
+        "newcastle": "AU_NEW",
+        "hay_point": "AU_HAY",
+        "gladstone": "AU_GLA",
+        "norfolk": "US_NOR",
+        "baltimore": "US_BAL",
+        "kalimantan": "ID_KLT",
+        "samarinda": "ID_SMR",
+        "beira": "MZ_BEI",
+        "nacala": "MZ_NAC",
+        "taman": "RU_TAM",
+        "vostochny": "RU_VOS",
+        "paradip": "IN_PRT",
+        "vizag": "IN_VTZ",
+        "visakhapatnam": "IN_VTZ",
+        "gangavaram": "IN_GNV",
+        "gopalpur": "IN_GPL",
+        "dhamra": "IN_DHM",
+        "haldia": "IN_HLD",
+        "sagar_sandheads": "IN_SGR",
+        "sagar": "IN_SGR",
+    }
 
     def optimize_vessel_choice(
         self,
@@ -38,15 +63,25 @@ class VesselConstraintOptimizer:
         """
         Evaluates physical feasibility of all vessel classes and ranks them by total landed cost per tonne.
         """
-        origin_port = self.global_ports.get(origin_port_id)
-        dest_port = self.indian_ports.get(dest_port_id)
+        norm_origin = self.PORT_ALIASES.get(origin_port_id.lower(), origin_port_id.upper())
+        norm_dest = self.PORT_ALIASES.get(dest_port_id.lower(), dest_port_id.upper())
+
+        origin_port = self.global_ports.get(norm_origin) or self.indian_ports.get(norm_origin)
+        dest_port = self.indian_ports.get(norm_dest) or self.global_ports.get(norm_dest)
 
         if not origin_port or not dest_port:
-            raise ValueError(f"Invalid ports: {origin_port_id} -> {dest_port_id}")
+            raise ValueError(f"Invalid ports: {origin_port_id} ({norm_origin}) -> {dest_port_id} ({norm_dest})")
 
         results = []
 
-        for vclass_name, v_spec in self.vessels.items():
+        for vessel in self.active_fleet:
+            vclass_name = vessel["vessel_class"]
+            v_name = vessel["vessel_name"]
+            v_spec = self.vessels.get(vclass_name)
+            
+            if not v_spec:
+                continue
+
             capacity = v_spec["typical_capacity_mt"]
             design_draft = v_spec["design_draft_laden_m"]
             loa = v_spec["typical_loa_m"]
@@ -135,6 +170,10 @@ class VesselConstraintOptimizer:
             is_feasible = len(rejection_reasons) == 0
 
             results.append({
+                "vessel_name": v_name,
+                "operator": vessel.get("operator"),
+                "year_built": vessel.get("year_built"),
+                "flag": vessel.get("flag"),
                 "vessel_class": vclass_name,
                 "is_feasible": is_feasible,
                 "intake_capacity_mt": capacity,
@@ -158,7 +197,8 @@ class VesselConstraintOptimizer:
             "origin_port": origin_port["port_name"],
             "destination_port": dest_port["port_name"],
             "cargo_parcel_mt": cargo_parcel_mt,
-            "recommended_vessel_class": best_choice["vessel_class"] if best_choice else "None Feasible",
+            "recommended_vessel_name": best_choice["vessel_name"] if best_choice else "None Feasible",
+            "recommended_vessel_class": best_choice["vessel_class"] if best_choice else None,
             "recommended_total_cost_usd_per_mt": best_choice["total_landed_cost_usd_per_mt"] if best_choice else None,
             "all_vessel_evaluations": results
         }

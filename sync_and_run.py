@@ -122,7 +122,7 @@ def run_servers(run_backend=True, run_frontend=True):
             processes.append(("Backend", p_back))
 
         if run_frontend:
-            print("🔹 Frontend starting on: http://localhost:3000")
+            print("🔹 Frontend starting on: http://localhost:5173")
             frontend_cmd = ["npm", "run", "dev"]
             p_front = subprocess.Popen(frontend_cmd, cwd=FRONTEND_DIR, shell=True)
             processes.append(("Frontend", p_front))
