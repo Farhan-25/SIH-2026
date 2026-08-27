@@ -45,8 +45,12 @@ class FREDClient:
         if observation_end:
             params["observation_end"] = observation_end
 
-        response = requests.get(self.BASE_URL, params=params, timeout=15)
-        response.raise_for_status()
+        try:
+            response = requests.get(self.BASE_URL, params=params, timeout=3)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            print(f"FRED API Error for {series_id}: {e}")
+            return pd.DataFrame()
 
         data = response.json()
         observations = data.get("observations", [])
