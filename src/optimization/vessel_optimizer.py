@@ -58,7 +58,8 @@ class VesselConstraintOptimizer:
         cargo_parcel_mt: float,
         origin_port_id: str,
         dest_port_id: str,
-        predicted_freight_rates: Optional[Dict[str, float]] = None
+        predicted_freight_rates: Optional[Dict[str, float]] = None,
+        live_fleet: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         Evaluates physical feasibility of all vessel classes and ranks them by total landed cost per tonne.
@@ -74,9 +75,11 @@ class VesselConstraintOptimizer:
 
         results = []
 
-        for vessel in self.active_fleet:
-            vclass_name = vessel["vessel_class"]
-            v_name = vessel["vessel_name"]
+        fleet_to_evaluate = live_fleet if live_fleet is not None else self.active_fleet
+
+        for vessel in fleet_to_evaluate:
+            vclass_name = vessel.get("class", vessel.get("vessel_class"))
+            v_name = vessel.get("name", vessel.get("vessel_name"))
             v_spec = self.vessels.get(vclass_name)
             
             if not v_spec:
@@ -171,9 +174,9 @@ class VesselConstraintOptimizer:
 
             results.append({
                 "vessel_name": v_name,
-                "operator": vessel.get("operator"),
-                "year_built": vessel.get("year_built"),
-                "flag": vessel.get("flag"),
+                "operator": vessel.get("operator", "GFW Live"),
+                "year_built": vessel.get("year_built", "Unknown"),
+                "flag": vessel.get("flag", "Unknown"),
                 "vessel_class": vclass_name,
                 "is_feasible": is_feasible,
                 "intake_capacity_mt": capacity,

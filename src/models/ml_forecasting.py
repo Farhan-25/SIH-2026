@@ -177,21 +177,41 @@ class FreightMLForecaster:
         forecast_dates = [current_date + pd.Timedelta(weeks=w) for w in range(1, horizon_weeks + 1)]
 
         predictions = []
+        xgb_preds = []
+        lgb_preds = []
+        ela_preds = []
         lower_bounds = []
         upper_bounds = []
 
         curr_features = latest_row[self.feature_names].copy()
 
         for _ in range(horizon_weeks):
-            pred_val = float(self.predict_point(curr_features)[0])
-            low_val = float(self.model_lower.predict(curr_features)[0])
-            up_val = float(self.model_upper.predict(curr_features)[0])
+            p_xgb = float(self.xgb_model.predict(curr_features)[0]) if self.xgb_model else 16.5
+            p_lgb = float(self.lgb_model.predict(curr_features)[0]) if self.lgb_model else 16.5
+            p_ela = float(self.elastic_model.predict(curr_features)[0]) if self.elastic_model else 16.5
+            
+            w_xgb = self.model_weights.get("xgboost", 0.45)
+            w_lgb = self.model_weights.get("lightgbm", 0.45)
+            w_ela = self.model_weights.get("elasticnet", 0.10)
+            
+            if self.model_type == "xgboost":
+                pred_val = p_xgb
+            elif self.model_type == "lightgbm":
+                pred_val = p_lgb
+            else:
+                pred_val = w_xgb * p_xgb + w_lgb * p_lgb + w_ela * p_ela
+
+            low_val = float(self.model_lower.predict(curr_features)[0]) if self.model_lower else pred_val * 0.94
+            up_val = float(self.model_upper.predict(curr_features)[0]) if self.model_upper else pred_val * 1.06
 
             # Ensure logical quantile bounds
             low_val = min(low_val, pred_val * 0.94)
             up_val = max(up_val, pred_val * 1.06)
 
             predictions.append(round(pred_val, 2))
+            xgb_preds.append(round(p_xgb, 2))
+            lgb_preds.append(round(p_lgb, 2))
+            ela_preds.append(round(p_ela, 2))
             lower_bounds.append(round(low_val, 2))
             upper_bounds.append(round(up_val, 2))
 
@@ -231,10 +251,20 @@ class FreightMLForecaster:
         return {
             "forecast_dates": [d.strftime("%Y-%m-%d") for d in forecast_dates],
             "predictions_usd_per_mt": predictions,
+            "xgb_predictions_usd_per_mt": xgb_preds,
+            "lgb_predictions_usd_per_mt": lgb_preds,
+            "elastic_predictions_usd_per_mt": ela_preds,
             "lower_bound_80pct": lower_bounds,
             "upper_bound_80pct": upper_bounds,
+            "model_weights": self.model_weights,
             "top_driving_factors": importances,
-            "evaluation_metrics": self.metrics.get("ensemble", self.metrics.get("xgboost", {}))
+            "evaluation_metrics": self.metrics.get("ensemble", self.metrics.get("xgboost", {})),
+            "benchmarks": {
+                "ensemble": self.metrics.get("ensemble", {}),
+                "xgboost": self.metrics.get("xgboost", {}),
+                "lightgbm": self.metrics.get("lightgbm", {}),
+                "elasticnet": self.metrics.get("elasticnet", {})
+            }
         }
 
     def save_model(self, filepath: str = "models/freight_xgb_model.joblib"):
