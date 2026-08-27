@@ -41,4 +41,8 @@ export const getMarketTiming = (params) =>
 export const getDashboard = () =>
   api.get('/dashboard').then(r => r.data)
 
+// ─── Map Intelligence (GFW + AIS + Weather + FRED) ───────
+export const getMapIntelligence = () =>
+  api.get('/map-intelligence').then(r => r.data)
+
 export default api

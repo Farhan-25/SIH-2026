@@ -96,3 +96,22 @@
 - [x] Backend + Frontend simultaneous startup verified
 - [ ] Final git commit & push (on user request)
 - [ ] SIH Pitch/Presentation deck preparation
+
+---
+
+## 🌌 Phase 8: 3D UI, Map & Advanced Tracking
+- [ ] Upgrade UI with 3D elements and advanced aesthetics
+  - [ ] Integrate React Three Fiber/Three.js dependencies in the frontend
+  - [ ] Implement a 3D animated hero section/background for the dashboard
+  - [ ] Add glassmorphic 3D floating cards for key metrics (KPIs)
+  - [ ] "Humanize" the UI (break away from generic AI-like boilerplate, use organic layouts, custom typography, and curated color palettes)
+- [x] Map improvements (better styling, 3D map views, interactive elements)
+  - [x] Migrate from Leaflet to custom SVG vector map + Three.js 3D scene
+  - [x] Implement custom dark-mode styled base map with glowing animated trade routes
+  - [x] Add 3D models/markers for ports and geographic points of interest
+  - [x] Add interactive camera controls (tilt, rotate, zoom-to-entity)
+- [ ] Real-time ship and entity tracking system
+  - [ ] Set up WebSocket streaming for live vessel AIS coordinate updates
+  - [ ] Render 3D ship models matching vessel class (e.g., Handysize, Newcastlemax) on the map
+  - [ ] Implement predictive trajectory paths with animated particles along routes
+  - [ ] Add click-to-track functionality linking map entities to detailed live data panels

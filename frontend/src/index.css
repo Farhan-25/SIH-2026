@@ -643,22 +643,9 @@ select.form-control {
   .kpi-grid { grid-template-columns: 1fr; }
 }
 
-/* ----- Leaflet Map Override ----- */
-.leaflet-container {
-  background: var(--bg-secondary) !important;
+/* ----- 3D Map & Route Visualization ----- */
+.route-map-page canvas {
   border-radius: var(--radius-lg);
-}
-.leaflet-tile-pane {
-  filter: brightness(0.6) contrast(1.1) saturate(0.8);
-}
-.leaflet-popup-content-wrapper {
-  background: var(--bg-elevated) !important;
-  color: var(--text-primary) !important;
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--glass-shadow) !important;
-}
-.leaflet-popup-tip {
-  background: var(--bg-elevated) !important;
 }
 
 /* ============================================================
@@ -1194,3 +1181,36 @@ select.form-control {
   .footer-content { grid-template-columns: 1fr; }
 }
 
+/* ──── Mapbox Dark Theme Overrides ──── */
+.mapbox-dark-popup .mapboxgl-popup-content {
+  background: hsla(222,30%,9%,0.97) !important;
+  border: 1px solid hsla(200,60%,40%,0.3) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55) !important;
+  padding: 0 !important;
+}
+.mapbox-dark-popup .mapboxgl-popup-close-button {
+  color: #64748b !important;
+  font-size: 18px !important;
+  right: 8px !important;
+  top: 6px !important;
+  background: transparent !important;
+}
+.mapbox-dark-popup .mapboxgl-popup-close-button:hover { color: #e2e8f0 !important; }
+.mapbox-dark-popup .mapboxgl-popup-tip { border-top-color: hsla(222,30%,9%,0.97) !important; }
+
+.mapboxgl-ctrl-group {
+  background: hsla(220,25%,12%,0.92) !important;
+  border: 1px solid hsla(220,20%,28%,0.4) !important;
+  border-radius: 10px !important;
+}
+.mapboxgl-ctrl-group button { background: transparent !important; }
+.mapboxgl-ctrl-group button + button { border-top: 1px solid hsla(220,20%,28%,0.4) !important; }
+.mapboxgl-ctrl-icon { filter: invert(0.7) !important; }
+.mapboxgl-ctrl-scale {
+  background: hsla(220,25%,12%,0.85) !important;
+  border-color: hsla(220,20%,30%,0.5) !important;
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+}
+.mapboxgl-ctrl-attrib { display: none !important; }
