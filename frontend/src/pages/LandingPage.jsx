@@ -2,11 +2,10 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  MdShowChart, MdDirectionsBoat, MdMap, MdSecurity,
+  MdShowChart, MdDirectionsBoat, MdSecurity,
   MdTrendingUp, MdCheckCircle, MdArrowForward,
   MdSpeed, MdShield, MdAutoAwesome,
-  MdPlayArrow, MdOutlineDescription, MdSwapHoriz, MdChevronRight,
-  MdAnalytics, MdHelpOutline
+  MdPlayArrow, MdOutlineDescription, MdChevronRight
 } from 'react-icons/md'
 
 import { analyzeScenario } from '../api/client'
@@ -44,19 +43,6 @@ export default function LandingPage() {
     } finally {
       setSandboxLoading(false)
     }
-  }
-
-  const portsMap = {
-    AU_NEW: 'Newcastle (Australia)',
-    AU_HAY: 'Hay Point (Australia)',
-    ID_SMR: 'Samarinda (Indonesia)',
-    US_BAL: 'Baltimore (USA)',
-    RU_VOS: 'Vostochny (Russia)',
-    IN_PRT: 'Paradip Port (Odisha)',
-    IN_GNV: 'Gangavaram Port (AP)',
-    IN_HLD: 'Haldia Dock (West Bengal)',
-    IN_VZG: 'Visakhapatnam Port (AP)',
-    IN_DHM: 'Dhamra Port (Odisha)',
   }
 
   return (

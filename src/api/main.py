@@ -122,18 +122,42 @@ def get_all_routes():
     return db_manager.load_routes_master()
 
 
-ROUTE_ID_ALIASES = {
-    "au_par": "AU_NEW_TO_IN_PRT",
-    "au_viz": "AU_HAY_TO_IN_VTZ",
-    "id_gan": "ID_KLT_TO_IN_DHM",
-    "us_viz": "US_BAL_TO_IN_GNV",
-    "mz_hal": "MZ_BEI_TO_IN_GPL",
-    "ru_par": "RU_VOS_TO_IN_PRT",
-}
+def normalize_route_id(route_input: str) -> str:
+    """Dynamically resolves route input into standard route_id (e.g. AU_NEW_TO_IN_PRT, au_par, or port pairs)."""
+    r_clean = route_input.strip()
+    r_lower = r_clean.lower()
+    
+    # 1. Check direct match or case-insensitive match from database
+    routes_data = db_manager.load_routes_master()
+    routes_list = routes_data.get("trade_routes", []) if isinstance(routes_data, dict) else routes_data
+
+    for r in routes_list:
+        rid = r.get("route_id", "")
+        if rid.lower() == r_lower or rid.upper() == r_clean.upper():
+            return rid
+        orig = r.get("origin_port", "").lower().split("_")[-1]
+        dest = r.get("destination_port", "").lower().split("_")[-1]
+        orig_country = r.get("origin_port", "").lower().split("_")[0]
+        if r_lower in [f"{orig}_{dest}", f"{orig_country}_{dest[:3]}", f"{orig_country}_{dest}"]:
+            return rid
+
+    # 2. Known shorthand aliases
+    shorthands = {
+        "au_par": "AU_NEW_TO_IN_PRT",
+        "au_viz": "AU_HAY_TO_IN_VTZ",
+        "id_gan": "ID_KLT_TO_IN_DHM",
+        "id_dhm": "ID_KLT_TO_IN_DHM",
+        "us_viz": "US_BAL_TO_IN_GNV",
+        "mz_hal": "MZ_BEI_TO_IN_GPL",
+        "ru_par": "RU_VOS_TO_IN_PRT",
+        "us_nor": "US_NOR_TO_IN_PRT",
+    }
+    return shorthands.get(r_lower, route_input.upper())
+
 
 @app.post("/api/v1/forecast")
 def get_freight_forecast(req: ForecastRequest):
-    normalized_route_id = ROUTE_ID_ALIASES.get(req.route_id.lower(), req.route_id)
+    normalized_route_id = normalize_route_id(req.route_id)
     data_path = "data/processed/unified_freight_timeseries.csv"
     if not os.path.exists(data_path):
         return _generate_demo_forecast(req.horizon_weeks, req.vessel_class)
@@ -146,11 +170,20 @@ def get_freight_forecast(req: ForecastRequest):
         route_sub = df_raw[df_raw["route_id"] == normalized_route_id]
 
     if route_sub.empty:
+        # Fallback to vessel class alone
+        route_sub = df_raw[df_raw["vessel_class"] == req.vessel_class]
+
+    if route_sub.empty:
         return _generate_demo_forecast(req.horizon_weeks, req.vessel_class)
 
     forecast_res = ml_forecaster.predict_future(route_sub, horizon_weeks=req.horizon_weeks)
     latest_record = route_sub.iloc[-1].to_dict()
     current_spot = float(latest_record["freight_rate_usd_per_mt"])
+
+    # Extract historical time-series points (up to last 36 weeks) for chart continuity
+    hist_tail = route_sub.tail(36)
+    historical_dates = hist_tail["date"].tolist() if "date" in hist_tail.columns else []
+    historical_rates = hist_tail["freight_rate_usd_per_mt"].round(2).tolist() if "freight_rate_usd_per_mt" in hist_tail.columns else []
 
     deep_res = None
     if deep_forecaster.model is not None:
@@ -177,6 +210,8 @@ def get_freight_forecast(req: ForecastRequest):
         "vessel_class": req.vessel_class,
         "latest_actual_rate_usd_per_mt": current_spot,
         "latest_actual_date": latest_record["date"],
+        "historical_dates": historical_dates,
+        "historical_rates": historical_rates,
         "forecast_dates": forecast_res["forecast_dates"],
         "predictions_usd_per_mt": forecast_res["predictions_usd_per_mt"],
         "deep_predictions_usd_per_mt": deep_res["predictions_usd_per_mt"] if deep_res else None,
@@ -226,14 +261,28 @@ def assess_risk(req: RiskAssessRequest):
 
 @app.post("/api/v1/market-timing")
 def evaluate_market_timing(req: MarketTimingRequest):
-    """Evaluate spot vs contract strategy based on current rates."""
+    """Evaluate spot vs contract strategy based on actual model forward forecast."""
     try:
-        # Generate a simple forecast for timing evaluation
-        import numpy as np
-        base = req.current_spot_rate
-        forecast_rates = [round(base + np.random.normal(0.3, 0.5) * (i + 1) / 12, 2) for i in range(12)]
-        lower = [round(r * 0.92, 2) for r in forecast_rates]
-        upper = [round(r * 1.08, 2) for r in forecast_rates]
+        data_path = "data/processed/unified_freight_timeseries.csv"
+        forecast_rates = []
+        lower = []
+        upper = []
+
+        if os.path.exists(data_path):
+            df_raw = pd.read_csv(data_path)
+            v_sub = df_raw[df_raw["vessel_class"] == req.vessel_class]
+            if not v_sub.empty:
+                fc = ml_forecaster.predict_future(v_sub, horizon_weeks=12)
+                forecast_rates = fc.get("predictions_usd_per_mt", [])
+                lower = fc.get("lower_bound_80pct", [])
+                upper = fc.get("upper_bound_80pct", [])
+
+        if not forecast_rates:
+            # Deterministic calculation based on current spot rate and trend projection
+            base = req.current_spot_rate
+            forecast_rates = [round(base * (1.0 + 0.008 * (i + 1)), 2) for i in range(12)]
+            lower = [round(r * 0.94, 2) for r in forecast_rates]
+            upper = [round(r * 1.06, 2) for r in forecast_rates]
 
         return timing_engine.evaluate_strategy(
             current_spot_rate=req.current_spot_rate,
@@ -288,19 +337,42 @@ def run_full_scenario_analysis(req: ScenarioPlanRequest):
             "all_vessel_evaluations": [],
         }
 
-    rec_vessel = vessel_eval.get("recommended_vessel_name", vessel_eval.get("recommended_vessel_class"))
+    rec_vessel = vessel_eval.get("recommended_vessel_name", vessel_eval.get("recommended_vessel_class", "Panamax"))
+    rec_class = vessel_eval.get("recommended_vessel_class", "Panamax")
 
-    # 2. Freight Forecast
-    forecast_res = _generate_demo_forecast(req.horizon_weeks, rec_vessel)
+    # 2. Freight Forecast using actual model on matched corridor
+    data_path = "data/processed/unified_freight_timeseries.csv"
+    forecast_res = None
+    latest_spot = 16.50
+
+    if os.path.exists(data_path):
+        df_raw = pd.read_csv(data_path)
+        norm_orig = vessel_optimizer.PORT_ALIASES.get(req.origin_port_id.lower(), req.origin_port_id)
+        norm_dest = vessel_optimizer.PORT_ALIASES.get(req.dest_port_id.lower(), req.dest_port_id)
+
+        matched = df_raw[
+            (df_raw["route_id"].str.contains(norm_orig, case=False, na=False)) &
+            (df_raw["route_id"].str.contains(norm_dest, case=False, na=False))
+        ]
+        if matched.empty:
+            matched = df_raw[df_raw["vessel_class"] == rec_class]
+        if matched.empty:
+            matched = df_raw
+
+        if not matched.empty:
+            latest_spot = float(matched.iloc[-1]["freight_rate_usd_per_mt"])
+            forecast_res = ml_forecaster.predict_future(matched, horizon_weeks=req.horizon_weeks)
+
+    if not forecast_res:
+        forecast_res = _generate_demo_forecast(req.horizon_weeks, rec_class)
+        latest_spot = forecast_res["predictions_usd_per_mt"][0] if forecast_res.get("predictions_usd_per_mt") else 16.50
 
     # 3. Market Entry Timing
-    import numpy as np
-    latest_spot = 14.82
     timing_res = timing_engine.evaluate_strategy(
         current_spot_rate=latest_spot,
         forecast_rates=forecast_res.get("predictions_usd_per_mt", [latest_spot] * req.horizon_weeks),
-        forecast_lower=[latest_spot * 0.92] * req.horizon_weeks,
-        forecast_upper=[latest_spot * 1.08] * req.horizon_weeks,
+        forecast_lower=forecast_res.get("lower_bound_80pct", [latest_spot * 0.94] * req.horizon_weeks),
+        forecast_upper=forecast_res.get("upper_bound_80pct", [latest_spot * 1.06] * req.horizon_weeks),
         target_volume_mt=req.cargo_parcel_mt
     )
 
@@ -333,8 +405,7 @@ def run_full_scenario_analysis(req: ScenarioPlanRequest):
 
 
 def _generate_demo_forecast(horizon_weeks: int, vessel_class: str) -> Dict[str, Any]:
-    """Generate realistic demo forecast data when no trained model/data is available."""
-    import numpy as np
+    """Generate deterministic forecast fallback data when timeseries is not present."""
     from datetime import datetime, timedelta
 
     base_rates = {
@@ -346,12 +417,9 @@ def _generate_demo_forecast(horizon_weeks: int, vessel_class: str) -> Dict[str, 
     today = datetime.now()
 
     dates = [(today + timedelta(weeks=w)).strftime("%Y-%m-%d") for w in range(1, horizon_weeks + 1)]
-    # Use a seed based on route or current hour to avoid "negligible changes" while keeping short-term stability
-    import time
-    np.random.seed(int(time.time() / 3600) + hash(vessel_class) % 10000)
-    rates = [round(base + np.cumsum(np.random.normal(0.1, 0.4, i + 1))[-1], 2) for i in range(horizon_weeks)]
-    lower = [round(r * 0.92, 2) for r in rates]
-    upper = [round(r * 1.08, 2) for r in rates]
+    rates = [round(base * (1.0 + 0.005 * (i + 1)), 2) for i in range(horizon_weeks)]
+    lower = [round(r * 0.94, 2) for r in rates]
+    upper = [round(r * 1.06, 2) for r in rates]
 
     return {
         "forecast_dates": dates,
@@ -372,16 +440,67 @@ def _generate_demo_forecast(horizon_weeks: int, vessel_class: str) -> Dict[str, 
 _FRED_CACHE = {}
 _FRED_CACHE_TTL = 300
 
+
+def get_cached_fred_data() -> Dict[str, Any]:
+    """Shared cached macroeconomic series from FRED API."""
+    import time
+    import concurrent.futures
+    global _FRED_CACHE
+    now_ts = time.time()
+
+    if _FRED_CACHE and (now_ts - _FRED_CACHE.get("timestamp", 0)) < _FRED_CACHE_TTL:
+        return _FRED_CACHE.get("data", {})
+
+    fred_data = {}
+    try:
+        from src.data.fred_client import FREDClient
+        fred = FREDClient()
+        series_map = [
+            ("brent_crude", "DCOILBRENTEU"),
+            ("usd_inr", "DEXINUS"),
+            ("coal_price", "PCOALAUUSDM"),
+            ("iron_ore", "PIORECRUSDM"),
+            ("wti_crude", "DCOILWTICO"),
+        ]
+
+        def fetch_fred(label, series_id):
+            try:
+                df = fred.fetch_series(series_id)
+                if not df.empty:
+                    latest = df.iloc[-1]
+                    prev = df.iloc[-2] if len(df) > 1 else latest
+                    val = float(latest[series_id.lower()])
+                    prev_val = float(prev[series_id.lower()])
+                    pct_change = round(((val - prev_val) / prev_val) * 100, 2) if prev_val else 0
+                    return label, {
+                        "value": round(val, 2),
+                        "prev": round(prev_val, 2),
+                        "change_pct": pct_change,
+                        "date": latest["date"].strftime("%Y-%m-%d") if hasattr(latest["date"], "strftime") else str(latest["date"]),
+                    }
+            except Exception:
+                pass
+            return label, None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(fetch_fred, label, s_id) for label, s_id in series_map]
+            for future in concurrent.futures.as_completed(futures):
+                label, data = future.result()
+                if data:
+                    fred_data[label] = data
+
+        _FRED_CACHE = {"timestamp": now_ts, "data": fred_data}
+    except Exception as e:
+        print(f"FRED fetch notice: {e}")
+
+    return fred_data
+
+
 @app.get("/api/v1/dashboard")
 def get_dashboard_data():
     """
     Aggregated live dashboard data from FRED API, trained models, and OGD port stats.
     """
-    import numpy as np
-    import time
-    from datetime import datetime, timedelta
-    import concurrent.futures
-
     result = {
         "kpis": {},
         "alerts": [],
@@ -392,53 +511,7 @@ def get_dashboard_data():
     }
 
     # --- 1. Live FRED Data ---
-    global _FRED_CACHE
-    now_ts = time.time()
-    
-    if _FRED_CACHE and (now_ts - _FRED_CACHE.get("timestamp", 0)) < _FRED_CACHE_TTL:
-        fred_data = _FRED_CACHE["data"]
-    else:
-        fred_data = {}
-        try:
-            from src.data.fred_client import FREDClient
-            fred = FREDClient()
-            series_map = [
-                ("brent_crude", "DCOILBRENTEU"),
-                ("usd_inr", "DEXINUS"),
-                ("coal_price", "PCOALAUUSDM"),
-                ("iron_ore", "PIORECRUSDM"),
-                ("wti_crude", "DCOILWTICO"),
-            ]
-            
-            def fetch_fred(label, series_id):
-                try:
-                    df = fred.fetch_series(series_id)
-                    if not df.empty:
-                        latest = df.iloc[-1]
-                        prev = df.iloc[-2] if len(df) > 1 else latest
-                        val = float(latest[series_id.lower()])
-                        prev_val = float(prev[series_id.lower()])
-                        pct_change = round(((val - prev_val) / prev_val) * 100, 2) if prev_val else 0
-                        return label, {
-                            "value": round(val, 2),
-                            "prev": round(prev_val, 2),
-                            "change_pct": pct_change,
-                            "date": latest["date"].strftime("%Y-%m-%d") if hasattr(latest["date"], "strftime") else str(latest["date"]),
-                        }
-                except Exception:
-                    pass
-                return label, None
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                futures = [executor.submit(fetch_fred, label, s_id) for label, s_id in series_map]
-                for future in concurrent.futures.as_completed(futures):
-                    label, data = future.result()
-                    if data:
-                        fred_data[label] = data
-
-            _FRED_CACHE = {"timestamp": now_ts, "data": fred_data}
-        except Exception as e:
-            print(f"FRED fetch error: {e}")
+    fred_data = get_cached_fred_data()
 
     # --- 2. Model Metrics & Latest Freight Rates ---
     avg_freight_rate = None
@@ -752,54 +825,10 @@ def get_map_intelligence():
         print(f"Map Intel — Weather error: {e}")
         weather_status = f"error: {str(e)[:60]}"
 
-    # ── 4. FRED Market Indicators (reuse dashboard cache) ──
+    # ── 4. FRED Market Indicators (reuse shared cache) ──
     fred_status = "offline"
     try:
-        global _FRED_CACHE
-        if _FRED_CACHE and (now_ts - _FRED_CACHE.get("timestamp", 0)) < _FRED_CACHE_TTL:
-            fred_data = _FRED_CACHE["data"]
-        else:
-            fred_data = {}
-            try:
-                from src.data.fred_client import FREDClient
-                fred = FREDClient()
-                series_map = [
-                    ("brent_crude", "DCOILBRENTEU"),
-                    ("usd_inr", "DEXINUS"),
-                    ("coal_price", "PCOALAUUSDM"),
-                    ("iron_ore", "PIORECRUSDM"),
-                ]
-
-                def fetch_fred_series(label, series_id):
-                    try:
-                        df = fred.fetch_series(series_id)
-                        if not df.empty:
-                            latest = df.iloc[-1]
-                            prev = df.iloc[-2] if len(df) > 1 else latest
-                            val = float(latest[series_id.lower()])
-                            prev_val = float(prev[series_id.lower()])
-                            pct_change = round(((val - prev_val) / prev_val) * 100, 2) if prev_val else 0
-                            return label, {
-                                "value": round(val, 2),
-                                "prev": round(prev_val, 2),
-                                "change_pct": pct_change,
-                                "date": latest["date"].strftime("%Y-%m-%d") if hasattr(latest["date"], "strftime") else str(latest["date"]),
-                            }
-                    except Exception:
-                        pass
-                    return label, None
-
-                with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                    futures = [executor.submit(fetch_fred_series, label, s_id) for label, s_id in series_map]
-                    for future in concurrent.futures.as_completed(futures):
-                        label, data = future.result()
-                        if data:
-                            fred_data[label] = data
-
-                _FRED_CACHE = {"timestamp": now_ts, "data": fred_data}
-            except Exception as e:
-                print(f"Map Intel — FRED init error: {e}")
-
+        fred_data = get_cached_fred_data()
         result["market_indicators"] = fred_data
         fred_status = "connected" if fred_data else "no_data"
     except Exception as e:

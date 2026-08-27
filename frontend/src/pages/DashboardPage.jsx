@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import {
   MdTrendingUp, MdTrendingDown, MdDirectionsBoat,
   MdWaterDrop, MdWarning, MdCheckCircle, MdLocalGasStation,
-  MdAttachMoney, MdOpenInNew, MdNewspaper, MdPublic
+  MdAttachMoney, MdOpenInNew, MdPublic
 } from 'react-icons/md'
 import { getDashboard } from '../api/client'
 

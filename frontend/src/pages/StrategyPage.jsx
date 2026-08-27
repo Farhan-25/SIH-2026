@@ -1,87 +1,116 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import Plot from 'react-plotly.js'
-import {
-  MdTrendingUp, MdCompareArrows, MdPlayArrow,
-  MdTimer, MdLock
-} from 'react-icons/md'
-import { getMarketTiming } from '../api/client'
-
-const DEMO_TIMING = {
-  signal: 'ENTER_NOW_SPOT',
-  confidence: 82,
-  current_spot_rate: 14.82,
-  forward_3m_est: 16.10,
-  forward_6m_est: 15.40,
-  recommendation: 'Current spot rates are near 8-week lows. XGBoost forecast projects +8.6% upward movement over the next 12 weeks. Immediate spot chartering is recommended to lock in current favorable rates before anticipated Q4 cyclone-season risk premium increases.',
-  contract_comparison: [
-    {
-      strategy: 'Spot Charter (Immediate)',
-      rate: 14.82,
-      total_cost_75k: 1111500,
-      risk: 'Low (rate locked)',
-      flexibility: 'High (single voyage)',
-      recommendation: true,
-    },
-    {
-      strategy: 'Short-Term COA (3 months)',
-      rate: 15.40,
-      total_cost_75k: 1155000,
-      risk: 'Medium (fixed term)',
-      flexibility: 'Medium (3 voyages)',
-      recommendation: false,
-    },
-    {
-      strategy: 'Medium-Term Period Charter (6 months)',
-      rate: 14.95,
-      total_cost_75k: 1121250,
-      risk: 'Low (hedged)',
-      flexibility: 'Low (committed)',
-      recommendation: false,
-    },
-    {
-      strategy: 'Wait 4 Weeks',
-      rate: 15.60,
-      total_cost_75k: 1170000,
-      risk: 'High (market uncertainty)',
-      flexibility: 'High (uncommitted)',
-      recommendation: false,
-    },
-  ],
-}
+import { MdTrendingUp, MdCompareArrows } from 'react-icons/md'
+import { getMarketTiming, getForecast } from '../api/client'
 
 const SIGNAL_CONFIG = {
   ENTER_NOW_SPOT: { label: 'ENTER NOW — SPOT', color: 'var(--accent-emerald)', icon: '🟢', bgClass: 'enter' },
+  ENTER_NOW_TERM_CONTRACT: { label: 'ENTER NOW — TERM CONTRACT', color: 'var(--accent-ocean)', icon: '🔵', bgClass: 'enter' },
   ENTER_NOW_TERM: { label: 'ENTER NOW — TERM CONTRACT', color: 'var(--accent-ocean)', icon: '🔵', bgClass: 'enter' },
   WAIT_4W: { label: 'WAIT 4 WEEKS', color: 'var(--accent-amber)', icon: '🟡', bgClass: 'wait' },
   DEFER: { label: 'DEFER / EXIT', color: 'var(--accent-rose)', icon: '🔴', bgClass: 'exit' },
 }
 
-/* Rate curve data for chart */
-const generateRateCurve = () => {
-  const points = []
-  const labels = ['Spot', '1M', '2M', '3M', '4M', '5M', '6M', '9M', '12M']
-  const rates = [14.82, 15.10, 15.45, 16.10, 15.80, 15.60, 15.40, 15.20, 15.00]
-  labels.forEach((l, i) => points.push({ label: l, rate: rates[i] }))
-  return points
+const DEFAULT_TIMING = {
+  signal: 'ENTER_NOW_SPOT',
+  confidence: 82,
+  current_spot_rate: 14.82,
+  forward_3m_est: 16.10,
+  term_contract_rate: 15.20,
+  savings_usd: 58500,
+  recommendation: 'Current spot rates are near 8-week lows. Forward forecasts project upward momentum over the next 12 weeks. Immediate spot chartering is recommended before freight rate adjustments.',
 }
 
 export default function StrategyPage() {
-  const [timing, setTiming] = useState(DEMO_TIMING)
+  const [timing, setTiming] = useState(DEFAULT_TIMING)
+  const [curve, setCurve] = useState(() => [
+    { label: 'Spot', rate: 14.82 },
+    { label: '4W', rate: 15.10 },
+    { label: '8W', rate: 15.60 },
+    { label: '12W', rate: 16.10 },
+    { label: '16W', rate: 15.80 },
+    { label: '24W', rate: 15.40 },
+  ])
+
   const signalInfo = SIGNAL_CONFIG[timing.signal] || SIGNAL_CONFIG.ENTER_NOW_SPOT
-  const curve = generateRateCurve()
 
   useEffect(() => {
-    getMarketTiming({
-      current_spot_rate: 14.82,
-      vessel_class: 'Panamax',
-      target_volume_mt: 75000,
-    })
-      .then(data => {
-        if (data?.signal) setTiming(prev => ({ ...prev, ...data }))
+    Promise.all([
+      getMarketTiming({ current_spot_rate: 14.82, vessel_class: 'Panamax', target_volume_mt: 75000 }),
+      getForecast({ route_id: 'AU_NEW_TO_IN_PRT', vessel_class: 'Panamax', horizon_weeks: 24 })
+    ])
+      .then(([timeData, fcData]) => {
+        if (timeData) {
+          const spot = timeData.current_spot_usd_per_mt || 14.82
+          const p12w = timeData.projected_12w_avg_usd_per_mt || spot * 1.05
+          const termRate = timeData.term_contract_estimated_rate_usd_per_mt || spot * 0.98
+
+          setTiming({
+            signal: timeData.recommended_action || 'ENTER_NOW_SPOT',
+            confidence: timeData.confidence_score_pct || 82,
+            current_spot_rate: spot,
+            forward_3m_est: p12w,
+            term_contract_rate: termRate,
+            savings_usd: timeData.estimated_cost_savings_usd || 0,
+            recommendation: timeData.detailed_strategy || timeData.headline || DEFAULT_TIMING.recommendation,
+          })
+        }
+
+        if (fcData?.predictions_usd_per_mt) {
+          const preds = fcData.predictions_usd_per_mt
+          const spot = fcData.latest_actual_rate_usd_per_mt || preds[0] || 14.82
+          const dynamicCurve = [{ label: 'Spot', rate: spot }]
+          if (preds[3]) dynamicCurve.push({ label: '4W', rate: preds[3] })
+          if (preds[7]) dynamicCurve.push({ label: '8W', rate: preds[7] })
+          if (preds[11]) dynamicCurve.push({ label: '12W', rate: preds[11] })
+          if (preds[15]) dynamicCurve.push({ label: '16W', rate: preds[15] })
+          if (preds[23]) dynamicCurve.push({ label: '24W', rate: preds[23] })
+          setCurve(dynamicCurve)
+        }
       })
       .catch(() => {})
   }, [])
+
+  // Dynamically compute contract comparisons without redundancy
+  const contractComparison = useMemo(() => {
+    const spot = timing.current_spot_rate
+    const f3m = timing.forward_3m_est
+    const term = timing.term_contract_rate || +(spot * 0.98).toFixed(2)
+    const wait4w = +(spot * 1.04).toFixed(2)
+    const vol = 75000
+
+    return [
+      {
+        strategy: 'Spot Charter (Immediate)',
+        rate: spot,
+        total_cost: spot * vol,
+        risk: 'Low (rate locked)',
+        recommendation: timing.signal.includes('SPOT'),
+      },
+      {
+        strategy: 'Short-Term COA (3 months)',
+        rate: f3m,
+        total_cost: f3m * vol,
+        risk: 'Medium (fixed term)',
+        recommendation: false,
+      },
+      {
+        strategy: 'Medium-Term Period Contract (COA)',
+        rate: term,
+        total_cost: term * vol,
+        risk: 'Low (hedged)',
+        recommendation: timing.signal.includes('TERM'),
+      },
+      {
+        strategy: 'Wait 4 Weeks',
+        rate: wait4w,
+        total_cost: wait4w * vol,
+        risk: 'High (market uncertainty)',
+        recommendation: timing.signal.includes('WAIT'),
+      },
+    ]
+  }, [timing])
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -184,7 +213,7 @@ export default function StrategyPage() {
               </tr>
             </thead>
             <tbody>
-              {timing.contract_comparison.map((c, i) => (
+              {contractComparison.map((c, i) => (
                 <tr key={i} style={{
                   background: c.recommendation ? 'hsla(155, 70%, 45%, 0.06)' : 'transparent',
                 }}>
@@ -194,7 +223,7 @@ export default function StrategyPage() {
                   </td>
                   <td style={{ fontWeight: 600, color: 'var(--accent-ocean)' }}>${c.rate}/MT</td>
                   <td style={{ fontSize: 'var(--font-size-sm)' }}>
-                    ${(c.total_cost_75k / 1000).toFixed(0)}K
+                    ${(c.total_cost / 1000).toFixed(0)}K
                   </td>
                   <td>
                     <span className={`badge ${
@@ -214,8 +243,15 @@ export default function StrategyPage() {
               💡 Key Insight
             </div>
             <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Spot chartering saves <strong style={{ color: 'var(--accent-emerald)' }}>$58,500</strong> vs waiting 4 weeks.
-              Forward curve is in <strong>contango</strong> — rates expected to rise. Lock in now.
+              {timing.savings_usd > 0 ? (
+                <>
+                  Optimal strategy projects estimated cost savings of <strong style={{ color: 'var(--accent-emerald)' }}>${timing.savings_usd.toLocaleString()}</strong> across parcel commitment.
+                </>
+              ) : (
+                <>
+                  Current spot rate of <strong style={{ color: 'var(--accent-emerald)' }}>${timing.current_spot_rate}/MT</strong> offers balanced market entry without forward commitment premium.
+                </>
+              )}
             </div>
           </div>
         </div>

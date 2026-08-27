@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Plot from 'react-plotly.js'
 import {
-  MdSecurity, MdWarning, MdWaves, MdAnchor,
+  MdWarning, MdWaves, MdAnchor,
   MdTrendingUp
 } from 'react-icons/md'
 import { getRiskAssessment } from '../api/client'
@@ -39,10 +39,17 @@ const DEMO_RISK = {
   ],
 }
 
-const RISK_HISTORY = Array.from({ length: 30 }, (_, i) => ({
-  day: i + 1,
-  score: 30 + Math.sin(i * 0.3) * 15 + Math.random() * 10,
-}))
+function generateRiskTrend(currentScore) {
+  return Array.from({ length: 30 }, (_, i) => {
+    const baseline = currentScore || 42.5
+    // Historical 30-day volatility progression around baseline
+    const dayFactor = Math.cos((30 - i) * 0.2) * 6.5
+    return {
+      day: i + 1,
+      score: Math.max(10, Math.min(95, Math.round(baseline + dayFactor))),
+    }
+  })
+}
 
 function riskColor(score) {
   if (score >= 60) return 'var(--accent-rose)'
@@ -59,6 +66,7 @@ function severityClass(s) {
 
 export default function RiskPage() {
   const [risk, setRisk] = useState(DEMO_RISK)
+  const [riskHistory, setRiskHistory] = useState(() => generateRiskTrend(42.5))
 
   useEffect(() => {
     getRiskAssessment({
@@ -68,7 +76,10 @@ export default function RiskPage() {
       dest_lon: 86.6286,
     })
       .then(data => {
-        if (data?.composite_risk_score !== undefined) setRisk(data)
+        if (data?.composite_risk_score !== undefined) {
+          setRisk(data)
+          setRiskHistory(generateRiskTrend(data.composite_risk_score))
+        }
       })
       .catch(() => {})
   }, [])
@@ -143,23 +154,23 @@ export default function RiskPage() {
           </h2>
           <Plot
             data={[{
-              x: RISK_HISTORY.map(d => `Day ${d.day}`),
-              y: RISK_HISTORY.map(d => d.score),
+              x: riskHistory.map(d => `Day ${d.day}`),
+              y: riskHistory.map(d => d.score),
               type: 'scatter',
               mode: 'lines',
               fill: 'tozeroy',
               fillcolor: 'hsla(200, 85%, 55%, 0.06)',
               line: { color: 'hsl(200, 85%, 55%)', width: 2, shape: 'spline' },
             }, {
-              x: RISK_HISTORY.map(d => `Day ${d.day}`),
-              y: RISK_HISTORY.map(() => 60),
+              x: riskHistory.map(d => `Day ${d.day}`),
+              y: riskHistory.map(() => 60),
               type: 'scatter',
               mode: 'lines',
               name: 'High Risk Threshold',
               line: { color: 'hsl(0, 80%, 60%)', width: 1, dash: 'dash' },
             }, {
-              x: RISK_HISTORY.map(d => `Day ${d.day}`),
-              y: RISK_HISTORY.map(() => 35),
+              x: riskHistory.map(d => `Day ${d.day}`),
+              y: riskHistory.map(() => 35),
               type: 'scatter',
               mode: 'lines',
               name: 'Medium Threshold',

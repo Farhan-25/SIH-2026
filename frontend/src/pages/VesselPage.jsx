@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import Plot from 'react-plotly.js'
 import {
   MdDirectionsBoat, MdCheckCircle, MdCancel,
-  MdWarning, MdPlayArrow
+  MdWarning
 } from 'react-icons/md'
 import { getVesselRecommendation } from '../api/client'
 

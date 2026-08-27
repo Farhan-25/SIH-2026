@@ -4,7 +4,6 @@ import Plot from 'react-plotly.js'
 import {
   MdShowChart,
   MdAutoGraph,
-  MdPlayArrow,
   MdCheckCircle,
   MdTimeline,
   MdLightbulbOutline,
@@ -48,12 +47,12 @@ const HORIZONS = [4, 8, 12, 16, 24]
 const VESSEL_CLASSES = ['Panamax', 'Kamsarmax', 'Capesize', 'Supramax', 'Ultramax', 'Handysize']
 
 const ROUTES = [
-  { id: 'au_par', label: 'Newcastle → Paradip (Thermal Coal)' },
-  { id: 'au_viz', label: 'Hay Point → Vizag (Coking Coal)' },
-  { id: 'id_gan', label: 'Kalimantan → Dhamra (Thermal Coal)' },
-  { id: 'us_viz', label: 'Baltimore → Gangavaram (Coking Coal)' },
-  { id: 'mz_hal', label: 'Beira → Gopalpur (Thermal Coal)' },
-  { id: 'ru_par', label: 'Vostochny → Paradip (Anthracite Coal)' },
+  { id: 'AU_NEW_TO_IN_PRT', label: 'Newcastle → Paradip (Thermal Coal)' },
+  { id: 'AU_HAY_TO_IN_VTZ', label: 'Hay Point → Vizag (Coking Coal)' },
+  { id: 'ID_KLT_TO_IN_DHM', label: 'Kalimantan → Dhamra (Thermal Coal)' },
+  { id: 'US_BAL_TO_IN_GNV', label: 'Baltimore → Gangavaram (Coking Coal)' },
+  { id: 'MZ_BEI_TO_IN_GPL', label: 'Beira → Gopalpur (Thermal Coal)' },
+  { id: 'RU_VOS_TO_IN_PRT', label: 'Vostochny → Paradip (Anthracite Coal)' },
 ]
 
 const MODEL_MODES = [
@@ -76,13 +75,11 @@ function generateFallbackForecast(weeks) {
   const lower = []
 
   let rate = 16.5
-  for (let i = 36; i > 0; i--) {
+  for (let i = 24; i > 0; i--) {
     const d = new Date(today)
     d.setDate(d.getDate() - i * 7)
     dates.push(d.toISOString().slice(0, 10))
-    rate += (Math.random() - 0.48) * 0.7
-    rate = Math.max(10, Math.min(28, rate))
-    hist.push(+rate.toFixed(2))
+    hist.push(+(rate * (1 - 0.002 * i)).toFixed(2))
     pred.push(null)
     deepPred.push(null)
     xgbPred.push(null)
@@ -101,21 +98,19 @@ function generateFallbackForecast(weeks) {
   upper.push(currentRate)
   lower.push(currentRate)
 
-  let walk = currentRate
   for (let w = 1; w <= weeks; w++) {
     const d = new Date(today)
     d.setDate(d.getDate() + w * 7)
     dates.push(d.toISOString().slice(0, 10))
-    walk += (Math.random() - 0.46) * 0.45
-    walk = Math.max(10, Math.min(30, walk))
+    const walk = currentRate * (1 + 0.005 * w)
 
     hist.push(null)
     pred.push(+walk.toFixed(2))
-    deepPred.push(+(walk + (Math.random() - 0.5) * 0.3).toFixed(2))
-    xgbPred.push(+(walk + (Math.random() - 0.5) * 0.4).toFixed(2))
-    lgbPred.push(+(walk + (Math.random() - 0.5) * 0.35).toFixed(2))
-    upper.push(+(walk * 1.07).toFixed(2))
-    lower.push(+(walk * 0.93).toFixed(2))
+    deepPred.push(+(walk * 1.01).toFixed(2))
+    xgbPred.push(+(walk * 0.995).toFixed(2))
+    lgbPred.push(+(walk * 1.005).toFixed(2))
+    upper.push(+(walk * 1.06).toFixed(2))
+    lower.push(+(walk * 0.94).toFixed(2))
   }
 
   return { dates, hist, pred, deepPred, xgbPred, lgbPred, upper, lower, currentRate }
@@ -123,7 +118,7 @@ function generateFallbackForecast(weeks) {
 
 export default function ForecastPage() {
   const [horizon, setHorizon] = useState(12)
-  const [route, setRoute] = useState('au_par')
+  const [route, setRoute] = useState('AU_NEW_TO_IN_PRT')
   const [vesselClass, setVesselClass] = useState('Panamax')
   const [modelMode, setModelMode] = useState('compare')
   const [loading, setLoading] = useState(false)
@@ -167,26 +162,26 @@ export default function ForecastPage() {
       if (result?.forecast_dates || result?.forecast?.forecast_dates) {
         const payload = result.forecast_dates ? result : result.forecast
         const today = new Date()
-        const dates = []
-        const hist = []
+        let dates = []
+        let hist = []
 
         const baseRate = result.latest_actual_rate_usd_per_mt || payload.predictions_usd_per_mt[0] || 16.5
-        let walkRate = baseRate - 0.8
 
-        // 36 weeks historical context leading into anchor date
-        for (let i = 36; i > 0; i--) {
-          const d = new Date(today)
-          d.setDate(d.getDate() - i * 7)
-          dates.push(d.toISOString().slice(0, 10))
-          walkRate += (Math.random() - 0.48) * 0.55
-          walkRate = Math.max(8, Math.min(32, walkRate))
-          hist.push(+walkRate.toFixed(2))
+        // Use real historical timeseries from unified dataset if available
+        if (result.historical_dates && result.historical_dates.length > 0) {
+          dates = [...result.historical_dates]
+          hist = [...result.historical_rates]
+        } else {
+          // Clean calculated baseline
+          for (let i = 24; i > 0; i--) {
+            const d = new Date(today)
+            d.setDate(d.getDate() - i * 7)
+            dates.push(d.toISOString().slice(0, 10))
+            hist.push(+(baseRate * (1 - 0.002 * i)).toFixed(2))
+          }
+          dates.push(result.latest_actual_date || today.toISOString().slice(0, 10))
+          hist.push(+baseRate.toFixed(2))
         }
-
-        // Anchor Date (Bridge)
-        const anchorDate = result.latest_actual_date || today.toISOString().slice(0, 10)
-        dates.push(anchorDate)
-        hist.push(+baseRate.toFixed(2))
 
         const predPoints = payload.predictions_usd_per_mt.map(v => +v.toFixed(2))
         const deepPoints = result.deep_predictions_usd_per_mt ? result.deep_predictions_usd_per_mt.map(v => +v.toFixed(2)) : null
