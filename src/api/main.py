@@ -24,6 +24,8 @@ from src.models.deep_learning_forecaster import DeepLearningFreightForecaster
 from src.optimization.vessel_optimizer import VesselConstraintOptimizer
 from src.optimization.market_timing import MarketTimingEngine
 from src.risk.risk_engine import RiskAndDisruptionEngine
+from src.risk.geopolitical_risk import GeopoliticalRiskEngine
+from src.api.copilot_engine import MaritimeCopilotEngine
 
 app = FastAPI(
     title="SIH26006 Intelligent Freight Forecasting API",
@@ -47,6 +49,8 @@ weather_client = OpenMeteoMarineClient()
 vessel_optimizer = VesselConstraintOptimizer()
 timing_engine = MarketTimingEngine()
 risk_engine = RiskAndDisruptionEngine()
+geopolitical_engine = GeopoliticalRiskEngine()
+copilot_engine = MaritimeCopilotEngine()
 
 # Initialize and load models
 ml_forecaster = FreightMLForecaster()
@@ -94,6 +98,11 @@ class MarketTimingRequest(BaseModel):
     current_spot_rate: float = Field(14.82)
     vessel_class: str = Field("Panamax")
     target_volume_mt: float = Field(75000.0)
+
+
+class CopilotChatRequest(BaseModel):
+    message: str = Field(..., examples=["Why are freight rates rising for Newcastle to Paradip?"])
+    context: Optional[Dict[str, Any]] = None
 
 
 # --- Endpoints ---
@@ -894,6 +903,79 @@ def get_map_intelligence():
     _MAP_INTEL_CACHE = result
 
     return result
+
+
+@app.get("/api/v1/news")
+def get_maritime_news(limit: int = 50):
+    """Returns real-time maritime news processed with FinBERT sentiment and event tags."""
+    try:
+        articles = geopolitical_engine.get_processed_articles()
+        return {
+            "articles": articles[:limit],
+            "total_articles": len(articles),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/sentiment")
+def get_market_sentiment():
+    """Returns aggregated maritime market sentiment, historical trend, and distribution."""
+    try:
+        return geopolitical_engine.get_market_sentiment_summary()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/chokepoint-risk")
+def get_chokepoint_risks():
+    """Returns computed Disruption Risk Index across all major maritime chokepoints."""
+    try:
+        return geopolitical_engine.get_all_chokepoint_risks()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/geopolitical-alerts")
+def get_geopolitical_alerts():
+    """Returns active geopolitical shock alerts and actionable disruption warnings."""
+    try:
+        alerts = geopolitical_engine.detect_geopolitical_shocks_and_alerts()
+        return {
+            "alerts": alerts,
+            "total_active_alerts": len(alerts),
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/forecast/features")
+def get_nlp_forecast_features():
+    """Returns structured NLP signals and shock features for ML freight forecasting."""
+    try:
+        return geopolitical_engine.get_forecasting_nlp_features()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/copilot/overview")
+def get_copilot_overview():
+    """Returns an executive AI Copilot overview briefing of the current terminal and market state."""
+    try:
+        return copilot_engine.generate_overview_briefing()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/copilot/chat")
+def ask_copilot(req: CopilotChatRequest):
+    """Processes conversational questions on freight forecast drivers, SHAP values, and geopolitical risks."""
+    try:
+        return copilot_engine.answer_query(query=req.message, context=req.context)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/vessels")
