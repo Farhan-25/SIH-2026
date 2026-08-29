@@ -1301,3 +1301,770 @@ select.form-control {
   font-size: 10px !important;
 }
 .mapboxgl-ctrl-attrib { display: none !important; }
+
+/* ============================================================
+   FlightRadar24 Maritime Style Route Map Interface
+   ============================================================ */
+
+.fr24-map-container {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 120px);
+  min-height: 700px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  background: #030a18;
+}
+
+.fr24-map-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* ──── Top Left HUD ──── */
+.fr24-top-left-hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+}
+
+.fr24-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: hsla(220, 25%, 10%, 0.88);
+  border: 1px solid hsla(220, 20%, 35%, 0.4);
+  border-radius: var(--radius-lg);
+  padding: 6px 14px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.search-icon {
+  color: var(--accent-ocean);
+  margin-right: 8px;
+}
+
+.fr24-search-input {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  width: 260px;
+  outline: none;
+}
+
+.btn-clear-search {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.fr24-search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  max-height: 260px;
+  overflow-y: auto;
+  border-radius: var(--radius-md);
+  padding: 6px;
+  z-index: 50;
+  background: hsla(220, 28%, 10%, 0.95);
+  border: 1px solid var(--border-active);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
+}
+
+.dropdown-item {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.dropdown-item:hover {
+  background: hsla(200, 85%, 55%, 0.15);
+}
+
+.item-title {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: #fff;
+}
+
+.item-sub {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.fr24-stats-pill-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hud-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: hsla(220, 25%, 8%, 0.85);
+  border: 1px solid hsla(220, 20%, 30%, 0.35);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.hud-pill:hover {
+  border-color: var(--accent-ocean);
+  transform: translateY(-1px);
+}
+
+/* ──── Top Right HUD Controls ──── */
+.fr24-top-right-hud {
+  position: absolute;
+  top: 16px;
+  right: 60px;
+  z-index: 20;
+}
+
+.fr24-control-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--radius-lg);
+  background: hsla(220, 25%, 10%, 0.88);
+  border: 1px solid hsla(220, 20%, 35%, 0.4);
+  backdrop-filter: blur(16px);
+}
+
+.hud-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.hud-btn:hover {
+  color: var(--text-primary);
+  background: hsla(220, 20%, 20%, 0.6);
+}
+
+.hud-btn.active {
+  background: hsla(200, 85%, 55%, 0.2);
+  color: var(--accent-ocean);
+  border-color: hsla(200, 85%, 55%, 0.4);
+  font-weight: 600;
+}
+
+/* ──── FlightRadar24 Pop-up Side Card Drawer ──── */
+.fr24-side-drawer {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  bottom: 16px;
+  width: 360px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  border-radius: var(--radius-xl);
+  background: hsla(220, 30%, 8%, 0.94);
+  border: 1px solid hsla(200, 85%, 55%, 0.35);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 20px hsla(200, 85%, 55%, 0.15);
+  overflow-y: auto;
+}
+
+.fr24-port-drawer {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 340px;
+  z-index: 40;
+  padding: 20px;
+  border-radius: var(--radius-xl);
+  background: hsla(220, 30%, 8%, 0.94);
+  border: 1px solid hsla(155, 70%, 45%, 0.35);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+}
+
+.fr24-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  position: relative;
+}
+
+.fr24-vessel-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, hsla(200, 85%, 55%, 0.2), hsla(270, 70%, 60%, 0.2));
+  border: 1px solid var(--accent-ocean);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-ocean);
+  flex-shrink: 0;
+}
+
+.fr24-port-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.fr24-vessel-meta {
+  flex: 1;
+  overflow: hidden;
+}
+
+.fr24-callsign-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.fr24-badge-class {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent-ocean);
+  background: hsla(200, 85%, 55%, 0.15);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.fr24-mmsi {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.fr24-vessel-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fr24-flag-row {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.fr24-btn-close {
+  background: hsla(220, 20%, 20%, 0.6);
+  border: 1px solid hsla(220, 20%, 35%, 0.4);
+  color: var(--text-muted);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.fr24-btn-close:hover {
+  background: var(--accent-rose);
+  color: #fff;
+}
+
+/* ──── Route Bar in Card ──── */
+.fr24-route-box {
+  margin-top: 16px;
+  background: hsla(220, 25%, 12%, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+
+.fr24-route-endpoints {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.endpoint-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.endpoint-col.left { text-align: left; }
+.endpoint-col.right { text-align: right; }
+
+.port-code {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
+.port-full-name {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  max-width: 90px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-airplane-indicator {
+  position: relative;
+  flex: 1;
+  height: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.route-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-ocean), var(--accent-amber));
+  border-radius: 2px;
+}
+
+.route-ship-pin {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 0 6px var(--accent-ocean));
+}
+
+.fr24-progress-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 8px;
+}
+
+/* ──── Telemetry Grid ──── */
+.fr24-telemetry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.telemetry-cell {
+  background: hsla(220, 25%, 12%, 0.5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.cell-lbl {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cell-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+.cell-val.mono {
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.cell-val .unit {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ──── Cargo & Queue ──── */
+.fr24-cargo-box {
+  margin-top: 12px;
+  background: hsla(220, 25%, 12%, 0.5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+
+.cargo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.cargo-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cargo-amount {
+  font-weight: 700;
+  color: var(--accent-ocean);
+}
+
+.cargo-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.queue-alert-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: hsla(35, 95%, 60%, 0.1);
+  border: 1px solid hsla(35, 95%, 60%, 0.25);
+  font-size: 0.72rem;
+  color: var(--accent-amber);
+}
+
+.fr24-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+/* ──── Location Pins on Target Ports ──── */
+.port-location-pin {
+  cursor: pointer;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+}
+
+.port-pin-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.port-pin-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  transition: transform var(--transition-fast);
+}
+
+.port-pin-icon:hover {
+  transform: rotate(-45deg) scale(1.2);
+}
+
+.pin-symbol {
+  transform: rotate(45deg);
+  font-size: 11px;
+}
+
+.port-pin-badge {
+  margin-top: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: hsla(220, 25%, 8%, 0.9);
+  border: 1px solid;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+  display: flex;
+  gap: 4px;
+}
+
+/* ──── Interactive Vessel Marker (FR24 Chevron) ──── */
+.fr24-vessel-marker {
+  position: relative;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fr24-vessel-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fr24-pulse-ring {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid;
+  animation: vesselPing 2s ease-out infinite;
+}
+
+.fr24-ship-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.fr24-vessel-label {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: hsla(220, 25%, 10%, 0.9);
+  border: 1px solid var(--accent-ocean);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.fr24-vessel-marker:hover .fr24-vessel-label,
+.fr24-vessel-label.show {
+  display: block;
+}
+
+/* ──── Bottom Legend ──── */
+.fr24-bottom-legend {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: hsla(220, 25%, 8%, 0.88);
+  border: 1px solid hsla(220, 20%, 30%, 0.4);
+  border-radius: var(--radius-full);
+  padding: 6px 18px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.legend-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ship-icon-sample {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 10px solid;
+}
+
+.ship-icon-sample.underway { border-bottom-color: #38bdf8; }
+.ship-icon-sample.anchor { border-bottom-color: #f59e0b; }
+
+.track-sample {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.track-sample.past { background: #0ea5e9; }
+.track-sample.future { background: #f59e0b; }
+
+/* ──── FR24 Card Tabbed Navigation ──── */
+.fr24-tab-nav {
+  display: flex;
+  gap: 4px;
+  margin-top: 14px;
+  background: hsla(220, 25%, 12%, 0.6);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
+.tab-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab-pill:hover {
+  color: var(--text-primary);
+}
+
+.tab-pill.active {
+  background: hsla(200, 85%, 55%, 0.2);
+  color: var(--accent-ocean);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.fr24-tab-body {
+  margin-top: 10px;
+  flex: 1;
+}
+
+/* ──── FlightRadar24 Voyage Time Scrubber Bar ──── */
+.fr24-scrubber-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
+  border-radius: var(--radius-full);
+  background: hsla(220, 30%, 8%, 0.92);
+  border: 1px solid hsla(200, 85%, 55%, 0.35);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
+  min-width: 480px;
+}
+
+.scrubber-play-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-ocean);
+  border: none;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 0 12px var(--accent-ocean-glow);
+  transition: transform var(--transition-fast);
+}
+
+.scrubber-play-btn:hover {
+  transform: scale(1.1);
+}
+
+.scrubber-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  display: flex;
+  gap: 4px;
+}
+
+.scrubber-label strong {
+  color: var(--accent-ocean);
+}
+
+.scrubber-slider {
+  flex: 1;
+  accent-color: var(--accent-ocean);
+  cursor: pointer;
+}
+
+.scrubber-ticks {
+  display: flex;
+  gap: 8px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.scrubber-ticks span {
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.scrubber-ticks span.active {
+  color: #fff;
+  font-weight: 700;
+  background: hsla(200, 85%, 55%, 0.2);
+}
+
+/* ──── Active Ruler Floating HUD ──── */
+.fr24-ruler-hud {
+  position: absolute;
+  top: 76px;
+  right: 60px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 16px;
+  border-radius: var(--radius-lg);
+  background: hsla(220, 30%, 8%, 0.94);
+  border: 1px solid hsla(330, 85%, 60%, 0.4);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+  min-width: 280px;
+}
+
+

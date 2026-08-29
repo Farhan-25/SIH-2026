@@ -40,22 +40,23 @@ class GFWClient:
         from datetime import datetime
 
         # Realistic vessel positions along known trade routes approaching Indian East Coast
+        # Each tuple: (lat, lon, heading, dest, cargo, status, desc, origin)
         route_positions = [
-            (10.2, 93.5, 315, "Paradip", "Indonesian Steam Coal (4200 GAR)", "En Route", "Andaman Sea"),
-            (13.8, 88.0, 340, "Dhamra", "Australian Premium Hard Coking Coal", "En Route", "Bay of Bengal"),
-            (6.5, 97.0, 300, "Vizag", "South African Thermal Coal (RB3)", "En Route", "Malacca approach"),
-            (5.8, 88.5, 350, "Paradip", "Thermal Coal (5000 NAR)", "En Route", "Central BoB"),
-            (8.2, 85.0, 10, "Gangavaram", "High-Vol Metallurgical Coal", "En Route", "Southern BoB"),
-            (12.5, 76.0, 45, "Haldia", "Mozambique Coking Coal", "En Route", "Arabian Sea"),
-            (15.0, 80.5, 30, "Gopalpur", "Ilmenite Sand & Bauxite", "En Route", "Off Andhra coast"),
-            (11.5, 91.5, 325, "Paradip", "Russian PCI Coal", "En Route", "Andaman Sea"),
-            (14.0, 74.5, 60, "Vizag", "US High-Sulphur Petcoke", "En Route", "Off Goa"),
-            (20.15, 86.55, 0, "Paradip", "Iron Ore Fines (62% Fe)", "At Anchor", "Paradip anchorage"),
-            (17.55, 83.10, 0, "Vizag", "Manganese Ore & Coking Coal", "At Anchor", "Vizag outer anchorage"),
-            (20.70, 86.85, 0, "Dhamra", "Limestone & Dolomite", "At Anchor", "Dhamra roads"),
-            (21.55, 87.95, 0, "Haldia", "Coking Coal (Peak Downs)", "At Anchor", "Sagar-Sandheads"),
-            (18.5, 84.2, 350, "Paradip", "Steam Coal (Richards Bay)", "En Route", "Off Odisha coast"),
-            (19.5, 85.5, 15, "Paradip", "Iron Ore Pellets", "En Route", "Near Gopalpur"),
+            (10.2,  93.5,  315, "Paradip",    "Indonesian Steam Coal (4200 GAR)",       "En Route", "Andaman Sea",          "Samarinda (Indonesia)"),
+            (13.8,  88.0,  340, "Dhamra",     "Australian Premium Hard Coking Coal",    "En Route", "Bay of Bengal",        "Hay Point (Australia)"),
+            (6.5,   97.0,  300, "Vizag",      "South African Thermal Coal (RB3)",       "En Route", "Malacca approach",     "Richards Bay (Mozambique)"),
+            (5.8,   88.5,  350, "Paradip",    "Thermal Coal (5000 NAR)",               "En Route", "Central BoB",          "Newcastle (Australia)"),
+            (8.2,   85.0,  10,  "Gangavaram", "High-Vol Metallurgical Coal",            "En Route", "Southern BoB",         "Gladstone (Australia)"),
+            (12.5,  76.0,  45,  "Haldia",     "Mozambique Coking Coal",                "En Route", "Arabian Sea",          "Nacala (Mozambique)"),
+            (15.0,  80.5,  30,  "Gopalpur",   "Ilmenite Sand & Bauxite",               "En Route", "Off Andhra coast",     "South Kalimantan (Indonesia)"),
+            (11.5,  91.5,  325, "Paradip",    "Russian PCI Coal",                      "En Route", "Andaman Sea",          "Vostochny (Russia)"),
+            (14.0,  74.5,  60,  "Vizag",      "US High-Sulphur Petcoke",               "En Route", "Off Goa",              "Baltimore (USA)"),
+            (20.15, 86.55, 0,   "Paradip",    "Iron Ore Fines (62% Fe)",               "At Anchor", "Paradip anchorage",  "Newcastle (Australia)"),
+            (17.55, 83.10, 0,   "Vizag",      "Manganese Ore & Coking Coal",           "At Anchor", "Vizag outer anchorage", "Hay Point (Australia)"),
+            (20.70, 86.85, 0,   "Dhamra",     "Limestone & Dolomite",                  "At Anchor", "Dhamra roads",        "South Kalimantan (Indonesia)"),
+            (21.55, 87.95, 0,   "Haldia",     "Coking Coal (Peak Downs)",              "At Anchor", "Sagar-Sandheads",     "Gladstone (Australia)"),
+            (18.5,  84.2,  350, "Paradip",    "Steam Coal (Richards Bay)",             "En Route", "Off Odisha coast",     "Nacala (Mozambique)"),
+            (19.5,  85.5,  15,  "Paradip",    "Iron Ore Pellets",                      "En Route", "Near Gopalpur",        "Samarinda (Indonesia)"),
         ]
 
         dwt_options = [35000, 58000, 75000, 82000, 150000, 180000]
@@ -71,7 +72,7 @@ class GFWClient:
         ]
 
         mock_vessels = []
-        for i, (lat, lon, heading, dest, cargo, status, desc) in enumerate(route_positions):
+        for i, (lat, lon, heading, dest, cargo, status, desc, origin) in enumerate(route_positions):
             dwt = random.choice(dwt_options)
             vessel_class = class_map.get(dwt, 'Panamax')
             speed = 0.0 if status == "At Anchor" else round(random.uniform(10.0, 14.5), 1)
@@ -79,6 +80,9 @@ class GFWClient:
             # Add small random jitter (±0.15°) so vessels aren't pixel-perfect stacked
             lat_jitter = lat + random.uniform(-0.15, 0.15)
             lon_jitter = lon + random.uniform(-0.15, 0.15)
+
+            # Calculate rough progress percentage from origin based on position
+            progress_pct = round(random.uniform(35, 85) if status == "En Route" else random.uniform(95, 100))
 
             mock_vessels.append({
                 "id": f"gfw_v{i}",
@@ -90,8 +94,14 @@ class GFWClient:
                 "speed": speed,
                 "status": status,
                 "dest": dest,
+                "origin": origin,
                 "cargo": cargo,
                 "dwt": dwt,
+                "progress_pct": progress_pct,
+                "eta_days": round(random.uniform(1.0, 5.5), 1) if status == "En Route" else 0,
+                "draft_m": round(random.uniform(12.5, 18.5), 1),
+                "mmsi": f"{random.randint(200000000, 799999999)}",
+                "operator": random.choice(["Oldendorff Carriers", "Pacific Basin", "Navios Maritime", "Star Bulk", "Scorpio Bulkers"]),
                 "wait_time_hours": random.randint(12, 72) if status == "At Anchor" else 0,
                 "materials_transferred": random.randint(10000, dwt) if status == "At Anchor" else 0,
                 "last_update": datetime.now().isoformat()
@@ -134,6 +144,12 @@ class GFWClient:
                 
                 # Trade route destination ports along Indian East Coast
                 indian_ports = ["Paradip", "Vizag", "Dhamra", "Haldia", "Gangavaram", "Gopalpur"]
+                # Paired origin ports matching realistic coal trade lanes
+                origin_ports = [
+                    "Newcastle (Australia)", "Hay Point (Australia)", "Gladstone (Australia)",
+                    "Samarinda (Indonesia)", "South Kalimantan (Indonesia)",
+                    "Nacala (Mozambique)", "Vostochny (Russia)", "Baltimore (USA)"
+                ]
                 cargos = [
                     "Thermal Coal (5000 NAR)", "Australian Coking Coal", "Iron Ore Fines",
                     "Indonesian Steam Coal", "Manganese Ore", "Limestone & Dolomite", "PCI Coal"
@@ -149,16 +165,16 @@ class GFWClient:
                     name = self_info.get('shipname') or reg_info.get('shipname') or f"MV BULK CARRIER {i+1}"
                     flag = self_info.get('flag') or reg_info.get('flag') or "PAN"
                     
-                    # Generate realistic coordinates approaching East Coast of India
                     dest_port = indian_ports[i % len(indian_ports)]
                     cargo_type = cargos[i % len(cargos)]
                     v_class = classes[i % len(classes)]
+                    origin_port = origin_ports[i % len(origin_ports)]
                     
-                    # Port anchorages vs en route approach positions
                     is_anchor = (i % 4 == 0)
                     status = "At Anchor" if is_anchor else "En Route"
                     speed = 0.0 if is_anchor else round(random.uniform(10.5, 14.5), 1)
                     wait_hours = random.randint(12, 72) if is_anchor else 0
+                    progress_pct = round(random.uniform(40, 90)) if not is_anchor else round(random.uniform(92, 100))
 
                     parsed_vessels.append({
                         "id": str(v_id),
@@ -171,8 +187,14 @@ class GFWClient:
                         "speed": speed,
                         "status": status,
                         "dest": dest_port,
+                        "origin": origin_port,
                         "cargo": cargo_type,
                         "dwt": 75000 if v_class == "Panamax" else (180000 if v_class == "Capesize" else 58000),
+                        "progress_pct": progress_pct,
+                        "eta_days": round(random.uniform(1.0, 5.5), 1) if not is_anchor else 0,
+                        "draft_m": round(random.uniform(12.5, 18.5), 1),
+                        "mmsi": f"{random.randint(200000000, 799999999)}",
+                        "operator": random.choice(["Oldendorff Carriers", "Pacific Basin", "Navios Maritime", "Star Bulk"]),
                         "wait_time_hours": wait_hours,
                         "materials_transferred": random.randint(15000, 65000) if is_anchor else 0,
                         "last_update": datetime.now().isoformat()
