@@ -43,6 +43,7 @@
 
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Libre Baskerville', Georgia, Cambria, 'Times New Roman', serif;
   --font-size-xs: 0.7rem;
   --font-size-sm: 0.8rem;
   --font-size-base: 0.9rem;
@@ -722,28 +723,107 @@ select.form-control {
   gap: 12px;
 }
 
-/* ──── Hero ──── */
+/* ──── Global Full-Page Video Background for Landing Page ──── */
+.landing-container.full-page-video-active {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.landing-global-video-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.global-bg-video {
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+  object-position: center 40%;
+  filter: brightness(0.48) saturate(1.25) contrast(1.15);
+  transform: scale(1.02);
+}
+
+.global-video-scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 35%,
+    rgba(10, 14, 23, 0.42) 0%,
+    rgba(10, 14, 23, 0.78) 60%,
+    rgba(10, 14, 23, 0.96) 100%
+  );
+  backdrop-filter: blur(1px);
+}
+
+.landing-nav.glass-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(20px);
+  background: hsla(220, 25%, 6%, 0.65);
+  border-bottom: 1px solid hsla(220, 20%, 40%, 0.25);
+}
+
+/* Floating video pause/play toggle */
+.hero-video-control.fixed-video-control {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: hsla(220, 25%, 12%, 0.75);
+  border: 1px solid hsla(200, 85%, 55%, 0.4);
+  color: var(--text-primary);
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  transition: var(--transition-fast);
+}
+
+.hero-video-control.fixed-video-control:hover {
+  background: var(--accent-ocean);
+  color: #fff;
+  transform: scale(1.1);
+  box-shadow: 0 0 16px var(--accent-ocean-glow);
+}
+
+/* ──── Hero Section ──── */
 .landing-hero {
   position: relative;
-  padding: 80px 48px 60px;
+  z-index: 2;
+  padding: 100px 48px 80px;
   text-align: center;
   max-width: 1200px;
   margin: 0 auto;
 }
+
 .hero-glow-bg {
   position: absolute;
-  top: -100px;
+  top: -80px;
   left: 50%;
   transform: translateX(-50%);
-  width: 600px;
-  height: 400px;
-  background: radial-gradient(circle, hsla(200, 85%, 55%, 0.18), transparent 70%);
+  width: 650px;
+  height: 380px;
+  background: radial-gradient(circle, hsla(200, 85%, 55%, 0.22), transparent 70%);
   pointer-events: none;
-  filter: blur(40px);
+  filter: blur(50px);
 }
+
 .hero-content {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 .hero-pill-badge {
   display: inline-flex;
@@ -762,12 +842,13 @@ select.form-control {
   color: var(--accent-amber);
 }
 .hero-title {
-  font-size: 3.2rem;
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -1px;
-  max-width: 900px;
-  margin: 0 auto 20px;
+  font-family: var(--font-serif);
+  font-size: 3.3rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+  max-width: 950px;
+  margin: 0 auto 24px;
 }
 .text-gradient {
   background: linear-gradient(135deg, var(--accent-ocean), var(--accent-emerald));
@@ -821,12 +902,15 @@ select.form-control {
 
 /* ──── Sections ──── */
 .landing-section {
+  position: relative;
+  z-index: 2;
   padding: 80px 48px;
   max-width: 1200px;
   margin: 0 auto;
 }
 .landing-section.bg-alt {
-  background: hsla(220, 22%, 8%, 0.6);
+  background: hsla(220, 22%, 8%, 0.75);
+  backdrop-filter: blur(12px);
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
   max-width: 100%;
@@ -847,9 +931,10 @@ select.form-control {
   display: block;
 }
 .section-title {
-  font-size: 2.2rem;
-  font-weight: 800;
-  letter-spacing: -0.5px;
+  font-family: var(--font-serif);
+  font-size: 2.3rem;
+  font-weight: 700;
+  letter-spacing: -0.3px;
   margin-bottom: 12px;
 }
 .section-subtitle {
@@ -1120,6 +1205,8 @@ select.form-control {
 
 /* ──── Footer ──── */
 .landing-footer {
+  position: relative;
+  z-index: 2;
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-subtle);
   padding: 60px 48px 30px;

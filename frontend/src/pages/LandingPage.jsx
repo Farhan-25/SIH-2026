@@ -1,17 +1,34 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   MdShowChart, MdDirectionsBoat, MdSecurity,
   MdTrendingUp, MdCheckCircle, MdArrowForward,
   MdSpeed, MdShield, MdAutoAwesome,
-  MdPlayArrow, MdOutlineDescription, MdChevronRight
+  MdPlayArrow, MdOutlineDescription, MdChevronRight,
+  MdPause
 } from 'react-icons/md'
 
 import { analyzeScenario } from '../api/client'
 
 export default function LandingPage() {
   const navigate = useNavigate()
+
+  // Video Background Controls
+  const videoRef = useRef(null)
+  const [isPlaying, setIsPlaying] = useState(true)
+
+  const toggleVideo = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause()
+        setIsPlaying(false)
+      } else {
+        videoRef.current.play()
+        setIsPlaying(true)
+      }
+    }
+  }
 
   // Interactive Sandbox State
   const [cargoType, setCargoType] = useState('Thermal Coal')
@@ -46,9 +63,37 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="landing-container">
+    <div className="landing-container full-page-video-active">
+      {/* ──── Full Page Maritime Video Background ──── */}
+      <div className="landing-global-video-bg">
+        <video
+          ref={videoRef}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="global-bg-video"
+          poster="https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1920&q=80"
+        >
+          <source
+            src="/videos/hero-video.mp4"
+            type="video/mp4"
+          />
+        </video>
+        <div className="global-video-scrim"></div>
+      </div>
+
+      <button
+        onClick={toggleVideo}
+        className="hero-video-control fixed-video-control"
+        title={isPlaying ? 'Pause Background Video' : 'Play Background Video'}
+        aria-label="Toggle Background Video"
+      >
+        {isPlaying ? <MdPause size={18} /> : <MdPlayArrow size={18} />}
+      </button>
+
       {/* ──── Top Landing Navbar ──── */}
-      <header className="landing-nav">
+      <header className="landing-nav glass-nav">
         <div className="landing-nav-brand">
           <span className="brand-logo">🚢</span>
           <div className="brand-title-group">
@@ -136,6 +181,7 @@ export default function LandingPage() {
           </div>
         </motion.div>
       </section>
+
 
       {/* ──── Live Interactive Freight Sandbox Section ──── */}
       <section id="sandbox" className="landing-section">
