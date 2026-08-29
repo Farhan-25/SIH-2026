@@ -139,7 +139,7 @@ body::before {
   background: hsla(220, 15%, 50%, 0.6);
 }
 
-/* ----- Layout ----- */
+/* ----- Layout & Collapsible Sidebar ----- */
 .app-layout {
   display: flex;
   min-height: 100vh;
@@ -152,6 +152,42 @@ body::before {
   padding-top: calc(var(--header-height) + var(--space-lg));
   transition: margin-left var(--transition-base);
   max-width: 100%;
+}
+
+.app-layout.sidebar-collapsed .main-content {
+  margin-left: 0;
+}
+
+.app-layout.sidebar-collapsed .top-header {
+  left: 0;
+}
+
+.app-layout.sidebar-collapsed .sidebar {
+  transform: translateX(-100%);
+}
+
+/* Cascade Sidebar Toggle Button */
+.cascade-sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-right: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.cascade-sidebar-toggle:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-ocean);
+  color: var(--accent-ocean);
+  transform: scale(1.05);
 }
 
 /* ----- Glass Card ----- */
@@ -236,7 +272,6 @@ body::before {
   pointer-events: none;
 }
 
-/* KPI accent variants */
 .kpi-card.ocean .kpi-icon { background: hsla(200, 85%, 55%, 0.15); color: var(--accent-ocean); }
 .kpi-card.ocean::after { background: var(--accent-ocean); }
 .kpi-card.emerald .kpi-icon { background: hsla(155, 70%, 45%, 0.15); color: var(--accent-emerald); }
@@ -261,7 +296,7 @@ body::before {
   display: flex;
   flex-direction: column;
   z-index: 100;
-  transition: width var(--transition-base);
+  transition: transform var(--transition-base), width var(--transition-base);
 }
 
 .sidebar-brand {
@@ -2065,6 +2100,19 @@ select.form-control {
   backdrop-filter: blur(16px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
   min-width: 280px;
+}
+
+/* ──── Bloomberg Terminal Mode Styles ──── */
+.bloomberg-terminal-container {
+  letter-spacing: -0.01em;
+}
+
+.bloomberg-terminal-container table tbody tr:hover {
+  background: rgba(31, 111, 235, 0.15) !important;
+}
+
+.bb-vessel-marker:hover {
+  transform: scale(1.3);
 }
 
 

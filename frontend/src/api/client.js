@@ -45,4 +45,27 @@ export const getDashboard = () =>
 export const getMapIntelligence = () =>
   api.get('/map-intelligence').then(r => r.data)
 
+// ─── Maritime Market Intelligence & Geopolitical Risk ───
+export const getMaritimeNews = (limit = 50) =>
+  api.get(`/news?limit=${limit}`).then(r => r.data)
+
+export const getMarketSentiment = () =>
+  api.get('/sentiment').then(r => r.data)
+
+export const getChokepointRisks = () =>
+  api.get('/chokepoint-risk').then(r => r.data)
+
+export const getGeopoliticalAlerts = () =>
+  api.get('/geopolitical-alerts').then(r => r.data)
+
+export const getNLPForecastFeatures = () =>
+  api.get('/forecast/features').then(r => r.data)
+
+// ─── AI Maritime Intelligence Copilot ───────────────────
+export const getCopilotOverview = () =>
+  api.get('/copilot/overview').then(r => r.data)
+
+export const askCopilot = (message, context = null) =>
+  api.post('/copilot/chat', { message, context }).then(r => r.data)
+
 export default api

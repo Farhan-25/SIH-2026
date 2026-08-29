@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   MdDashboard, MdShowChart, MdDirectionsBoat,
   MdMap, MdSecurity, MdTrendingUp, MdNotifications,
-  MdSettings, MdHome
+  MdSettings, MdHome, MdMenu, MdMenuOpen, MdChevronLeft, MdChevronRight,
+  MdSmartToy
 } from 'react-icons/md'
 
 import LandingPage from './pages/LandingPage'
@@ -14,10 +15,12 @@ import VesselPage from './pages/VesselPage'
 import RouteMapPage from './pages/RouteMapPage'
 import RiskPage from './pages/RiskPage'
 import StrategyPage from './pages/StrategyPage'
+import CopilotPage from './pages/CopilotPage'
 
 const navItems = [
   { to: '/', icon: <MdHome />, label: 'Product Landing', section: 'Overview' },
   { to: '/dashboard', icon: <MdDashboard />, label: 'Command Center', section: 'Overview' },
+  { to: '/copilot', icon: <MdSmartToy />, label: 'AI Copilot', section: 'Analytics' },
   { to: '/forecast', icon: <MdShowChart />, label: 'Forecast', section: 'Analytics' },
   { to: '/vessels', icon: <MdDirectionsBoat />, label: 'Vessels', section: 'Analytics' },
   { to: '/routes', icon: <MdMap />, label: 'Route Map', section: 'Analytics' },
@@ -35,6 +38,7 @@ const pageTransition = {
 const pageTitles = {
   '/': 'Product Landing Page',
   '/dashboard': 'Command Center',
+  '/copilot': 'AI Maritime Intelligence Copilot',
   '/forecast': 'Freight Rate Forecasting',
   '/vessels': 'Vessel Optimization',
   '/routes': 'Maritime Route Intelligence',
@@ -45,6 +49,7 @@ const pageTitles = {
 export default function App() {
   const location = useLocation()
   const [alertCount] = useState(3)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const isLandingPage = location.pathname === '/'
 
@@ -69,14 +74,24 @@ export default function App() {
   }
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       {/* ──── Sidebar ──── */}
       <aside className="sidebar">
-        <div className="sidebar-brand">
-          <div className="brand-icon">🚢</div>
-          <div className="brand-text">
-            <h2>FreightIQ</h2>
+        <div className="sidebar-brand" style={{ justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+            <div className="brand-icon">🚢</div>
+            <div className="brand-text">
+              <h2>FreightIQ</h2>
+            </div>
           </div>
+          <button
+            onClick={() => setSidebarCollapsed(true)}
+            className="btn btn-ghost"
+            title="Collapse Sidebar"
+            style={{ padding: '6px', minWidth: 'auto', color: 'var(--text-muted)' }}
+          >
+            <MdChevronLeft size={22} />
+          </button>
         </div>
 
         <nav className="sidebar-nav">
@@ -114,7 +129,16 @@ export default function App() {
 
       {/* ──── Header ──── */}
       <header className="top-header">
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          {/* Cascade Drop/Toggle Sidebar Button */}
+          <button
+            className="cascade-sidebar-toggle"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+            title={sidebarCollapsed ? "Expand Sidebar" : "Cascade / Drop Sidebar"}
+          >
+            {sidebarCollapsed ? <MdMenu size={20} /> : <MdMenuOpen size={20} />}
+          </button>
+
           <h1 className="header-title">{pageTitles[location.pathname] || 'FreightIQ'}</h1>
         </div>
         <div className="header-actions">
@@ -140,6 +164,7 @@ export default function App() {
           <motion.div key={location.pathname} {...pageTransition}>
             <Routes location={location}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/copilot" element={<CopilotPage />} />
               <Route path="/forecast" element={<ForecastPage />} />
               <Route path="/vessels" element={<VesselPage />} />
               <Route path="/routes" element={<RouteMapPage />} />
