@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
+import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -61,6 +61,7 @@ export default function App() {
         <motion.div key={location.pathname} {...pageTransition}>
           <Routes location={location}>
             <Route path="/" element={<LandingPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </motion.div>
       </AnimatePresence>
@@ -144,6 +145,7 @@ export default function App() {
               <Route path="/routes" element={<RouteMapPage />} />
               <Route path="/risk" element={<RiskPage />} />
               <Route path="/strategy" element={<StrategyPage />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </motion.div>
         </AnimatePresence>
@@ -151,3 +153,4 @@ export default function App() {
     </div>
   )
 }
+
