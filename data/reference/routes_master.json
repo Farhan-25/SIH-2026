@@ -11,7 +11,12 @@
       "typical_vessel_classes": ["Panamax", "Kamsarmax", "Capesize"],
       "chokepoints": ["Torres Strait / Great Barrier Reef / Sunda/Lombok Strait"],
       "typical_sailing_days_laden": 18.0,
-      "typical_sailing_days_ballast": 16.0
+      "typical_sailing_days_ballast": 16.0,
+      "waypoints": [
+        [151.78, -32.92], [153.5, -28.0], [152.0, -20.0], [142.5, -10.5],
+        [130.0, -9.0], [120.0, -9.5], [115.7, -8.6], [105.0, -8.0],
+        [95.0, 3.0], [90.0, 9.0], [87.0, 15.0], [86.6711, 20.2644]
+      ]
     },
     {
       "route_id": "AU_HAY_TO_IN_VTZ",
@@ -24,7 +29,12 @@
       "typical_vessel_classes": ["Panamax", "Capesize"],
       "chokepoints": ["Torres Strait / Sunda Strait"],
       "typical_sailing_days_laden": 16.5,
-      "typical_sailing_days_ballast": 14.5
+      "typical_sailing_days_ballast": 14.5,
+      "waypoints": [
+        [149.30, -21.28], [152.0, -20.0], [142.5, -10.5], [130.0, -9.0],
+        [120.0, -9.5], [115.7, -8.6], [105.0, -8.0], [95.0, 3.0],
+        [88.0, 9.0], [84.5, 14.0], [83.2185, 17.6868]
+      ]
     },
     {
       "route_id": "AU_GLA_TO_IN_GNV",
@@ -37,7 +47,12 @@
       "typical_vessel_classes": ["Capesize", "Newcastlemax"],
       "chokepoints": ["Lombok Strait"],
       "typical_sailing_days_laden": 17.0,
-      "typical_sailing_days_ballast": 15.0
+      "typical_sailing_days_ballast": 15.0,
+      "waypoints": [
+        [151.25, -23.84], [153.0, -22.0], [142.5, -10.5], [130.0, -9.0],
+        [120.0, -9.5], [115.7, -8.6], [105.0, -8.0], [95.0, 3.0],
+        [88.0, 9.0], [84.0, 14.0], [83.2389, 17.6186]
+      ]
     },
     {
       "route_id": "ID_KLT_TO_IN_PRT",
@@ -50,7 +65,11 @@
       "typical_vessel_classes": ["Supramax", "Ultramax", "Panamax"],
       "chokepoints": ["Malacca Strait / Singapore Strait"],
       "typical_sailing_days_laden": 7.5,
-      "typical_sailing_days_ballast": 6.8
+      "typical_sailing_days_ballast": 6.8,
+      "waypoints": [
+        [114.46, -3.73], [106.8, -1.0], [104.2, 1.2], [102.5, 2.0],
+        [99.8, 4.2], [95.5, 5.8], [89.0, 11.5], [86.8, 16.5], [86.6711, 20.2644]
+      ]
     },
     {
       "route_id": "ID_SMR_TO_IN_HLD",
@@ -63,7 +82,11 @@
       "typical_vessel_classes": ["Handysize", "Supramax"],
       "chokepoints": ["Malacca Strait"],
       "typical_sailing_days_laden": 8.2,
-      "typical_sailing_days_ballast": 7.4
+      "typical_sailing_days_ballast": 7.4,
+      "waypoints": [
+        [117.40, -0.50], [114.0, -3.5], [106.8, -1.0], [104.2, 1.2],
+        [102.5, 2.0], [99.8, 4.2], [95.5, 5.8], [89.0, 13.0], [88.0706, 22.0232]
+      ]
     },
     {
       "route_id": "ID_KLT_TO_IN_DHM",
@@ -76,7 +99,11 @@
       "typical_vessel_classes": ["Supramax", "Panamax", "Capesize"],
       "chokepoints": ["Malacca Strait"],
       "typical_sailing_days_laden": 7.6,
-      "typical_sailing_days_ballast": 6.9
+      "typical_sailing_days_ballast": 6.9,
+      "waypoints": [
+        [114.46, -3.73], [106.8, -1.0], [104.2, 1.2], [102.5, 2.0],
+        [99.8, 4.2], [95.5, 5.8], [89.0, 12.0], [87.5, 17.0], [86.9642, 20.8017]
+      ]
     },
     {
       "route_id": "MZ_NAC_TO_IN_VTZ",
@@ -89,7 +116,11 @@
       "typical_vessel_classes": ["Panamax", "Capesize"],
       "chokepoints": ["Indian Ocean Open Transit"],
       "typical_sailing_days_laden": 12.5,
-      "typical_sailing_days_ballast": 11.0
+      "typical_sailing_days_ballast": 11.0,
+      "waypoints": [
+        [40.67, -14.54], [52.0, -6.0], [68.0, 1.5], [78.0, 5.2],
+        [80.6, 5.9], [84.0, 12.0], [83.2185, 17.6868]
+      ]
     },
     {
       "route_id": "MZ_BEI_TO_IN_GPL",
@@ -102,7 +133,11 @@
       "typical_vessel_classes": ["Handysize", "Supramax"],
       "chokepoints": ["Mozambique Channel"],
       "typical_sailing_days_laden": 14.2,
-      "typical_sailing_days_ballast": 12.8
+      "typical_sailing_days_ballast": 12.8,
+      "waypoints": [
+        [34.83, -19.83], [42.0, -16.0], [52.0, -6.0], [68.0, 1.5],
+        [78.0, 5.2], [80.6, 5.9], [84.5, 13.5], [84.9708, 19.3083]
+      ]
     },
     {
       "route_id": "US_NOR_TO_IN_PRT",
@@ -115,7 +150,12 @@
       "typical_vessel_classes": ["Panamax", "Capesize"],
       "chokepoints": ["Cape of Good Hope / Suez Canal"],
       "typical_sailing_days_laden": 29.5,
-      "typical_sailing_days_ballast": 26.5
+      "typical_sailing_days_ballast": 26.5,
+      "waypoints": [
+        [-76.30, 36.85], [-65.0, 32.0], [-40.0, 15.0], [-10.0, -10.0],
+        [18.4, -34.8], [45.0, -28.0], [65.0, -10.0], [80.6, 5.9],
+        [86.0, 15.0], [86.6711, 20.2644]
+      ]
     },
     {
       "route_id": "US_BAL_TO_IN_GNV",
@@ -128,7 +168,12 @@
       "typical_vessel_classes": ["Panamax", "Capesize"],
       "chokepoints": ["Cape of Good Hope"],
       "typical_sailing_days_laden": 29.0,
-      "typical_sailing_days_ballast": 26.0
+      "typical_sailing_days_ballast": 26.0,
+      "waypoints": [
+        [-76.60, 39.27], [-65.0, 32.0], [-40.0, 15.0], [-10.0, -10.0],
+        [18.4, -34.8], [45.0, -28.0], [65.0, -10.0], [80.6, 5.9],
+        [84.0, 13.0], [83.2389, 17.6186]
+      ]
     },
     {
       "route_id": "RU_TAM_TO_IN_VTZ",
@@ -141,7 +186,12 @@
       "typical_vessel_classes": ["Panamax", "Capesize"],
       "chokepoints": ["Bosphorus / Suez Canal / Bab-el-Mandeb"],
       "typical_sailing_days_laden": 16.0,
-      "typical_sailing_days_ballast": 14.5
+      "typical_sailing_days_ballast": 14.5,
+      "waypoints": [
+        [36.68, 45.13], [31.5, 41.5], [26.0, 39.0], [32.3, 31.0],
+        [33.0, 27.5], [43.5, 12.5], [55.0, 14.0], [75.0, 8.0],
+        [80.5, 6.0], [83.2185, 17.6868]
+      ]
     },
     {
       "route_id": "RU_VOS_TO_IN_PRT",
@@ -154,7 +204,11 @@
       "typical_vessel_classes": ["Panamax", "Capesize"],
       "chokepoints": ["South China Sea / Singapore Strait / Malacca Strait"],
       "typical_sailing_days_laden": 15.5,
-      "typical_sailing_days_ballast": 13.8
+      "typical_sailing_days_ballast": 13.8,
+      "waypoints": [
+        [133.07, 42.73], [129.5, 33.0], [122.0, 25.0], [112.0, 12.0],
+        [104.5, 1.5], [99.8, 4.2], [95.5, 5.8], [89.0, 12.0], [86.6711, 20.2644]
+      ]
     }
   ]
 }
