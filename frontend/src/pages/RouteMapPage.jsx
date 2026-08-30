@@ -1,15 +1,16 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MdMap, MdPublic, MdDirectionsBoat, MdWarning, MdRefresh, MdMyLocation, MdWaves, MdTrendingUp, MdAnchor, MdSignalWifi4Bar, MdSignalWifiOff, MdLocalShipping, MdCloud } from 'react-icons/md'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Tube } from '@react-three/drei'
 import * as THREE from 'three'
 import { getMapIntelligence } from '../api/client'
 
 /* ────────────────────────────────────────────────────────────
-   Mapbox token – use env var or public demo token
+   Mapbox token
    ──────────────────────────────────────────────────────────── */
 mapboxgl.accessToken =
   import.meta.env.VITE_MAPBOX_TOKEN ||
@@ -24,19 +25,12 @@ function congestionColor(index) {
   return '#22c55e'
 }
 
-function riskColor(score) {
-  if (score >= 60) return '#ef4444'
-  if (score >= 35) return '#f59e0b'
-  return '#22c55e'
-}
-
 function weatherRiskColor(risk) {
   if (risk >= 0.5) return '#ef4444'
   if (risk >= 0.25) return '#f59e0b'
   return '#38bdf8'
 }
 
-/* Route colors by origin country pattern */
 function routeColorFromOrigin(origin = '') {
   const o = origin.toLowerCase()
   if (o.includes('australia')) return [56, 189, 248]
@@ -51,498 +45,825 @@ function rgbToHex([r, g, b]) {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
 }
 
+function getCompassHeading(heading) {
+  const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+  const index = Math.round(((heading %= 360) < 0 ? heading + 360 : heading) / 45) % 8
+  return directions[index]
+}
+
+// Haversine distance in Nautical Miles
+function haversineNM(lat1, lon1, lat2, lon2) {
+  const R = 3440.065 // Earth radius in NM
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return Math.round(R * c)
+}
+
 /* ────────────────────────────────────────────────────────────
-   2-D Mapbox Map component — ALL data from API
+   Realistic Maritime Waypoints & Sea-Lane Route Engine
    ──────────────────────────────────────────────────────────── */
-function MapboxMap({ indianPorts, globalPorts, routes, vessels, weatherData, selectedVessel, onVesselClick }) {
+const MARITIME_CORRIDOR_WAYPOINTS = {
+  AUSTRALIA_TO_INDIA: [
+    [151.78, -32.92], [153.5, -28.0], [152.0, -20.0], [142.5, -10.5],
+    [130.0, -9.0], [120.0, -9.5], [115.7, -8.6], [105.0, -8.0],
+    [95.0, 3.0], [90.0, 9.0], [87.0, 15.0]
+  ],
+  INDONESIA_TO_INDIA: [
+    [117.5, -0.5], [114.0, -3.5], [106.8, -1.0], [104.2, 1.2],
+    [102.5, 2.0], [99.8, 4.2], [95.5, 5.8], [89.0, 11.5], [86.8, 16.5]
+  ],
+  MOZAMBIQUE_TO_INDIA: [
+    [32.6, -25.9], [42.0, -16.0], [52.0, -6.0], [68.0, 1.5],
+    [78.0, 5.2], [80.6, 5.9], [84.0, 12.0]
+  ],
+  USA_TO_INDIA: [
+    [-76.6, 39.2], [-65.0, 32.0], [-40.0, 15.0], [-10.0, -10.0],
+    [18.4, -34.8], [45.0, -28.0], [65.0, -10.0], [80.6, 5.9], [84.5, 14.0]
+  ],
+  RUSSIA_TO_INDIA: [
+    [133.0, 42.7], [129.5, 33.0], [122.0, 25.0], [112.0, 12.0],
+    [104.5, 1.5], [99.8, 4.2], [95.5, 5.8], [87.0, 14.0]
+  ]
+}
+
+function getMaritimeWaypointsForCorridor(originStr = '', destPort) {
+  const o = originStr.toLowerCase()
+  let basePoints = []
+  if (
+    o.includes('australia') || o.includes('newcastle') ||
+    o.includes('hay point') || o.includes('gladstone')
+  ) {
+    basePoints = MARITIME_CORRIDOR_WAYPOINTS.AUSTRALIA_TO_INDIA
+  } else if (
+    o.includes('indonesia') || o.includes('samarinda') ||
+    o.includes('kalimantan') || o.includes('south kalimantan')
+  ) {
+    basePoints = MARITIME_CORRIDOR_WAYPOINTS.INDONESIA_TO_INDIA
+  } else if (
+    o.includes('mozambique') || o.includes('maputo') ||
+    o.includes('nacala') || o.includes('richards bay') ||
+    o.includes('south africa')
+  ) {
+    basePoints = MARITIME_CORRIDOR_WAYPOINTS.MOZAMBIQUE_TO_INDIA
+  } else if (
+    o.includes('usa') || o.includes('baltimore') ||
+    o.includes('norfolk') || o.includes('united states')
+  ) {
+    basePoints = MARITIME_CORRIDOR_WAYPOINTS.USA_TO_INDIA
+  } else if (
+    o.includes('russia') || o.includes('vostochny') ||
+    o.includes('taman') || o.includes('novorossiysk')
+  ) {
+    basePoints = MARITIME_CORRIDOR_WAYPOINTS.RUSSIA_TO_INDIA
+  } else {
+    // Generic Indian Ocean corridor via Dondra Head (south of Sri Lanka)
+    basePoints = [[95.0, 5.0], [88.0, 10.0], [86.5, 15.0]]
+  }
+  if (destPort && destPort.lon && destPort.lat) {
+    return [...basePoints, [destPort.lon, destPort.lat]]
+  }
+  return basePoints
+}
+
+
+/* ────────────────────────────────────────────────────────────
+   2D Mapbox Map Component — FlightRadar24 Ultra
+   ──────────────────────────────────────────────────────────── */
+function MapboxMap({
+  indianPorts,
+  globalPorts,
+  routes,
+  vessels,
+  weatherData,
+  selectedVessel,
+  onVesselClick,
+  onPortClick,
+  filterStatus,
+  showWeather,
+  showAnchorageZones,
+  timeOffsetHours,
+  rulerActive,
+  rulerPoints,
+  onRulerClick
+}) {
   const mapContainer = useRef(null)
   const map = useRef(null)
-  const markersRef = useRef([])
+  const vesselMarkersRef = useRef([])
+  const portMarkersRef = useRef([])
   const weatherMarkersRef = useRef([])
-  const popupRef = useRef(null)
+  const animationFrameRef = useRef(null)
 
-  // Build GeoJSON for routes from API data
-  const routesGeoJSON = useMemo(() => {
-    const features = routes.map((route, i) => {
-      const originPort = [...indianPorts, ...globalPorts].find(p => p.port_id === route.route_id?.split('_TO_')[0]?.replace(/_/g, '_'))
-      const destPort = [...indianPorts, ...globalPorts].find(p => p.port_id === route.route_id?.split('_TO_')[1])
+  const activeVesselObj = useMemo(() => {
+    return vessels.find(v => v.id === selectedVessel)
+  }, [vessels, selectedVessel])
 
-      // Find matching ports from the full port arrays
-      const fromPort = globalPorts.find(p => route.origin?.toLowerCase().includes(p.name?.toLowerCase()?.split(' ')[0] || '___'))
-        || globalPorts.find(p => route.route_id?.startsWith(p.port_id))
-      const toPort = indianPorts.find(p => route.destination?.toLowerCase().includes(p.name?.toLowerCase()?.split(' ')[0] || '___'))
-        || indianPorts.find(p => route.route_id?.endsWith(p.port_id))
+  // Build realistic maritime sea-lane trajectory (Past Wake + Future Projected Course)
+  const activeVesselTrackGeoJSON = useMemo(() => {
+    if (!activeVesselObj || !activeVesselObj.lat || !activeVesselObj.lon) {
+      return { type: 'FeatureCollection', features: [] }
+    }
 
-      const from = fromPort || originPort
-      const to = toPort || destPort
-      if (!from || !to || !from.lat || !to.lat) return null
+    const allPorts = [...indianPorts, ...globalPorts]
+    const destPort = allPorts.find(p => p.name?.toLowerCase().includes(activeVesselObj.dest?.toLowerCase()?.split(' ')[0] || '___'))
+      || indianPorts.find(p => p.port_id === 'IN_PRT') || { lon: 86.67, lat: 20.26 }
 
-      const coords = []
-      for (let t = 0; t <= 60; t++) {
-        const f = t / 60
-        const lon = from.lon + (to.lon - from.lon) * f
-        const lat = from.lat + (to.lat - from.lat) * f
-        const bulge = Math.sin(f * Math.PI) * ((Math.abs(to.lon - from.lon) + Math.abs(to.lat - from.lat)) * 0.08)
-        coords.push([lon + bulge * 0.3, lat + bulge * 0.7])
+    const waypoints = getMaritimeWaypointsForCorridor(activeVesselObj.origin, destPort)
+    const curPos = [activeVesselObj.lon, activeVesselObj.lat]
+
+    let closestIndex = 0
+    let minDistance = Infinity
+
+    waypoints.forEach((pt, idx) => {
+      const d = Math.hypot(pt[0] - curPos[0], pt[1] - curPos[1])
+      if (d < minDistance) {
+        minDistance = d
+        closestIndex = idx
       }
+    })
 
-      const color = routeColorFromOrigin(route.origin)
-      const riskScore = route.risk_score || 0
-      return {
-        type: 'Feature',
-        properties: {
-          color: rgbToHex(color),
-          label: `${route.origin} → ${route.destination}`,
-          risk_score: riskScore,
-          risk_level: route.risk_level || 'Unknown',
-          cargo: route.primary_cargo || '',
-          distance_nm: route.distance_nm || 0,
-          sailing_days: route.sailing_days || 0,
-          opacity: Math.max(0.4, 1 - riskScore / 150),
-          width: riskScore >= 60 ? 3 : riskScore >= 35 ? 2 : 1.5,
-          index: i,
+    const pastWaypoints = [...waypoints.slice(0, Math.max(1, closestIndex)), curPos]
+    const futureWaypoints = [curPos, ...waypoints.slice(Math.min(waypoints.length - 1, closestIndex + 1))]
+
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { type: 'wake', color: '#0ea5e9' },
+          geometry: { type: 'LineString', coordinates: pastWaypoints }
         },
-        geometry: { type: 'LineString', coordinates: coords },
-      }
-    }).filter(Boolean)
-    return { type: 'FeatureCollection', features }
-  }, [routes, indianPorts, globalPorts])
+        {
+          type: 'Feature',
+          properties: { type: 'projected', color: '#f59e0b' },
+          geometry: { type: 'LineString', coordinates: futureWaypoints }
+        }
+      ]
+    }
+  }, [activeVesselObj, indianPorts, globalPorts])
 
+  // Ruler Distance Measure GeoJSON
+  const rulerGeoJSON = useMemo(() => {
+    if (rulerPoints.length < 2) return { type: 'FeatureCollection', features: [] }
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { color: '#ec4899' },
+          geometry: { type: 'LineString', coordinates: rulerPoints }
+        }
+      ]
+    }
+  }, [rulerPoints])
+
+  // Initialize Mapbox
   useEffect(() => {
     if (map.current) return
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-      center: [80, 10],
-      zoom: 2.8,
-      pitch: 0,
+      center: [83, 16],
+      zoom: 4.2,
+      pitch: 20,
       bearing: 0,
-      antialias: true,
+      antialias: true
     })
 
-    map.current.addControl(new mapboxgl.NavigationControl(), 'bottom-right')
-    map.current.addControl(new mapboxgl.FullscreenControl(), 'bottom-right')
+    map.current.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
+    map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right')
     map.current.addControl(new mapboxgl.ScaleControl({ unit: 'nautical' }), 'bottom-left')
 
-    map.current.on('load', () => {
-      addMapLayers()
+    map.current.on('click', (e) => {
+      if (rulerActive) {
+        onRulerClick([e.lngLat.lng, e.lngLat.lat])
+      }
     })
 
-    return () => {
-      if (map.current) { map.current.remove(); map.current = null }
-    }
-  }, [])
-
-  function addMapLayers() {
-    if (!map.current || !map.current.isStyleLoaded()) return
-
-    // ── Trade route lines ───────────────────────────────────
-    if (map.current.getSource('trade-routes')) {
-      map.current.getSource('trade-routes').setData(routesGeoJSON)
-    } else {
-      map.current.addSource('trade-routes', { type: 'geojson', data: routesGeoJSON })
-
-      // Risk glow layer — higher risk = stronger glow
-      map.current.addLayer({
-        id: 'route-risk-glow',
-        type: 'line',
-        source: 'trade-routes',
-        paint: {
-          'line-color': ['case',
-            ['>=', ['get', 'risk_score'], 60], '#ef4444',
-            ['>=', ['get', 'risk_score'], 35], '#f59e0b',
-            ['get', 'color'],
-          ],
-          'line-width': ['case',
-            ['>=', ['get', 'risk_score'], 60], 12,
-            ['>=', ['get', 'risk_score'], 35], 8,
-            6,
-          ],
-          'line-opacity': 0.15,
-          'line-blur': 6,
-        },
-      })
-
-      // Core line
+    map.current.on('load', () => {
+      // 1. Ambient trade routes
+      map.current.addSource('trade-routes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.current.addLayer({
         id: 'route-core',
         type: 'line',
         source: 'trade-routes',
         paint: {
           'line-color': ['get', 'color'],
-          'line-width': ['get', 'width'],
-          'line-opacity': ['get', 'opacity'],
-          'line-dasharray': [4, 5],
-        },
+          'line-width': 1.5,
+          'line-opacity': 0.35,
+          'line-dasharray': [3, 4]
+        }
       })
 
-      // Route click popup
-      map.current.on('click', 'route-core', e => {
-        const props = e.features[0].properties
-        if (popupRef.current) popupRef.current.remove()
-        popupRef.current = new mapboxgl.Popup({ className: 'mapbox-dark-popup', offset: 12 })
-          .setLngLat(e.lngLat)
-          .setHTML(`
-            <div class="popup-inner">
-              <div class="popup-title">🚢 ${props.label}</div>
-              <div class="popup-row"><span>Cargo</span><span>${props.cargo}</span></div>
-              <div class="popup-row"><span>Distance</span><span>${Number(props.distance_nm).toLocaleString()} NM</span></div>
-              <div class="popup-row"><span>Sailing Days</span><span>${props.sailing_days}d</span></div>
-              <div class="popup-row"><span>Risk Score</span><span style="color:${riskColor(Number(props.risk_score))};font-weight:600">${props.risk_score}/100 (${props.risk_level})</span></div>
-            </div>
-          `)
-          .addTo(map.current)
-      })
-      map.current.on('mouseenter', 'route-core', () => { map.current.getCanvas().style.cursor = 'pointer' })
-      map.current.on('mouseleave', 'route-core', () => { map.current.getCanvas().style.cursor = '' })
-    }
-  }
-
-  // Update port layers when port data changes
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return
-    const onReady = () => updatePortLayers()
-    if (map.current.isStyleLoaded()) onReady()
-    else map.current.once('load', onReady)
-  }, [indianPorts, globalPorts])
-
-  function updatePortLayers() {
-    if (!map.current) return
-
-    // ── Global supply ports from API ─────────────────────────
-    const globalGeoJSON = {
-      type: 'FeatureCollection',
-      features: globalPorts.filter(p => p.lat && p.lon).map(p => ({
-        type: 'Feature',
-        properties: {
-          name: p.name, country: p.country,
-          congestion_index: p.congestion_index || 0,
-          congestion_status: p.congestion_status || 'Unknown',
-          anchored: p.anchored_vessels || 0,
-          waiting_days: p.waiting_days || 0,
-          cargoes: (p.primary_cargoes || []).join(', '),
-          colorHex: congestionColor(p.congestion_index || 0),
-        },
-        geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-      })),
-    }
-
-    if (map.current.getSource('global-ports')) {
-      map.current.getSource('global-ports').setData(globalGeoJSON)
-    } else {
-      map.current.addSource('global-ports', { type: 'geojson', data: globalGeoJSON })
+      // 2. Active Vessel Track Sources & Layers
+      map.current.addSource('vessel-active-track', { type: 'geojson', data: activeVesselTrackGeoJSON })
       map.current.addLayer({
-        id: 'global-ports-circle',
-        type: 'circle',
-        source: 'global-ports',
+        id: 'vessel-track-glow',
+        type: 'line',
+        source: 'vessel-active-track',
         paint: {
-          'circle-radius': 7,
-          'circle-color': ['concat', 'rgba(', ['to-string', ['case', ['>=', ['get', 'congestion_index'], 60], 239, ['>=', ['get', 'congestion_index'], 35], 245, 56]], ',', ['to-string', ['case', ['>=', ['get', 'congestion_index'], 60], 68, ['>=', ['get', 'congestion_index'], 35], 158, 189]], ',', ['to-string', ['case', ['>=', ['get', 'congestion_index'], 60], 68, ['>=', ['get', 'congestion_index'], 35], 11, 248]], ',0.15)'],
-          'circle-stroke-color': ['get', 'colorHex'],
-          'circle-stroke-width': 1.5,
-        },
+          'line-color': ['get', 'color'],
+          'line-width': 8,
+          'line-opacity': 0.35,
+          'line-blur': 4
+        }
       })
-      map.current.on('click', 'global-ports-circle', e => {
-        const props = e.features[0].properties
-        const coords = e.features[0].geometry.coordinates
-        if (popupRef.current) popupRef.current.remove()
-        popupRef.current = new mapboxgl.Popup({ className: 'mapbox-dark-popup', offset: 12 })
-          .setLngLat(coords)
-          .setHTML(`
-            <div class="popup-inner">
-              <div class="popup-title">${props.name} (${props.country})</div>
-              <div class="popup-row"><span>Type</span><span>Load Port</span></div>
-              <div class="popup-row"><span>Cargoes</span><span>${props.cargoes}</span></div>
-              <div class="popup-row"><span>Congestion</span><span style="color:${props.colorHex};font-weight:600">${props.congestion_status}</span></div>
-              <div class="popup-row"><span>Anchored</span><span>${props.anchored} vessels</span></div>
-              <div class="popup-row"><span>Wait Time</span><span>${props.waiting_days}d</span></div>
-            </div>
-          `)
-          .addTo(map.current)
-      })
-      map.current.on('mouseenter', 'global-ports-circle', () => { map.current.getCanvas().style.cursor = 'pointer' })
-      map.current.on('mouseleave', 'global-ports-circle', () => { map.current.getCanvas().style.cursor = '' })
-    }
-
-    // ── Indian ports from API ────────────────────────────────
-    const indianGeoJSON = {
-      type: 'FeatureCollection',
-      features: indianPorts.filter(p => p.lat && p.lon).map(p => ({
-        type: 'Feature',
-        properties: {
-          name: p.name, state: p.state || '',
-          congestion_index: p.congestion_index || 0,
-          congestion_status: p.congestion_status || 'Unknown',
-          anchored: p.anchored_vessels || 0,
-          waiting_days: p.waiting_days || 0,
-          max_draft: p.max_draft_m || 0,
-          handling_rate: p.handling_rate_mtpa || 0,
-          cargoes: (p.primary_cargoes || []).join(', '),
-          lighterage: p.lighterage_required ? 'Yes' : 'No',
-          colorHex: congestionColor(p.congestion_index || 0),
-        },
-        geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-      })),
-    }
-
-    if (map.current.getSource('indian-ports')) {
-      map.current.getSource('indian-ports').setData(indianGeoJSON)
-    } else {
-      map.current.addSource('indian-ports', { type: 'geojson', data: indianGeoJSON })
-
-      // Pulse halo — size based on congestion
       map.current.addLayer({
-        id: 'indian-ports-halo',
-        type: 'circle',
-        source: 'indian-ports',
+        id: 'vessel-track-core',
+        type: 'line',
+        source: 'vessel-active-track',
         paint: {
-          'circle-radius': ['interpolate', ['linear'], ['get', 'congestion_index'], 0, 12, 50, 20, 100, 30],
-          'circle-color': ['get', 'colorHex'],
-          'circle-opacity': 0.08,
-          'circle-blur': 1,
-        },
+          'line-color': ['get', 'color'],
+          'line-width': 3,
+          'line-opacity': 0.95,
+          'line-dasharray': ['case', ['==', ['get', 'type'], 'projected'], ['literal', [2, 2]], ['literal', [1, 0]]]
+        }
       })
-      // Core dot
+
+      // 3. Ruler Measure Layer
+      map.current.addSource('ruler-line-src', { type: 'geojson', data: rulerGeoJSON })
       map.current.addLayer({
-        id: 'indian-ports-dot',
-        type: 'circle',
-        source: 'indian-ports',
+        id: 'ruler-line-layer',
+        type: 'line',
+        source: 'ruler-line-src',
         paint: {
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 6, 8, 12],
-          'circle-color': ['get', 'colorHex'],
-          'circle-stroke-color': '#0f172a',
-          'circle-stroke-width': 1.5,
-          'circle-opacity': 0.9,
-        },
+          'line-color': '#ec4899',
+          'line-width': 3,
+          'line-dasharray': [2, 2]
+        }
       })
 
-      // Port click — live data popup
-      map.current.on('click', 'indian-ports-dot', e => {
-        const props = e.features[0].properties
-        const coords = e.features[0].geometry.coordinates
-        if (popupRef.current) popupRef.current.remove()
-        popupRef.current = new mapboxgl.Popup({ className: 'mapbox-dark-popup', offset: 12 })
-          .setLngLat(coords)
-          .setHTML(`
-            <div class="popup-inner">
-              <div class="popup-title">🇮🇳 ${props.name}</div>
-              <div class="popup-row"><span>State</span><span>${props.state}</span></div>
-              <div class="popup-row"><span>Congestion</span><span style="color:${props.colorHex};font-weight:600">${props.congestion_status} (${props.congestion_index}/100)</span></div>
-              <div class="popup-row"><span>Anchored</span><span>${props.anchored} vessels</span></div>
-              <div class="popup-row"><span>Wait Time</span><span>${props.waiting_days}d</span></div>
-              <div class="popup-row"><span>Max Draft</span><span>${props.max_draft}m</span></div>
-              <div class="popup-row"><span>Capacity</span><span>${props.handling_rate} MTPA</span></div>
-              <div class="popup-row"><span>Cargoes</span><span>${props.cargoes}</span></div>
-              <div class="popup-row"><span>Lighterage</span><span>${props.lighterage}</span></div>
-            </div>
-          `)
-          .addTo(map.current)
+      // 4. Port Anchorage Zones (Heatmap Halos)
+      map.current.addSource('anchorage-zones-src', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: indianPorts.map(p => ({
+            type: 'Feature',
+            properties: {
+              congestion: p.congestion_index || 0,
+              color: congestionColor(p.congestion_index || 0)
+            },
+            geometry: { type: 'Point', coordinates: [p.lon, p.lat] }
+          }))
+        }
       })
-      map.current.on('mouseenter', 'indian-ports-dot', () => { map.current.getCanvas().style.cursor = 'pointer' })
-      map.current.on('mouseleave', 'indian-ports-dot', () => { map.current.getCanvas().style.cursor = '' })
-    }
-  }
 
-  // Update route layers when route data changes
-  useEffect(() => {
-    if (!map.current) return
-    const onReady = () => {
-      if (map.current.getSource('trade-routes')) {
-        map.current.getSource('trade-routes').setData(routesGeoJSON)
-      } else {
-        addMapLayers()
+      map.current.addLayer({
+        id: 'anchorage-zones-layer',
+        type: 'circle',
+        source: 'anchorage-zones-src',
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['get', 'congestion'], 0, 20, 100, 65],
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.12,
+          'circle-blur': 0.8
+        }
+      })
+    })
+
+    return () => {
+      if (map.current) {
+        map.current.remove()
+        map.current = null
       }
     }
-    if (map.current.isStyleLoaded()) onReady()
-    else map.current.once('load', onReady)
-  }, [routesGeoJSON])
+  }, [])
 
-  // Weather markers overlay
+  // Update ruler line
   useEffect(() => {
-    if (!map.current) return
-    const onReady = () => {
-      weatherMarkersRef.current.forEach(m => m.remove())
-      weatherMarkersRef.current = []
+    if (!map.current || !map.current.isStyleLoaded() || !map.current.getSource('ruler-line-src')) return
+    map.current.getSource('ruler-line-src').setData(rulerGeoJSON)
+  }, [rulerGeoJSON])
 
-      weatherData.forEach(wx => {
-        if (!wx.lat || !wx.lon || wx.risk_score === undefined) return
-        const riskScore = wx.risk_score || 0
-        if (riskScore < 0.15) return // Skip calm conditions
+  // Update anchorage zones visibility
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded() || !map.current.getLayer('anchorage-zones-layer')) return
+    map.current.setLayoutProperty(
+      'anchorage-zones-layer',
+      'visibility',
+      showAnchorageZones ? 'visible' : 'none'
+    )
+  }, [showAnchorageZones])
 
-        const el = document.createElement('div')
-        el.className = 'weather-marker'
-        const color = weatherRiskColor(riskScore)
-        el.style.cssText = `
-          width: 32px; height: 32px; border-radius: 50%;
-          background: ${color}22; border: 1.5px solid ${color}80;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 14px; cursor: pointer; backdrop-filter: blur(4px);
-          animation: weatherPulse 3s ease-in-out infinite;
-        `
-        el.innerHTML = riskScore >= 0.5 ? '⛈️' : riskScore >= 0.25 ? '🌊' : '🌤️'
-        el.title = `${wx.port_name}: ${wx.wave_height_m}m waves — ${wx.weather_alert}`
+  // Update Active Vessel Track & flyTo camera
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded() || !map.current.getSource('vessel-active-track')) return
+    map.current.getSource('vessel-active-track').setData(activeVesselTrackGeoJSON)
 
-        el.addEventListener('click', () => {
-          if (popupRef.current) popupRef.current.remove()
-          popupRef.current = new mapboxgl.Popup({ className: 'mapbox-dark-popup', offset: 16 })
-            .setLngLat([wx.lon, wx.lat])
-            .setHTML(`
-              <div class="popup-inner">
-                <div class="popup-title">🌊 Weather — ${wx.port_name}</div>
-                <div class="popup-row"><span>Wave Height</span><span style="color:${color};font-weight:600">${wx.wave_height_m}m</span></div>
-                <div class="popup-row"><span>Swell</span><span>${wx.swell_wave_height_m}m</span></div>
-                <div class="popup-row"><span>Period</span><span>${wx.wave_period_s}s</span></div>
-                <div class="popup-row"><span>Risk</span><span style="color:${color};font-weight:600">${(riskScore * 100).toFixed(0)}%</span></div>
-                <div class="popup-row"><span>Condition</span><span>${wx.weather_alert}</span></div>
-                <div class="popup-row"><span>Source</span><span>Open-Meteo Marine (${wx.status})</span></div>
-              </div>
-            `)
-            .addTo(map.current)
-        })
-
-        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([wx.lon, wx.lat])
-          .addTo(map.current)
-        weatherMarkersRef.current.push(marker)
+    if (activeVesselObj && activeVesselObj.lat && activeVesselObj.lon) {
+      map.current.flyTo({
+        center: [activeVesselObj.lon, activeVesselObj.lat],
+        zoom: 5.8,
+        pitch: 30,
+        speed: 1.2,
+        curve: 1.4,
+        essential: true
       })
     }
-    if (map.current.isStyleLoaded()) onReady()
-    else map.current.once('load', onReady)
-  }, [weatherData])
+  }, [activeVesselTrackGeoJSON, activeVesselObj])
 
-  // Update vessel markers whenever vessels change
+  // Country flag helper
+  const getPortFlag = (country = '') => {
+    const c = country.toLowerCase()
+    if (c.includes('india')) return '🇮🇳'
+    if (c.includes('australia')) return '🇦🇺'
+    if (c.includes('indonesia')) return '🇮🇩'
+    if (c.includes('mozambique')) return '🇲🇿'
+    if (c.includes('south africa')) return '🇿🇦'
+    if (c.includes('usa') || c.includes('united states')) return '🇺🇸'
+    if (c.includes('russia')) return '🇷🇺'
+    return '🌐'
+  }
+
+  // Render High-Visibility Location Pins for ALL Global & Indian Ports
   useEffect(() => {
     if (!map.current) return
     const ready = () => {
-      markersRef.current.forEach(m => m.remove())
-      markersRef.current = []
+      portMarkersRef.current.forEach(m => m.remove())
+      portMarkersRef.current = []
 
-      vessels.forEach(vessel => {
-        if (!vessel.lat || !vessel.lon) return
-        const isAnchor = vessel.status === 'At Anchor'
-        const color = isAnchor ? '#f59e0b' : '#38bdf8'
-        const isSelected = selectedVessel === vessel.id
+      const allPorts = [
+        ...indianPorts.map(p => ({ ...p, isTargetIndia: true, country: 'India' })),
+        ...globalPorts.map(p => ({ ...p, isTargetIndia: false }))
+      ]
 
+      allPorts.forEach(port => {
+        if (!port.lat || !port.lon) return
         const el = document.createElement('div')
-        el.className = 'vessel-marker'
-        el.style.cssText = `
-          position: relative; width: 28px; height: 28px;
-          cursor: pointer; display: flex; align-items: center; justify-content: center;
+        el.className = `port-location-pin ${port.isTargetIndia ? 'india-port' : 'global-port'}`
+        const color = port.isTargetIndia ? congestionColor(port.congestion_index || 0) : '#38bdf8'
+        const flag = getPortFlag(port.country || '')
+
+        const displayName = port.name.replace('Port of ', '').replace(' (DBCT / HPX)', '').replace(' (RGT / WICET)', '').split(' (')[0].split(' / ')[0]
+
+        el.innerHTML = `
+          <div class="port-pin-wrapper">
+            <div class="port-pin-icon ${port.isTargetIndia ? 'pin-india' : 'pin-global'}" style="background: ${color}; box-shadow: 0 0 20px ${color}99;">
+              <span class="pin-symbol">${port.isTargetIndia ? '⚓' : '🚢'}</span>
+            </div>
+            <div class="port-pin-badge" style="border-color: ${color}77;">
+              <span class="port-flag">${flag}</span>
+              <span class="port-name">${displayName}</span>
+              ${port.isTargetIndia
+                ? `<span class="port-wait" style="color:${color}">${port.anchored_vessels || 0} Ships</span>`
+                : `<span class="port-wait text-ocean">${port.waiting_days || port.avg_queue_days || 3}d Queue</span>`
+              }
+            </div>
+          </div>
         `
 
-        if (false) {
-          const ring = document.createElement('div')
-          ring.style.cssText = `
-            position: absolute; width: 28px; height: 28px; border-radius: 50%;
-            border: 1.5px solid ${color}60; animation: vesselPing 2s ease-out infinite;
-          `
-          el.appendChild(ring)
-        }
-
-        const icon = document.createElement('div')
-        icon.style.cssText = `
-          width: 0; height: 0;
-          border-left: 6px solid transparent; border-right: 6px solid transparent;
-          border-bottom: 16px solid ${color};
-          transform: rotate(${vessel.heading || 0}deg);
-          filter: drop-shadow(0 0 6px ${color});
-          ${isSelected ? `filter: drop-shadow(0 0 10px ${color}) brightness(1.4);` : ''}
-        `
-        el.appendChild(icon)
-
-        el.addEventListener('click', () => {
-          if (popupRef.current) popupRef.current.remove()
-          popupRef.current = new mapboxgl.Popup({ className: 'mapbox-dark-popup', offset: 16 })
-            .setLngLat([vessel.lon, vessel.lat])
-            .setHTML(`
-              <div class="popup-inner">
-                <div class="popup-title">🚢 ${vessel.name}</div>
-                <div class="popup-row"><span>Class</span><span>${vessel.class} • ${((vessel.dwt || 0) / 1000).toFixed(0)}K DWT</span></div>
-                <div class="popup-row"><span>Speed</span><span>${vessel.speed || 0} kn • ${vessel.heading || 0}°</span></div>
-                <div class="popup-row"><span>Cargo</span><span>${vessel.cargo || 'Unknown'}</span></div>
-                <div class="popup-row"><span>Status</span><span style="color:${color};font-weight:600">${vessel.status} → ${vessel.dest || '?'}</span></div>
-                <div class="popup-row"><span>Wait Time</span><span>${vessel.wait_time_hours || 0} hrs</span></div>
-                <div class="popup-row"><span>Mat. Transferred</span><span>${vessel.materials_transferred ? vessel.materials_transferred.toLocaleString() : 0} MT</span></div>
-                <div class="popup-row"><span>Position</span><span>${vessel.lat.toFixed(2)}°, ${vessel.lon.toFixed(2)}°</span></div>
-              </div>
-            `)
-            .addTo(map.current)
-          onVesselClick(vessel.id)
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          if (onPortClick) onPortClick(port)
+          map.current?.flyTo({ center: [port.lon, port.lat], zoom: 6.5, pitch: 25, duration: 1000 })
         })
 
-        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([vessel.lon, vessel.lat])
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'bottom' })
+          .setLngLat([port.lon, port.lat])
           .addTo(map.current)
-        markersRef.current.push(marker)
+
+        portMarkersRef.current.push(marker)
       })
     }
 
     if (map.current.isStyleLoaded()) ready()
     else map.current.once('load', ready)
-  }, [vessels, selectedVessel])
+  }, [indianPorts, globalPorts, onPortClick])
 
-  const zoomToIndia = useCallback(() => {
-    map.current?.flyTo({ center: [83, 20], zoom: 5, pitch: 40, duration: 1800 })
-  }, [])
+  // Render FlightRadar24 Interactive Vessel Markers (with Time Scrubbing Interpolation)
+  useEffect(() => {
+    if (!map.current) return
+    const ready = () => {
+      vesselMarkersRef.current.forEach(m => m.remove())
+      vesselMarkersRef.current = []
+
+      const visibleVessels = vessels.filter(v => {
+        if (filterStatus === 'underway') return v.status !== 'At Anchor'
+        if (filterStatus === 'anchor') return v.status === 'At Anchor'
+        return true
+      })
+
+      visibleVessels.forEach(vessel => {
+        if (!vessel.lat || !vessel.lon) return
+
+        // Compute scrubbed future position based on speed and heading
+        const speedKnots = vessel.speed || 12.0
+        const distanceNMTravelled = (speedKnots * timeOffsetHours)
+        const headingRad = (vessel.heading || 315) * Math.PI / 180
+
+        // Approximate 1 deg lat = 60 NM
+        const latOffset = (distanceNMTravelled * Math.cos(headingRad)) / 60
+        const lonOffset = (distanceNMTravelled * Math.sin(headingRad)) / (60 * Math.cos(vessel.lat * Math.PI / 180))
+
+        const projectedLat = vessel.status === 'At Anchor' ? vessel.lat : vessel.lat + latOffset
+        const projectedLon = vessel.status === 'At Anchor' ? vessel.lon : vessel.lon + lonOffset
+
+        const isAnchor = vessel.status === 'At Anchor'
+        const color = isAnchor ? '#f59e0b' : '#38bdf8'
+        const isSelected = selectedVessel === vessel.id
+
+        const el = document.createElement('div')
+        el.className = `fr24-vessel-marker ${isSelected ? 'selected' : ''}`
+
+        el.innerHTML = `
+          <div class="fr24-vessel-container">
+            ${isSelected ? `<div class="fr24-pulse-ring" style="border-color:${color};"></div>` : ''}
+            <div class="fr24-ship-icon" style="transform: rotate(${vessel.heading || 0}deg); filter: drop-shadow(0 0 ${isSelected ? '12px' : '4px'} ${color});">
+              <svg viewBox="0 0 24 24" width="${isSelected ? '30' : '22'}" height="${isSelected ? '30' : '22'}" fill="${color}">
+                <path d="M12 2L4 19L12 16L20 19L12 2Z" />
+              </svg>
+            </div>
+            <div class="fr24-vessel-label ${isSelected ? 'show' : ''}">${vessel.name.split(' ')[0]}</div>
+          </div>
+        `
+
+        el.addEventListener('click', (e) => {
+          e.stopPropagation()
+          onVesselClick(vessel.id)
+        })
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([projectedLon, projectedLat])
+          .addTo(map.current)
+
+        vesselMarkersRef.current.push(marker)
+      })
+    }
+
+    if (map.current.isStyleLoaded()) ready()
+    else map.current.once('load', ready)
+  }, [vessels, selectedVessel, filterStatus, timeOffsetHours, onVesselClick])
+
+  // Marine Weather Layer
+  useEffect(() => {
+    if (!map.current) return
+    const ready = () => {
+      weatherMarkersRef.current.forEach(m => m.remove())
+      weatherMarkersRef.current = []
+      if (!showWeather) return
+
+      weatherData.forEach(wx => {
+        if (!wx.lat || !wx.lon || (wx.risk_score || 0) < 0.2) return
+        const color = weatherRiskColor(wx.risk_score || 0)
+        const el = document.createElement('div')
+        el.className = 'fr24-weather-chip'
+        el.style.cssText = `
+          padding: 4px 8px; border-radius: 99px; font-size: 11px; font-weight: 600;
+          background: rgba(15, 23, 42, 0.85); border: 1px solid ${color}88; color: ${color};
+          display: flex; align-items: center; gap: 4px; backdrop-filter: blur(8px);
+          cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        `
+        el.innerHTML = `<span>🌊</span><span>${wx.wave_height_m}m</span>`
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+          .setLngLat([wx.lon, wx.lat])
+          .addTo(map.current)
+
+        weatherMarkersRef.current.push(marker)
+      })
+    }
+
+    if (map.current.isStyleLoaded()) ready()
+    else map.current.once('load', ready)
+  }, [weatherData, showWeather])
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', cursor: rulerActive ? 'crosshair' : 'grab' }}>
       <div ref={mapContainer} style={{ width: '100%', height: '100%' }} />
-
-      {/* Stat chips — live counts from API */}
-      <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <div className="map-stat-chip"><MdDirectionsBoat /> <span>{vessels.length} Vessels</span></div>
-        <div className="map-stat-chip"><MdLocalShipping /> <span>{routes.length} Routes</span></div>
-        <div className="map-stat-chip" style={{ color: '#ef4444' }}>
-          <MdWarning /> <span>{indianPorts.filter(p => p.congestion_index >= 60).length} Congested</span>
-        </div>
-        <div className="map-stat-chip" style={{ color: '#38bdf8' }}>
-          <MdWaves /> <span>{weatherData.filter(w => w.risk_score >= 0.25).length} Weather Alerts</span>
-        </div>
-      </div>
-
-      {/* Zoom to India button */}
-      <button
-        onClick={zoomToIndia}
-        className="map-zoom-btn"
-        title="Zoom to India"
-        style={{
-          position: 'absolute', top: 12, right: 52, zIndex: 10,
-          background: 'hsla(220,25%,10%,0.9)', border: '1px solid hsla(220,20%,30%,0.4)',
-          color: '#94a3b8', borderRadius: 8, padding: '6px 10px',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-          fontSize: 12, backdropFilter: 'blur(8px)', transition: 'all 0.2s',
-        }}
-      >
-        <MdMyLocation /> India
-      </button>
-
-      {/* Legend */}
-      <div style={{
-        position: 'absolute', bottom: 36, left: 12, zIndex: 10,
-        display: 'flex', gap: 14, flexWrap: 'wrap',
-        fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)',
-        background: 'hsla(220,25%,8%,0.85)', backdropFilter: 'blur(12px)',
-        padding: '6px 14px', borderRadius: 'var(--radius-full)',
-        border: '1px solid hsla(220,20%,25%,0.3)',
-      }}>
-        {[['#22c55e', 'Low Risk'], ['#f59e0b', 'Medium'], ['#ef4444', 'High']].map(([c, l]) => (
-          <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}`, display: 'inline-block' }} />{l}
-          </span>
-        ))}
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 0, height: 0, borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: '9px solid #38bdf8', display: 'inline-block' }} />Vessel
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>🌊 Weather</span>
-      </div>
     </div>
   )
 }
 
 /* ────────────────────────────────────────────────────────────
-   3D Globe helpers
+   FlightRadar24 Pop-up Side Card Drawer Component (All Features)
+   ──────────────────────────────────────────────────────────── */
+function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
+  const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('telemetry') // 'telemetry', 'financial', 'green', 'berth'
+
+  if (!vessel) return null
+
+  const isAnchor = vessel.status === 'At Anchor'
+  const statusColor = isAnchor ? 'var(--accent-amber)' : 'var(--accent-emerald)'
+  const statusBg = isAnchor ? 'hsla(35, 95%, 60%, 0.15)' : 'hsla(155, 70%, 45%, 0.15)'
+
+  const originName = vessel.origin || 'Newcastle (AU)'
+  const destName = vessel.dest || 'Paradip (IN)'
+  const progressPct = vessel.progress_pct || 68
+
+  // Computed Financial & Demurrage Metrics
+  const dailyDemurrageRate = vessel.class?.includes('Cape') ? 28500 : vessel.class?.includes('Panamax') ? 21000 : 16500
+  const waitHours = vessel.wait_time_hours || (isAnchor ? 36 : 18)
+  const totalDemurrageRisk = Math.round((waitHours / 24) * dailyDemurrageRate)
+  const landedLogisticsCostUSD = (23.40 + (waitHours * 0.12)).toFixed(2)
+
+  // Computed Environmental & CII Metrics
+  const estimatedFuelBurnMT = Math.round(((vessel.dwt || 75000) / 1000) * 4.8)
+  const carbonEmissionsMT = Math.round(estimatedFuelBurnMT * 3.114) // 3.114 MT CO2 per MT VLSFO
+  const ciiRating = carbonEmissionsMT < 1200 ? 'A' : carbonEmissionsMT < 1600 ? 'B' : 'C'
+  const ciiBadgeColor = ciiRating === 'A' ? 'var(--accent-emerald)' : ciiRating === 'B' ? 'var(--accent-ocean)' : 'var(--accent-amber)'
+
+  // Draft Feasibility Check
+  const vesselDraft = vessel.draft_m || 14.2
+  const destPortObj = allPorts.find(p => p.name?.toLowerCase().includes(destName.toLowerCase().split(' ')[0])) || { max_draft_m: 14.5 }
+  const isDraftFeasible = (destPortObj.max_draft_m || 14.5) >= vesselDraft
+  const isHaldiaLighterage = destName.toLowerCase().includes('haldia')
+
+  // Jump to Vessel Optimizer
+  const handleOptimizeInEngine = () => {
+    navigate('/vessels')
+  }
+
+  return (
+    <motion.div
+      initial={{ x: -420, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: -420, opacity: 0 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+      className="fr24-side-drawer glass-panel"
+    >
+      {/* ── Top Header with Ship Badge & Close ── */}
+      <div className="fr24-card-header">
+        <div className="fr24-vessel-avatar">
+          <MdDirectionsBoat size={28} />
+        </div>
+        <div className="fr24-vessel-meta">
+          <div className="fr24-callsign-row">
+            <span className="fr24-badge-class">{vessel.class || 'CAPESIZE'}</span>
+            <span className="fr24-mmsi">IMO: {vessel.mmsi || '9847120'}</span>
+          </div>
+          <h2 className="fr24-vessel-name">{vessel.name}</h2>
+          <div className="fr24-flag-row">
+            <span className="fr24-flag">⚓ {vessel.operator || 'Bulk Carrier Live Fleet'}</span>
+          </div>
+        </div>
+        <button onClick={onClose} className="fr24-btn-close" title="Close Vessel Card">
+          <MdClose size={20} />
+        </button>
+      </div>
+
+      {/* ── FlightRadar24 Route Corridor & Progress Bar ── */}
+      <div className="fr24-route-box">
+        <div className="fr24-route-endpoints">
+          <div className="endpoint-col left">
+            <span className="port-code">{originName.substring(0, 3).toUpperCase()}</span>
+            <span className="port-full-name">{originName}</span>
+          </div>
+
+          <div className="route-airplane-indicator">
+            <div className="route-line"></div>
+            <div className="route-ship-pin" style={{ left: `${progressPct}%` }}>
+              <MdDirectionsBoat size={18} style={{ color: 'var(--accent-ocean)' }} />
+            </div>
+          </div>
+
+          <div className="endpoint-col right">
+            <span className="port-code">{destName.substring(0, 3).toUpperCase()}</span>
+            <span className="port-full-name">{destName}</span>
+          </div>
+        </div>
+
+        <div className="fr24-progress-stats">
+          <span>Progress: <strong>{progressPct}%</strong></span>
+          <span style={{ color: statusColor, background: statusBg, padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
+            {vessel.status || 'UNDERWAY'}
+          </span>
+          <span>ETA: <strong>{vessel.eta_days || 3.4} Days</strong></span>
+        </div>
+      </div>
+
+      {/* ── Feature Tabs ── */}
+      <div className="fr24-tab-nav">
+        <button
+          className={`tab-pill ${activeTab === 'telemetry' ? 'active' : ''}`}
+          onClick={() => setActiveTab('telemetry')}
+        >
+          <MdNavigation /> Telemetry
+        </button>
+        <button
+          className={`tab-pill ${activeTab === 'financial' ? 'active' : ''}`}
+          onClick={() => setActiveTab('financial')}
+        >
+          <MdAttachMoney /> Demurrage
+        </button>
+        <button
+          className={`tab-pill ${activeTab === 'green' ? 'active' : ''}`}
+          onClick={() => setActiveTab('green')}
+        >
+          <MdEco /> Carbon
+        </button>
+        <button
+          className={`tab-pill ${activeTab === 'berth' ? 'active' : ''}`}
+          onClick={() => setActiveTab('berth')}
+        >
+          <MdAnchor /> Berth Draft
+        </button>
+      </div>
+
+      {/* ── TAB CONTENT ── */}
+      <div className="fr24-tab-body">
+        {/* 1. Telemetry Tab */}
+        {activeTab === 'telemetry' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="fr24-telemetry-grid">
+              <div className="telemetry-cell">
+                <span className="cell-lbl"><MdSpeed /> Speed</span>
+                <span className="cell-val text-ocean">{vessel.speed || 12.4} <span className="unit">kn</span></span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl"><MdNavigation /> Heading</span>
+                <span className="cell-val">{vessel.heading || 315}° <span className="unit">{getCompassHeading(vessel.heading || 315)}</span></span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl"><MdLocationOn /> Coordinates</span>
+                <span className="cell-val mono">{vessel.lat?.toFixed(2)}°N, {vessel.lon?.toFixed(2)}°E</span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl"><MdAnchor /> Draft / DWT</span>
+                <span className="cell-val">{vesselDraft}m <span className="unit">/ {((vessel.dwt || 75000) / 1000).toFixed(0)}k</span></span>
+              </div>
+            </div>
+
+            <div className="fr24-cargo-box">
+              <div className="cargo-header">
+                <span className="cargo-title">📦 Cargo Consignment</span>
+                <span className="cargo-amount">{vessel.materials_transferred ? Number(vessel.materials_transferred).toLocaleString() : '107,062'} MT</span>
+              </div>
+              <p className="cargo-desc">{vessel.cargo || 'Manganese Ore & Premium Hard Coking Coal'}</p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 2. Financial & Demurrage Tab */}
+        {activeTab === 'financial' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="fr24-telemetry-grid">
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Demurrage Rate</span>
+                <span className="cell-val text-amber">${dailyDemurrageRate.toLocaleString()} <span className="unit">/ day</span></span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Queue Risk Exposure</span>
+                <span className="cell-val text-rose">${totalDemurrageRisk.toLocaleString()}</span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Estimated Landed Cost</span>
+                <span className="cell-val text-ocean">${landedLogisticsCostUSD} <span className="unit">/ MT</span></span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Anchorage Queue</span>
+                <span className="cell-val">{waitHours} <span className="unit">hrs queue</span></span>
+              </div>
+            </div>
+
+            <div className="queue-alert-box" style={{ marginTop: 12 }}>
+              <MdWarning className="text-amber" />
+              <span><strong>${totalDemurrageRisk.toLocaleString()} USD</strong> estimated idle cost penalty at {destName.split(' ')[0]}</span>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 3. Green Maritime & Carbon CII Tab */}
+        {activeTab === 'green' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="fr24-telemetry-grid">
+              <div className="telemetry-cell">
+                <span className="cell-lbl">IMO CII Rating</span>
+                <span className="cell-val" style={{ color: ciiBadgeColor, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Rating {ciiRating} <span className="unit">(IMO Compliant)</span>
+                </span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Voyage Fuel Burn</span>
+                <span className="cell-val text-emerald">{estimatedFuelBurnMT} <span className="unit">MT VLSFO</span></span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Total CO₂e Footprint</span>
+                <span className="cell-val">{carbonEmissionsMT.toLocaleString()} <span className="unit">MT CO₂</span></span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Eco Speed Rating</span>
+                <span className="cell-val text-ocean">12.4 <span className="unit">/ 13.0 kn</span></span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* 4. Port Berth & Draft Feasibility Tab */}
+        {activeTab === 'berth' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <div className="fr24-telemetry-grid">
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Vessel Laden Draft</span>
+                <span className="cell-val">{vesselDraft} <span className="unit">meters</span></span>
+              </div>
+              <div className="telemetry-cell">
+                <span className="cell-lbl">Port Max Draft</span>
+                <span className="cell-val text-emerald">{destPortObj.max_draft_m || 14.5} <span className="unit">meters</span></span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 8, background: isDraftFeasible ? 'hsla(155, 70%, 45%, 0.1)' : 'hsla(0, 80%, 60%, 0.1)', border: `1px solid ${isDraftFeasible ? 'var(--accent-emerald)' : 'var(--accent-rose)'}` }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: isDraftFeasible ? 'var(--accent-emerald)' : 'var(--accent-rose)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {isDraftFeasible ? <MdCheckCircle /> : <MdWarning />}
+                {isDraftFeasible ? 'Direct Berth Permitted' : 'Exceeds Port Max Draft'}
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                {isHaldiaLighterage
+                  ? '⚠️ Mandatory lighterage transfer required at Sagar Anchorage before entering Haldia dock basin.'
+                  : isDraftFeasible
+                  ? `Vessel draft of ${vesselDraft}m satisfies the tidal draft clearance at ${destName}.`
+                  : `Vessel requires partial deballasting or lightering.`}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </div>
+
+      {/* ── Bottom Action Controls ── */}
+      <div className="fr24-card-actions">
+        <button onClick={onCenter} className="btn btn-primary btn-sm" style={{ flex: 1 }}>
+          <MdMyLocation /> Center Vessel
+        </button>
+        <button onClick={handleOptimizeInEngine} className="btn btn-secondary btn-sm glow-button" title="Import this cargo parcel to Vessel Optimization Engine">
+          <MdScience /> Optimize <MdArrowForward />
+        </button>
+      </div>
+    </motion.div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────
+   Selected Port Info Drawer Component
+   ──────────────────────────────────────────────────────────── */
+function PortInfoDrawer({ port, onClose }) {
+  if (!port) return null
+  const color = congestionColor(port.congestion_index || 0)
+
+  return (
+    <motion.div
+      initial={{ x: 400, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      exit={{ x: 400, opacity: 0 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 220 }}
+      className="fr24-port-drawer glass-panel"
+    >
+      <div className="fr24-card-header">
+        <div className="fr24-port-avatar" style={{ background: color }}>
+          ⚓
+        </div>
+        <div className="fr24-vessel-meta">
+          <span className="fr24-badge-class" style={{ color }}>{port.congestion_status || 'MODERATE QUEUE'}</span>
+          <h2 className="fr24-vessel-name">{port.name}</h2>
+          <span className="fr24-flag">{port.state ? `${port.state}, India` : port.country}</span>
+        </div>
+        <button onClick={onClose} className="fr24-btn-close">
+          <MdClose size={20} />
+        </button>
+      </div>
+
+      <div className="fr24-telemetry-grid" style={{ marginTop: 16 }}>
+        <div className="telemetry-cell">
+          <span className="cell-lbl">Anchored Vessels</span>
+          <span className="cell-val text-amber">{port.anchored_vessels || 0} <span className="unit">ships in queue</span></span>
+        </div>
+        <div className="telemetry-cell">
+          <span className="cell-lbl">Queue Wait Time</span>
+          <span className="cell-val">{port.waiting_days || 1.8} <span className="unit">days</span></span>
+        </div>
+        <div className="telemetry-cell">
+          <span className="cell-lbl">Permissible Draft</span>
+          <span className="cell-val text-emerald">{port.max_draft_m || 14.5} <span className="unit">m</span></span>
+        </div>
+        <div className="telemetry-cell">
+          <span className="cell-lbl">Handling Capacity</span>
+          <span className="cell-val">{port.handling_rate_mtpa || 120} <span className="unit">MTPA</span></span>
+        </div>
+      </div>
+
+      <div className="fr24-cargo-box" style={{ marginTop: 14 }}>
+        <div className="cargo-header">
+          <span className="cargo-title">🚢 Primary Cargo Handled</span>
+        </div>
+        <p className="cargo-desc">{(port.primary_cargoes || ['Thermal Coal', 'Coking Coal', 'Iron Ore']).join(', ')}</p>
+        {port.lighterage_required && (
+          <div className="queue-alert-box" style={{ marginTop: 10 }}>
+            <MdWarning className="text-amber" />
+            <span>Mandatory Lighterage required at Sagar Anchorage</span>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────
+   3D Globe Component
    ──────────────────────────────────────────────────────────── */
 const GLOBE_RADIUS = 2.5
 
@@ -552,638 +873,392 @@ function latLonToVec3(lat, lon, r = GLOBE_RADIUS) {
   return new THREE.Vector3(
     -r * Math.sin(phi) * Math.cos(theta),
     r * Math.cos(phi),
-    r * Math.sin(phi) * Math.sin(theta),
+    r * Math.sin(phi) * Math.sin(theta)
   )
 }
 
-function buildGlobeArc(lat1, lon1, lat2, lon2, segments = 80, altitude = 0.35) {
+function buildGlobeArc(lat1, lon1, lat2, lon2, segments = 60, altitude = 0.3) {
   const start = latLonToVec3(lat1, lon1)
   const end = latLonToVec3(lat2, lon2)
   const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5)
   const dist = start.distanceTo(end)
-  mid.normalize().multiplyScalar(GLOBE_RADIUS + altitude + dist * 0.18)
+  mid.normalize().multiplyScalar(GLOBE_RADIUS + altitude + dist * 0.15)
   const curve = new THREE.QuadraticBezierCurve3(start, mid, end)
   return new THREE.CatmullRomCurve3(curve.getPoints(segments))
 }
 
-/* Animated vessel marker on globe */
-function GlobeVessel({ position, heading, color = '#38bdf8' }) {
-  const ref = useRef()
-  const baseY = position.y
-  useFrame(({ clock }) => {
-    if (!ref.current) return
-    ref.current.position.y = baseY + Math.sin(clock.getElapsedTime() * 1.8 + heading) * 0.018
-    ref.current.rotation.y += 0.008
-  })
-  return (
-    <group ref={ref} position={[position.x, baseY, position.z]}>
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.015, 0.025, 0.12, 6]} />
-        <meshStandardMaterial color={color} metalness={0.6} roughness={0.3} emissive={color} emissiveIntensity={0.4} />
-      </mesh>
-      <mesh position={[0.025, 0.025, 0]}>
-        <boxGeometry args={[0.04, 0.035, 0.04]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
-      </mesh>
-      <pointLight color={color} intensity={0.8} distance={0.6} />
-    </group>
-  )
-}
-
-/* Port beacon */
-function PortBeacon({ position, color, size = 0.055 }) {
-  const ref = useRef()
-  useFrame(({ clock }) => {
-    if (ref.current) ref.current.scale.setScalar(1 + 0.12 * Math.sin(clock.getElapsedTime() * 3))
-  })
-  return (
-    <group position={[position.x, position.y, position.z]}>
-      <mesh ref={ref}>
-        <octahedronGeometry args={[size]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} metalness={0.3} />
-      </mesh>
-      <pointLight color={color} intensity={0.5} distance={0.8} />
-    </group>
-  )
-}
-
-/* Full 3D globe scene — uses API data */
 function GlobeScene({ indianPorts, globalPorts, routes, vessels }) {
-  const groupRef = useRef()
-  const earthTex = useMemo(() => new THREE.TextureLoader().load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/planets/earth_atmos_2048.jpg'), [])
-  const normalTex = useMemo(() => new THREE.TextureLoader().load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/planets/earth_normal_2048.jpg'), [])
-  const specularTex = useMemo(() => new THREE.TextureLoader().load('https://cdn.jsdelivr.net/gh/mrdoob/three.js@r155/examples/textures/planets/earth_specular_2048.jpg'), [])
-
   const allPorts = useMemo(() => [...indianPorts, ...globalPorts], [indianPorts, globalPorts])
 
-  // Build globe arcs from API route data
   const routeArcs = useMemo(() => {
-    return routes.map(route => {
-      const fromPort = globalPorts.find(p => route.route_id?.startsWith(p.port_id))
-      const toPort = indianPorts.find(p => route.route_id?.endsWith(p.port_id))
-      if (!fromPort || !toPort || !fromPort.lat || !toPort.lat) return null
-      const curve = buildGlobeArc(fromPort.lat, fromPort.lon, toPort.lat, toPort.lon)
-      const color = rgbToHex(routeColorFromOrigin(route.origin))
-      return { curve, color, risk_score: route.risk_score || 0 }
+    return routes.map(r => {
+      const from = allPorts.find(p => r.origin?.toLowerCase().includes(p.name?.toLowerCase()?.split(' ')[0] || '___') || r.route_id?.startsWith(p.port_id))
+      const to = allPorts.find(p => r.destination?.toLowerCase().includes(p.name?.toLowerCase()?.split(' ')[0] || '___') || r.route_id?.endsWith(p.port_id))
+      if (!from || !to || !from.lat || !to.lat) return null
+      return { curve: buildGlobeArc(from.lat, from.lon, to.lat, to.lon), color: rgbToHex(routeColorFromOrigin(r.origin)) }
     }).filter(Boolean)
-  }, [routes, indianPorts, globalPorts])
-
-  useFrame(() => {
-    if (groupRef.current) groupRef.current.rotation.y += 0.0005
-  })
+  }, [routes, allPorts])
 
   return (
     <>
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[6, 4, 6]} intensity={1.1} castShadow />
-      <pointLight position={[-8, -4, -6]} intensity={0.15} color="#3b82f6" />
+      <ambientLight intensity={0.65} />
+      <directionalLight position={[10, 10, 5]} intensity={1.2} />
+      <pointLight position={[-10, -10, -5]} color="#38bdf8" intensity={0.4} />
 
-      <group ref={groupRef}>
-        <mesh castShadow receiveShadow>
-          <sphereGeometry args={[GLOBE_RADIUS, 96, 96]} />
-          <meshPhongMaterial map={earthTex} normalMap={normalTex} specularMap={specularTex} specular={new THREE.Color(0x444444)} shininess={18} />
+      <group rotation={[0.2, 0.4, 0]}>
+        <mesh>
+          <sphereGeometry args={[GLOBE_RADIUS, 64, 64]} />
+          <meshStandardMaterial color="#081026" roughness={0.7} metalness={0.2} />
         </mesh>
-        <mesh scale={1.045}>
+        <mesh scale={1.015}>
           <sphereGeometry args={[GLOBE_RADIUS, 48, 48]} />
-          <meshBasicMaterial color={0x4488cc} side={THREE.BackSide} transparent opacity={0.18} />
-        </mesh>
-        <mesh scale={1.012}>
-          <sphereGeometry args={[GLOBE_RADIUS, 48, 48]} />
-          <meshBasicMaterial color={0xffffff} transparent opacity={0.04} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.05} />
         </mesh>
 
-        {/* Trade route arcs from API */}
         {routeArcs.map((arc, i) => (
-          <Tube key={i} args={[arc.curve, 80, 0.012, 8, false]}>
-            <meshStandardMaterial color={arc.color} emissive={arc.color} emissiveIntensity={0.6} transparent opacity={Math.max(0.4, 1 - arc.risk_score / 150)} />
+          <Tube key={i} args={[arc.curve, 60, 0.012, 6, false]}>
+            <meshStandardMaterial color={arc.color} emissive={arc.color} emissiveIntensity={0.6} transparent opacity={0.6} />
           </Tube>
         ))}
 
-        {/* Port beacons from API data */}
-        {allPorts.filter(p => p.lat && p.lon).map(port => {
-          const pos = latLonToVec3(port.lat, port.lon, GLOBE_RADIUS + 0.04)
-          const isIN = indianPorts.some(p => p.port_id === port.port_id)
-          const color = isIN ? congestionColor(port.congestion_index || 0) : '#38bdf8'
-          return <PortBeacon key={port.port_id} position={pos} color={color} size={isIN ? 0.06 : 0.04} />
+        {allPorts.filter(p => p.lat && p.lon).map(p => {
+          const pos = latLonToVec3(p.lat, p.lon, GLOBE_RADIUS + 0.04)
+          return (
+            <mesh key={p.port_id} position={[pos.x, pos.y, pos.z]}>
+              <sphereGeometry args={[0.04, 16, 16]} />
+              <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.8} />
+            </mesh>
+          )
         })}
 
-        {/* Animated vessels from API */}
         {vessels.filter(v => v.lat && v.lon).map(v => {
-          const pos = latLonToVec3(v.lat, v.lon, GLOBE_RADIUS + 0.12)
-          const color = v.status === 'At Anchor' ? '#f59e0b' : '#38bdf8'
+          const pos = latLonToVec3(v.lat, v.lon, GLOBE_RADIUS + 0.08)
           return (
-             <group key={v.id} position={[pos.x, pos.y, pos.z]}>
-                <mesh rotation={[0, v.heading ? v.heading * Math.PI / 180 : 0, Math.PI / 2]}>
-                  <cylinderGeometry args={[0.015, 0.025, 0.12, 6]} />
-                  <meshStandardMaterial color={color} metalness={0.6} roughness={0.3} emissive={color} emissiveIntensity={0.4} />
-                </mesh>
-                <pointLight color={color} intensity={0.8} distance={0.6} />
-             </group>
+            <mesh key={v.id} position={[pos.x, pos.y, pos.z]}>
+              <cylinderGeometry args={[0.02, 0.03, 0.08, 6]} />
+              <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={0.6} />
+            </mesh>
           )
         })}
       </group>
-
-      <Stars />
     </>
   )
 }
 
-/* Simple star-field */
-function Stars() {
-  const positions = useMemo(() => {
-    const pts = []
-    for (let i = 0; i < 2000; i++) {
-      const r = 50
-      const phi = Math.random() * Math.PI * 2
-      const th = Math.acos(Math.random() * 2 - 1)
-      pts.push(r * Math.sin(th) * Math.cos(phi), r * Math.cos(th), r * Math.sin(th) * Math.sin(phi))
-    }
-    return new Float32Array(pts)
-  }, [])
-  return (
-    <points>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial size={0.08} color="#ffffff" transparent opacity={0.6} sizeAttenuation />
-    </points>
-  )
-}
-
 /* ────────────────────────────────────────────────────────────
-   Sidebar components
-   ──────────────────────────────────────────────────────────── */
-function ApiStatusBadge({ apiStatus }) {
-  const statuses = apiStatus || {}
-  const sources = [
-    { key: 'gfw', label: 'GFW', icon: '🚢' },
-    { key: 'ais', label: 'AIS', icon: '📡' },
-    { key: 'weather', label: 'Weather', icon: '🌊' },
-    { key: 'fred', label: 'FRED', icon: '📊' },
-  ]
-  return (
-    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-      {sources.map(s => {
-        const st = statuses[s.key] || 'offline'
-        const connected = st === 'connected'
-        return (
-          <span
-            key={s.key}
-            className={`badge ${connected ? 'badge-success' : 'badge-warning'}`}
-            style={{ fontSize: 9, display: 'flex', alignItems: 'center', gap: 3 }}
-            title={`${s.label}: ${st}`}
-          >
-            {connected ? <MdSignalWifi4Bar style={{ fontSize: 10 }} /> : <MdSignalWifiOff style={{ fontSize: 10 }} />}
-            {s.label}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
-
-function VesselSidebar({ vessels, selectedVessel, onSelect, onRefresh, lastUpdated, apiStatus }) {
-  return (
-    <div className="glass-card" style={{ maxHeight: 540, overflowY: 'auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
-        <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <MdDirectionsBoat style={{ color: 'var(--accent-ocean)' }} /> Active Fleet
-        </h2>
-        <button
-          onClick={onRefresh}
-          title="Refresh all data"
-          style={{ background: 'none', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '4px 8px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
-        >
-          <MdRefresh /> Refresh
-        </button>
-      </div>
-      <ApiStatusBadge apiStatus={apiStatus} />
-      {lastUpdated && (
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 'var(--space-xs)', marginBottom: 'var(--space-sm)' }}>
-          Last updated: {lastUpdated}
-        </div>
-      )}
-      {vessels.map(vessel => (
-        <motion.div
-          key={vessel.id}
-          layout
-          onClick={() => onSelect(vessel.id)}
-          style={{
-            padding: 'var(--space-md)', marginBottom: 'var(--space-sm)',
-            borderRadius: 'var(--radius-md)',
-            background: selectedVessel === vessel.id ? 'hsla(200,85%,55%,0.12)' : 'var(--bg-input)',
-            border: selectedVessel === vessel.id ? '1px solid var(--border-active)' : '1px solid transparent',
-            cursor: 'pointer', transition: 'background 0.25s, border 0.25s',
-          }}
-          whileHover={{ borderColor: 'hsla(200,85%,55%,0.3)' }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>{vessel.name}</span>
-            <span className={`badge ${vessel.status === 'At Anchor' ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: 10 }}>
-              {vessel.status}
-            </span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>
-            <span>Class: {vessel.class}</span>
-            <span>DWT: {((vessel.dwt || 0) / 1000).toFixed(0)}K</span>
-            <span>Speed: {vessel.speed || 0} kn</span>
-            <span>→ {vessel.dest || '?'}</span>
-          </div>
-          <AnimatePresence>
-            {selectedVessel === vessel.id && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                style={{ marginTop: 'var(--space-sm)', paddingTop: 'var(--space-sm)', borderTop: '1px solid var(--border-subtle)', fontSize: 10, color: 'var(--text-muted)' }}
-              >
-                <div>Cargo: {vessel.cargo || 'Unknown'} | Heading: {vessel.heading || 0}°</div>
-                <div>Position: {(vessel.lat || 0).toFixed(2)}°, {(vessel.lon || 0).toFixed(2)}°</div>
-                <div>Wait Time: {vessel.wait_time_hours || 0} hrs | Mat. Transferred: {vessel.materials_transferred ? vessel.materials_transferred.toLocaleString() : 0} MT</div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      ))}
-    </div>
-  )
-}
-
-function RoutesSidebar({ routes, selectedRoute, onSelect }) {
-  return (
-    <div className="glass-card" style={{ maxHeight: 320, overflowY: 'auto' }}>
-      <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 600, marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <MdMap style={{ color: 'var(--accent-ocean)' }} /> Trade Lanes
-      </h3>
-      {routes.map((route, i) => {
-        const color = rgbToHex(routeColorFromOrigin(route.origin))
-        const riskScore = route.risk_score || 0
-        return (
-          <div
-            key={route.route_id || i}
-            onClick={() => onSelect(selectedRoute === i ? null : i)}
-            style={{
-              padding: '10px 12px', marginBottom: 'var(--space-xs)',
-              borderRadius: 'var(--radius-md)',
-              background: selectedRoute === i ? `${color}18` : 'transparent',
-              border: selectedRoute === i ? `1px solid ${color}50` : '1px solid transparent',
-              cursor: 'pointer', transition: 'all 0.2s',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, boxShadow: `0 0 8px ${color}80`, display: 'inline-block' }} />
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)' }}>
-                    {route.origin?.split('(')[0]?.trim()} → {route.destination?.split('(')[0]?.trim()}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{route.primary_cargo}</div>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{(route.distance_nm || 0).toLocaleString()} NM</div>
-                <span className={`badge ${riskScore >= 60 ? 'badge-danger' : riskScore >= 35 ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: 9 }}>
-                  Risk {riskScore}
-                </span>
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/* Market indicators sidebar panel */
-function MarketSidebar({ marketData }) {
-  const indicators = [
-    { key: 'brent_crude', label: 'Brent Crude', unit: '$/bbl', icon: '🛢️' },
-    { key: 'coal_price', label: 'Coal (Newcastle)', unit: '$/MT', icon: '⛏️' },
-    { key: 'iron_ore', label: 'Iron Ore', unit: '$/MT', icon: '🔩' },
-    { key: 'usd_inr', label: 'USD/INR', unit: '₹', icon: '💱' },
-  ]
-
-  if (!marketData || Object.keys(marketData).length === 0) return null
-
-  return (
-    <div className="glass-card">
-      <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 600, marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <MdTrendingUp style={{ color: 'var(--accent-ocean)' }} /> Market Indicators
-        <span className="badge badge-success" style={{ fontSize: 9 }}>FRED API</span>
-      </h3>
-      {indicators.map(ind => {
-        const data = marketData[ind.key]
-        if (!data) return null
-        const isUp = data.change_pct > 0
-        return (
-          <div key={ind.key} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '8px 0', borderBottom: '1px solid var(--border-subtle)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 16 }}>{ind.icon}</span>
-              <div>
-                <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>{ind.label}</div>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>{data.date}</div>
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>
-                {ind.key === 'usd_inr' ? '₹' : '$'}{data.value}
-              </div>
-              <span style={{
-                fontSize: 10, fontWeight: 600,
-                color: isUp ? 'var(--accent-emerald)' : 'var(--accent-rose)',
-              }}>
-                {isUp ? '▲' : '▼'} {Math.abs(data.change_pct)}%
-              </span>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/* Weather summary sidebar */
-function WeatherSidebar({ weatherData }) {
-  if (!weatherData || weatherData.length === 0) return null
-  const activeAlerts = weatherData.filter(w => w.risk_score >= 0.25)
-
-  return (
-    <div className="glass-card">
-      <h3 style={{ fontSize: 'var(--font-size-base)', fontWeight: 600, marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <MdCloud style={{ color: 'var(--accent-ocean)' }} /> Marine Weather
-        <span className="badge badge-success" style={{ fontSize: 9 }}>Open-Meteo</span>
-      </h3>
-      {weatherData.map(wx => {
-        const color = weatherRiskColor(wx.risk_score || 0)
-        return (
-          <div key={wx.port_id} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '6px 0', borderBottom: '1px solid var(--border-subtle)',
-          }}>
-            <div>
-              <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>{wx.port_name?.split(' Port')[0] || wx.port_id}</div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                Swell: {wx.swell_wave_height_m}m • Period: {wx.wave_period_s}s
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, fontSize: 'var(--font-size-sm)', color }}>
-                {wx.wave_height_m}m
-              </div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>
-                {wx.risk_score >= 0.5 ? '⛈️ Severe' : wx.risk_score >= 0.25 ? '🌊 Rough' : '🌤️ Calm'}
-              </div>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/* ────────────────────────────────────────────────────────────
-   Main page — ALL data from /api/v1/map-intelligence
+   Main RouteMapPage Component
    ──────────────────────────────────────────────────────────── */
 export default function RouteMapPage() {
   const [viewMode, setViewMode] = useState('map')
-  const [selectedRoute, setSelectedRoute] = useState(null)
   const [selectedVessel, setSelectedVessel] = useState(null)
+  const [selectedPort, setSelectedPort] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [showWeather, setShowWeather] = useState(true)
+  const [showAnchorageZones, setShowAnchorageZones] = useState(true)
+  const [timeOffsetHours, setTimeOffsetHours] = useState(0) // Time Scrubbing Slider (+0h, +24h, +48h, +72h)
+  const [isPlayingScrubber, setIsPlayingScrubber] = useState(false)
+  const [rulerActive, setRulerActive] = useState(false)
+  const [rulerPoints, setRulerPoints] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // ALL state from API — no hardcoded data
+  // API State
   const [vessels, setVessels] = useState([])
   const [indianPorts, setIndianPorts] = useState([])
   const [globalPorts, setGlobalPorts] = useState([])
   const [routes, setRoutes] = useState([])
   const [weatherData, setWeatherData] = useState([])
-  const [marketData, setMarketData] = useState({})
   const [apiStatus, setApiStatus] = useState({})
 
   const fetchMapIntelligence = useCallback(async () => {
     try {
       setLoading(true)
       const data = await getMapIntelligence()
-
       if (data?.vessels?.length) setVessels(data.vessels)
       if (data?.ports?.indian?.length) setIndianPorts(data.ports.indian)
       if (data?.ports?.global?.length) setGlobalPorts(data.ports.global)
       if (data?.route_risks?.length) setRoutes(data.route_risks)
       if (data?.marine_weather?.length) setWeatherData(data.marine_weather)
-      if (data?.market_indicators) setMarketData(data.market_indicators)
       if (data?.api_status) setApiStatus(data.api_status)
-
       setLastUpdated(new Date().toLocaleTimeString())
     } catch (err) {
       console.error('Map intelligence fetch error:', err)
-      setLastUpdated(new Date().toLocaleTimeString() + ' (error)')
+      setLastUpdated(new Date().toLocaleTimeString() + ' (cached)')
     } finally {
       setLoading(false)
     }
   }, [])
 
-  // Auto-refresh every 12 hours (720,000ms) for weather, 30s for vessels
   useEffect(() => {
     fetchMapIntelligence()
-    // Full refresh every 1 hour (3600_000 ms)
-    const id = setInterval(fetchMapIntelligence, 3600_000)
+    const id = setInterval(fetchMapIntelligence, 45000)
     return () => clearInterval(id)
   }, [fetchMapIntelligence])
 
+  // Time scrubber auto-play loop
+  useEffect(() => {
+    let interval = null
+    if (isPlayingScrubber) {
+      interval = setInterval(() => {
+        setTimeOffsetHours(prev => (prev >= 72 ? 0 : prev + 6))
+      }, 1200)
+    }
+    return () => clearInterval(interval)
+  }, [isPlayingScrubber])
+
+  // Handle Ruler Point Click
+  const handleRulerClick = (coord) => {
+    if (rulerPoints.length >= 2) {
+      setRulerPoints([coord])
+    } else {
+      setRulerPoints(prev => [...prev, coord])
+    }
+  }
+
+  // Ruler Distance Calculation
+  const rulerDistanceNM = useMemo(() => {
+    if (rulerPoints.length < 2) return null
+    return haversineNM(rulerPoints[0][1], rulerPoints[0][0], rulerPoints[1][1], rulerPoints[1][0])
+  }, [rulerPoints])
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return []
+    const q = searchQuery.toLowerCase()
+    return vessels.filter(v =>
+      v.name?.toLowerCase().includes(q) ||
+      v.dest?.toLowerCase().includes(q) ||
+      v.cargo?.toLowerCase().includes(q) ||
+      v.class?.toLowerCase().includes(q)
+    ).slice(0, 5)
+  }, [searchQuery, vessels])
+
+  const activeVesselData = useMemo(() => {
+    return vessels.find(v => v.id === selectedVessel)
+  }, [vessels, selectedVessel])
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="route-map-page">
-      {/* Page header */}
-      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-lg)' }}>
-        <div>
-          <h1>Maritime Route Intelligence</h1>
-          <p>Live trade lane map with GFW vessel tracking, AIS port congestion, Open-Meteo weather &amp; FRED market data</p>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fr24-map-container">
+      {/* ──── Full-Bleed Map Viewport ──── */}
+      <div className="fr24-map-stage">
+        {viewMode === 'map' ? (
+          <MapboxMap
+            indianPorts={indianPorts}
+            globalPorts={globalPorts}
+            routes={routes}
+            vessels={vessels}
+            weatherData={weatherData}
+            selectedVessel={selectedVessel}
+            onVesselClick={(id) => {
+              setSelectedVessel(prev => prev === id ? null : id)
+              setSelectedPort(null)
+            }}
+            onPortClick={(port) => {
+              setSelectedPort(port)
+            }}
+            filterStatus={filterStatus}
+            showWeather={showWeather}
+            showAnchorageZones={showAnchorageZones}
+            timeOffsetHours={timeOffsetHours}
+            rulerActive={rulerActive}
+            rulerPoints={rulerPoints}
+            onRulerClick={handleRulerClick}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', background: '#030a18' }}>
+            <Canvas camera={{ position: [0, 2, 7], fov: 42 }}>
+              <GlobeScene
+                indianPorts={indianPorts}
+                globalPorts={globalPorts}
+                routes={routes}
+                vessels={vessels}
+              />
+              <OrbitControls enablePan={false} enableZoom minDistance={3.8} maxDistance={14} />
+            </Canvas>
+          </div>
+        )}
+
+        {/* ──── Top-Left HUD: Live Search Bar & Active Stats ──── */}
+        <div className="fr24-top-left-hud">
+          <div className="fr24-search-box">
+            <MdSearch className="search-icon" size={20} />
+            <input
+              type="text"
+              placeholder="Search vessel, cargo, or port..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="fr24-search-input"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="btn-clear-search">
+                <MdClose size={16} />
+              </button>
+            )}
+
+            {searchResults.length > 0 && (
+              <div className="fr24-search-dropdown glass-panel">
+                {searchResults.map(v => (
+                  <div
+                    key={v.id}
+                    onClick={() => {
+                      setSelectedVessel(v.id)
+                      setSearchQuery('')
+                    }}
+                    className="dropdown-item"
+                  >
+                    <div className="item-title">🚢 {v.name}</div>
+                    <div className="item-sub">{v.class} • {v.cargo} → {v.dest}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="fr24-stats-pill-group">
+            <div className="hud-pill" onClick={() => setFilterStatus('all')}>
+              <MdDirectionsBoat /> <span><strong>{vessels.length}</strong> Vessels</span>
+            </div>
+            <div className="hud-pill text-emerald" onClick={() => setFilterStatus('underway')}>
+              <MdCheckCircle /> <span><strong>{vessels.filter(v => v.status !== 'At Anchor').length}</strong> Underway</span>
+            </div>
+            <div className="hud-pill text-amber" onClick={() => setFilterStatus('anchor')}>
+              <MdAnchor /> <span><strong>{vessels.filter(v => v.status === 'At Anchor').length}</strong> At Anchor</span>
+            </div>
+            <div className="hud-pill text-rose">
+              <MdWarning /> <span><strong>{indianPorts.filter(p => p.congestion_index >= 60).length}</strong> Congested Ports</span>
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`btn ${viewMode === 'map' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setViewMode('map')}>
-            <MdMap style={{ marginRight: 4 }} /> Map View
+
+        {/* ──── Top-Right HUD: Layers & Controls ──── */}
+        <div className="fr24-top-right-hud">
+          <div className="fr24-control-group glass-panel">
+            <button
+              onClick={() => setViewMode(m => m === 'map' ? '3d' : 'map')}
+              className={`hud-btn ${viewMode === '3d' ? 'active' : ''}`}
+              title="Toggle 2D Map / 3D Globe"
+            >
+              {viewMode === 'map' ? <MdPublic size={18} /> : <MdMap size={18} />}
+              <span>{viewMode === 'map' ? '3D Globe' : '2D Map'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowAnchorageZones(z => !z)}
+              className={`hud-btn ${showAnchorageZones ? 'active' : ''}`}
+              title="Toggle Port Anchorage Heatmap Zones"
+            >
+              <MdAnchor size={18} />
+              <span>Anchor Zones</span>
+            </button>
+
+            <button
+              onClick={() => setShowWeather(w => !w)}
+              className={`hud-btn ${showWeather ? 'active' : ''}`}
+              title="Toggle Marine Weather Sea State"
+            >
+              <MdWaves size={18} />
+              <span>Weather</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setRulerActive(r => !r)
+                setRulerPoints([])
+              }}
+              className={`hud-btn ${rulerActive ? 'active' : ''}`}
+              title="Measure Nautical Distance on Map"
+            >
+              <MdStraighten size={18} />
+              <span>Measure</span>
+            </button>
+
+            <button
+              onClick={fetchMapIntelligence}
+              disabled={loading}
+              className="hud-btn"
+              title={`Last Updated: ${lastUpdated || 'Loading...'}`}
+            >
+              <MdRefresh size={18} className={loading ? 'spin' : ''} />
+            </button>
+          </div>
+        </div>
+
+        {/* ──── Active Ruler Measurement Tool Floating Chip ──── */}
+        {rulerActive && (
+          <div className="fr24-ruler-hud glass-panel">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <MdStraighten className="text-ocean" size={20} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.82rem' }}>
+                  {rulerPoints.length === 0 && 'Click first point on map...'}
+                  {rulerPoints.length === 1 && 'Click second point on map...'}
+                  {rulerPoints.length === 2 && `${rulerDistanceNM?.toLocaleString()} Nautical Miles`}
+                </div>
+                {rulerDistanceNM && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    ~{(rulerDistanceNM / (12.5 * 24)).toFixed(1)} sailing days @ 12.5 kn • ~{Math.round(rulerDistanceNM * 0.075)} MT VLSFO
+                  </div>
+                )}
+              </div>
+            </div>
+            <button onClick={() => setRulerPoints([])} className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11 }}>
+              Reset
+            </button>
+          </div>
+        )}
+
+        {/* ──── FlightRadar24 Slide-in Pop-up Vessel Side Card ──── */}
+        <AnimatePresence>
+          {activeVesselData && (
+            <FlightRadarSideCard
+              vessel={activeVesselData}
+              onClose={() => setSelectedVessel(null)}
+              onCenter={() => setSelectedVessel(activeVesselData.id)}
+              allPorts={[...indianPorts, ...globalPorts]}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* ──── Slide-in Port Info Drawer ──── */}
+        <AnimatePresence>
+          {selectedPort && (
+            <PortInfoDrawer
+              port={selectedPort}
+              onClose={() => setSelectedPort(null)}
+            />
+          )}
+        </AnimatePresence>
+
+        {/* ──── FlightRadar24 Voyage Time Scrubber Bar ──── */}
+        <div className="fr24-scrubber-bar glass-panel">
+          <button
+            onClick={() => setIsPlayingScrubber(p => !p)}
+            className="scrubber-play-btn"
+            title={isPlayingScrubber ? 'Pause Scrubber' : 'Play Future Voyage Projection'}
+          >
+            {isPlayingScrubber ? <MdPause size={18} /> : <MdPlayArrow size={18} />}
           </button>
-          <button className={`btn ${viewMode === '3d' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setViewMode('3d')}>
-            <MdPublic style={{ marginRight: 4 }} /> 3D Globe
-          </button>
+          <div className="scrubber-label">
+            <span>Projection:</span>
+            <strong>{timeOffsetHours === 0 ? 'Live Real-Time' : `+${timeOffsetHours}h Future Position`}</strong>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="72"
+            step="6"
+            value={timeOffsetHours}
+            onChange={(e) => setTimeOffsetHours(Number(e.target.value))}
+            className="scrubber-slider"
+          />
+          <div className="scrubber-ticks">
+            <span className={timeOffsetHours === 0 ? 'active' : ''} onClick={() => setTimeOffsetHours(0)}>Now</span>
+            <span className={timeOffsetHours === 24 ? 'active' : ''} onClick={() => setTimeOffsetHours(24)}>+24h</span>
+            <span className={timeOffsetHours === 48 ? 'active' : ''} onClick={() => setTimeOffsetHours(48)}>+48h</span>
+            <span className={timeOffsetHours === 72 ? 'active' : ''} onClick={() => setTimeOffsetHours(72)}>+72h</span>
+          </div>
         </div>
       </div>
-
-      {loading && vessels.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 'var(--space-xl)', color: 'var(--text-muted)' }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>🌐</div>
-          <div>Loading live data from GFW, AIS, Open-Meteo &amp; FRED APIs...</div>
-        </div>
-      )}
-
-      <AnimatePresence mode="wait">
-        {viewMode === '3d' ? (
-          <motion.div
-            key="3d"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.35 }}
-          >
-            <div className="grid-2" style={{ gridTemplateColumns: '1fr 360px', gap: 'var(--space-lg)', alignItems: 'start' }}>
-              {/* Globe canvas */}
-              <div className="glass-card" style={{ padding: 0, overflow: 'hidden', height: 580, borderRadius: 'var(--radius-lg)', position: 'relative' }}>
-                <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
-                  <div className="map-stat-chip"><MdPublic /> <span>3D Globe — drag to rotate • scroll to zoom</span></div>
-                </div>
-                <Canvas camera={{ position: [0, 2, 7], fov: 42 }} gl={{ antialias: true, alpha: false }}>
-                  <color attach="background" args={['#030a18']} />
-                  <GlobeScene indianPorts={indianPorts} globalPorts={globalPorts} routes={routes} vessels={vessels} />
-                  <OrbitControls
-                    enablePan={false} enableZoom={true} autoRotate={false}
-                    minDistance={3.8} maxDistance={14}
-                    minPolarAngle={0.2} maxPolarAngle={Math.PI - 0.2}
-                  />
-                </Canvas>
-
-                {/* Route colour legend */}
-                <div style={{
-                  position: 'absolute', bottom: 12, left: 12, zIndex: 10,
-                  display: 'flex', flexWrap: 'wrap', gap: 10,
-                  background: 'hsla(220,25%,8%,0.85)', backdropFilter: 'blur(12px)',
-                  padding: '6px 14px', borderRadius: 'var(--radius-full)',
-                  border: '1px solid hsla(220,20%,25%,0.3)', fontSize: 11, color: 'var(--text-muted)',
-                }}>
-                  {[['#38bdf8', 'Australia'], ['#a78bfa', 'Indonesia'], ['#fb923c', 'Mozambique'], ['#f87171', 'USA'], ['#4ade80', 'Russia']].map(([c, l]) => (
-                    <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, boxShadow: `0 0 6px ${c}`, display: 'inline-block' }} />{l}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sidebars */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                <VesselSidebar
-                  vessels={vessels}
-                  selectedVessel={selectedVessel}
-                  onSelect={v => setSelectedVessel(prev => prev === v ? null : v)}
-                  onRefresh={fetchMapIntelligence}
-                  lastUpdated={lastUpdated}
-                  apiStatus={apiStatus}
-                />
-                <MarketSidebar marketData={marketData} />
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="map"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.35 }}
-          >
-            <div className="grid-2" style={{ gridTemplateColumns: '1fr 360px', gap: 'var(--space-lg)', alignItems: 'start' }}>
-              <div className="glass-card" style={{ padding: 0, overflow: 'hidden', height: 580, borderRadius: 'var(--radius-lg)' }}>
-                <MapboxMap
-                  indianPorts={indianPorts}
-                  globalPorts={globalPorts}
-                  routes={routes}
-                  vessels={vessels}
-                  weatherData={weatherData}
-                  selectedVessel={selectedVessel}
-                  onVesselClick={v => setSelectedVessel(prev => prev === v ? null : v)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-                <VesselSidebar
-                  vessels={vessels}
-                  selectedVessel={selectedVessel}
-                  onSelect={v => setSelectedVessel(prev => prev === v ? null : v)}
-                  onRefresh={fetchMapIntelligence}
-                  lastUpdated={lastUpdated}
-                  apiStatus={apiStatus}
-                />
-                <RoutesSidebar routes={routes} selectedRoute={selectedRoute} onSelect={setSelectedRoute} />
-                <WeatherSidebar weatherData={weatherData} />
-                <MarketSidebar marketData={marketData} />
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <style>{`
-        /* Vessel marker ping animation */
-        @keyframes vesselPing {
-          0%   { transform: scale(1); opacity: 0.7; }
-          100% { transform: scale(2.2); opacity: 0; }
-        }
-
-        /* Weather marker pulse */
-        @keyframes weatherPulse {
-          0%   { transform: scale(1); opacity: 0.8; }
-          50%  { transform: scale(1.15); opacity: 1; }
-          100% { transform: scale(1); opacity: 0.8; }
-        }
-
-        /* Mapbox stat chips */
-        .map-stat-chip {
-          display: flex; align-items: center; gap: 6px;
-          padding: 5px 12px;
-          background: hsla(220,25%,10%,0.88);
-          backdrop-filter: blur(12px);
-          border: 1px solid hsla(220,20%,30%,0.3);
-          border-radius: var(--radius-full);
-          font-size: var(--font-size-xs);
-          font-weight: 500;
-          color: var(--text-secondary);
-        }
-
-        /* Dark Mapbox popup */
-        .mapbox-dark-popup .mapboxgl-popup-content {
-          background: hsla(222,30%,9%,0.97) !important;
-          border: 1px solid hsla(200,60%,40%,0.3) !important;
-          border-radius: 12px !important;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.55) !important;
-          padding: 0 !important;
-        }
-        .mapbox-dark-popup .mapboxgl-popup-close-button {
-          color: #64748b !important;
-          font-size: 18px !important;
-          right: 8px !important;
-          top: 6px !important;
-          background: transparent !important;
-        }
-        .mapbox-dark-popup .mapboxgl-popup-close-button:hover { color: #e2e8f0 !important; }
-        .mapbox-dark-popup .mapboxgl-popup-tip { border-top-color: hsla(222,30%,9%,0.97) !important; }
-
-        .popup-inner { padding: 12px 16px; min-width: 180px; }
-        .popup-title { font-weight: 700; font-size: 13px; color: #e2e8f0; margin-bottom: 8px; }
-        .popup-row {
-          display: flex; justify-content: space-between; gap: 12px;
-          font-size: 11px; color: #94a3b8; padding: 3px 0;
-          border-bottom: 1px solid hsla(220,20%,25%,0.3);
-        }
-        .popup-row:last-child { border-bottom: none; }
-        .popup-row span:last-child { color: #cbd5e1; text-align: right; }
-
-        /* Mapbox controls dark theme */
-        .mapboxgl-ctrl-group {
-          background: hsla(220,25%,12%,0.92) !important;
-          border: 1px solid hsla(220,20%,28%,0.4) !important;
-          border-radius: 10px !important;
-        }
-        .mapboxgl-ctrl-group button { background: transparent !important; }
-        .mapboxgl-ctrl-group button + button { border-top: 1px solid hsla(220,20%,28%,0.4) !important; }
-        .mapboxgl-ctrl-icon { filter: invert(0.7) !important; }
-        .mapboxgl-ctrl-scale {
-          background: hsla(220,25%,12%,0.85) !important;
-          border-color: hsla(220,20%,30%,0.5) !important;
-          color: #94a3b8 !important;
-          font-size: 10px !important;
-        }
-        .mapboxgl-ctrl-attrib { display: none !important; }
-      `}</style>
     </motion.div>
   )
 }
