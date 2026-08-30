@@ -14,6 +14,7 @@ import {
   MdPlayArrow
 } from 'react-icons/md'
 import { getForecast } from '../api/client'
+import { usePreferences } from '../context/PreferencesContext'
 
 const FEATURE_NAME_MAP = {
   target_lag_1: { name: 'Prior Week Freight Rate', direction: '↑ Spot rate momentum & market inertia' },
@@ -118,6 +119,7 @@ function generateFallbackForecast(weeks) {
 }
 
 export default function ForecastPage() {
+  const { currencyCode, axisCurrencyPrefix, formatMoney, convertMoney } = usePreferences()
   const [horizon, setHorizon] = useState(12)
   const [route, setRoute] = useState('AU_NEW_TO_IN_PRT')
   const [vesselClass, setVesselClass] = useState('Panamax')
@@ -265,7 +267,7 @@ export default function ForecastPage() {
     const coneDates = [forecast.dates[36], ...forecast.forecastDatesOnly]
     plotData.push({
       x: [...coneDates, ...[...coneDates].reverse()],
-      y: [...forecast.upperOnly, ...[...forecast.lowerOnly].reverse()],
+      y: [...forecast.upperOnly, ...[...forecast.lowerOnly].reverse()].map(v => convertMoney(v)),
       fill: 'toself',
       fillcolor: 'hsla(200, 85%, 55%, 0.14)',
       line: { color: 'transparent' },
@@ -278,7 +280,7 @@ export default function ForecastPage() {
   // 2. Historical Actual Rates
   plotData.push({
     x: forecast.dates,
-    y: forecast.hist,
+    y: forecast.hist.map(v => v === null ? null : convertMoney(v)),
     mode: 'lines',
     name: 'Historical Rate',
     line: { color: 'hsl(220, 15%, 60%)', width: 2.0 },
@@ -289,7 +291,7 @@ export default function ForecastPage() {
   if (modelMode === 'compare' || modelMode === 'ensemble') {
     plotData.push({
       x: forecast.dates,
-      y: forecast.pred,
+      y: forecast.pred.map(v => v === null ? null : convertMoney(v)),
       mode: 'lines+markers',
       name: 'Ensemble Blend Forecast',
       line: { color: 'hsl(200, 95%, 55%)', width: 3.2 },
@@ -301,7 +303,7 @@ export default function ForecastPage() {
   if ((modelMode === 'compare' || modelMode === 'deep_learning') && forecast.deepPred) {
     plotData.push({
       x: forecast.dates,
-      y: forecast.deepPred,
+      y: forecast.deepPred.map(v => v === null ? null : convertMoney(v)),
       mode: 'lines+markers',
       name: 'PyTorch Deep BiLSTM + Attention',
       line: { color: 'hsl(280, 85%, 65%)', width: 2.6, dash: 'dot' },
@@ -313,7 +315,7 @@ export default function ForecastPage() {
   if ((modelMode === 'compare' || modelMode === 'xgboost') && forecast.xgbPred) {
     plotData.push({
       x: forecast.dates,
-      y: forecast.xgbPred,
+      y: forecast.xgbPred.map(v => v === null ? null : convertMoney(v)),
       mode: 'lines+markers',
       name: 'XGBoost Point Forecast',
       line: { color: 'hsl(150, 80%, 48%)', width: 2.2, dash: 'dash' },
@@ -325,7 +327,7 @@ export default function ForecastPage() {
   if ((modelMode === 'compare' || modelMode === 'lightgbm') && forecast.lgbPred) {
     plotData.push({
       x: forecast.dates,
-      y: forecast.lgbPred,
+      y: forecast.lgbPred.map(v => v === null ? null : convertMoney(v)),
       mode: 'lines+markers',
       name: 'LightGBM Point Forecast',
       line: { color: 'hsl(38, 95%, 55%)', width: 2.2, dash: 'dashdot' },
@@ -338,7 +340,7 @@ export default function ForecastPage() {
   plotData.push(
     {
       x: forecast.dates,
-      y: forecast.upper,
+      y: forecast.upper.map(v => v === null ? null : convertMoney(v)),
       mode: 'lines',
       name: 'Upper 90% Bound',
       line: { color: 'hsla(200, 85%, 55%, 0.45)', width: 1.2, dash: 'dot' },
@@ -346,7 +348,7 @@ export default function ForecastPage() {
     },
     {
       x: forecast.dates,
-      y: forecast.lower,
+      y: forecast.lower.map(v => v === null ? null : convertMoney(v)),
       mode: 'lines',
       name: 'Lower 10% Bound',
       line: { color: 'hsla(200, 85%, 55%, 0.45)', width: 1.2, dash: 'dot' },
@@ -366,8 +368,8 @@ export default function ForecastPage() {
     },
     yaxis: {
       gridcolor: 'hsla(220, 20%, 30%, 0.2)',
-      title: { text: 'Freight Rate (USD / Metric Tonne)', font: { size: 12 } },
-      tickprefix: '$',
+      title: { text: `Freight Rate (${currencyCode} / Metric Tonne)`, font: { size: 12 } },
+      tickprefix: axisCurrencyPrefix,
     },
     legend: {
       orientation: 'h',
@@ -412,7 +414,7 @@ export default function ForecastPage() {
             Current Spot Rate
           </div>
           <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
-            ${forecast.currentRate ? forecast.currentRate.toFixed(2) : '16.50'}
+            {formatMoney(forecast.currentRate || 16.5)}
             <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500, color: 'var(--text-muted)' }}> / MT</span>
           </div>
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--accent-emerald)', marginTop: 2 }}>
@@ -425,12 +427,12 @@ export default function ForecastPage() {
             {horizon}-Week Projected Rate
           </div>
           <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 800, color: 'var(--accent-ocean)', marginTop: 2 }}>
-            ${finalRate ? finalRate.toFixed(2) : '17.80'}
+            {formatMoney(finalRate || 17.8)}
             <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500, color: 'var(--text-muted)' }}> / MT</span>
           </div>
           <div style={{ fontSize: 'var(--font-size-xs)', color: rateDiff >= 0 ? 'var(--accent-amber)' : 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
             {rateDiff >= 0 ? <MdTrendingUp /> : <MdTrendingDown />}
-            {rateDiff >= 0 ? `+${rateDiff} (+${ratePct}%) Bullish` : `${rateDiff} (${ratePct}%) Softening`}
+            {rateDiff >= 0 ? `+${formatMoney(rateDiff)} (+${ratePct}%) Bullish` : `${formatMoney(rateDiff)} (${ratePct}%) Softening`}
           </div>
         </div>
 
@@ -455,7 +457,7 @@ export default function ForecastPage() {
           </div>
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
             {marketTiming.estimated_cost_savings_usd > 0
-              ? `Est. Savings: $${(marketTiming.estimated_cost_savings_usd / 1000).toFixed(0)}k USD`
+              ? `Est. Savings: ${formatMoney(marketTiming.estimated_cost_savings_usd, { compact: true, decimals: 1, showCode: true })}`
               : 'Spot Procurement Advantage'}
           </div>
         </div>
@@ -671,10 +673,10 @@ export default function ForecastPage() {
                           {(m.mape_pct ?? m.mape ?? 3.9).toFixed(2)}%
                         </td>
                         <td style={{ padding: '10px 6px' }}>
-                          ${(m.rmse_usd ?? m.rmse ?? 2.85).toFixed(2)}
+                          {formatMoney(m.rmse_usd ?? m.rmse ?? 2.85)}
                         </td>
                         <td style={{ padding: '10px 6px' }}>
-                          ${(m.mae_usd ?? m.mae ?? 1.54).toFixed(2)}
+                          {formatMoney(m.mae_usd ?? m.mae ?? 1.54)}
                         </td>
                         <td style={{ padding: '10px 6px', fontWeight: 600, color: 'var(--accent-emerald)' }}>
                           {(m.r2_score ?? m.r2 ?? 0.946).toFixed(4)}

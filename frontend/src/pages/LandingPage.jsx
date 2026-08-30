@@ -10,9 +10,11 @@ import {
 } from 'react-icons/md'
 
 import { analyzeScenario } from '../api/client'
+import { usePreferences } from '../context/PreferencesContext'
 
 export default function LandingPage() {
   const navigate = useNavigate()
+  const { formatMoney } = usePreferences()
 
   // Video Background Controls
   const videoRef = useRef(null)
@@ -268,10 +270,10 @@ export default function LandingPage() {
             <div className="sandbox-output-grid">
               <div className="output-card border-ocean">
                 <div className="card-badge">Module A: ML Forecast</div>
-                <div className="output-val">${sandboxResult.freight_forecast?.predictions?.[0]?.predicted_usd_per_mt ?? '17.40'} <span className="unit">/ MT</span></div>
+                <div className="output-val">{formatMoney(sandboxResult.freight_forecast?.predictions?.[0]?.predicted_usd_per_mt ?? 17.40)} <span className="unit">/ MT</span></div>
                 <div className="output-desc">8-Week Projected Freight Rate</div>
                 <div className="output-sub text-muted">
-                  80% Cone: ${sandboxResult.freight_forecast?.predictions?.[0]?.lower_bound_80pct ?? '15.80'} – ${sandboxResult.freight_forecast?.predictions?.[0]?.upper_bound_80pct ?? '19.10'}
+                  80% Cone: {formatMoney(sandboxResult.freight_forecast?.predictions?.[0]?.lower_bound_80pct ?? 15.80)} – {formatMoney(sandboxResult.freight_forecast?.predictions?.[0]?.upper_bound_80pct ?? 19.10)}
                 </div>
               </div>
 
@@ -279,7 +281,7 @@ export default function LandingPage() {
                 <div className="card-badge">Module B: Recommended Vessel</div>
                 <div className="output-val">{sandboxResult.vessel_optimization?.recommended_vessel_class ?? 'Panamax'}</div>
                 <div className="output-desc">
-                  Landed Logistics: ${sandboxResult.vessel_optimization?.recommended_evaluation?.total_landed_cost_usd_per_mt ?? '24.15'} / MT
+                  Landed Logistics: {formatMoney(sandboxResult.vessel_optimization?.recommended_evaluation?.total_landed_cost_usd_per_mt ?? 24.15)} / MT
                 </div>
                 {sandboxResult.vessel_optimization?.recommended_evaluation?.requires_lighterage && (
                   <div className="lighterage-tag text-amber">
@@ -294,7 +296,7 @@ export default function LandingPage() {
                   {sandboxResult.market_timing_strategy?.recommended_action ?? 'ENTER_NOW_SPOT'}
                 </div>
                 <div className="output-desc">
-                  Estimated Savings: ${sandboxResult.market_timing_strategy?.estimated_cost_savings_usd ? Math.round(sandboxResult.market_timing_strategy.estimated_cost_savings_usd).toLocaleString() : '142,500'}
+                  Estimated Savings: {formatMoney(sandboxResult.market_timing_strategy?.estimated_cost_savings_usd || 142500, { decimals: 0 })}
                 </div>
               </div>
 
@@ -357,7 +359,7 @@ export default function LandingPage() {
                     Utilizes rolling historical time-series datasets, Baltic Dry Index (BDI), bunker fuel prices, and macroeconomic indicators to generate multi-horizon freight rate predictions.
                   </p>
                   <ul className="feature-checklist">
-                    <li><MdCheckCircle className="icon-check" /> <strong>Multi-Horizon Projections</strong>: 4, 8, 12, 16, and 24-week forward freight curves in USD/MT.</li>
+                    <li><MdCheckCircle className="icon-check" /> <strong>Multi-Horizon Projections</strong>: 4, 8, 12, 16, and 24-week forward freight curves by selected currency per MT.</li>
                     <li><MdCheckCircle className="icon-check" /> <strong>Asymmetric Quantile Cones</strong>: 80% & 90% confidence bands capturing market volatility.</li>
                     <li><MdCheckCircle className="icon-check" /> <strong>SHAP Feature Attribution</strong>: Quantifies impact of bunker fuel spikes, port queues, and commodity demand.</li>
                     <li><MdCheckCircle className="icon-check" /> <strong>Ensemble Architecture</strong>: Combines XGBoost, LightGBM, and ElasticNet with automatic MAPE weighting.</li>
@@ -370,15 +372,15 @@ export default function LandingPage() {
                   <div className="graphic-placeholder">
                     <div className="graphic-header">📈 Freight Horizon Model</div>
                     <div className="graphic-bar-group">
-                      <div className="bar-label">4-Week Projection: <strong>$16.50/MT</strong></div>
+                      <div className="bar-label">4-Week Projection: <strong>{formatMoney(16.50, { suffix: '/MT' })}</strong></div>
                       <div className="bar-fill" style={{ width: '65%', background: 'var(--accent-ocean)' }}></div>
                     </div>
                     <div className="graphic-bar-group">
-                      <div className="bar-label">8-Week Projection: <strong>$17.80/MT</strong></div>
+                      <div className="bar-label">8-Week Projection: <strong>{formatMoney(17.80, { suffix: '/MT' })}</strong></div>
                       <div className="bar-fill" style={{ width: '75%', background: 'var(--accent-emerald)' }}></div>
                     </div>
                     <div className="graphic-bar-group">
-                      <div className="bar-label">12-Week Projection: <strong>$19.20/MT</strong></div>
+                      <div className="bar-label">12-Week Projection: <strong>{formatMoney(19.20, { suffix: '/MT' })}</strong></div>
                       <div className="bar-fill" style={{ width: '85%', background: 'var(--accent-amber)' }}></div>
                     </div>
                   </div>
@@ -425,7 +427,7 @@ export default function LandingPage() {
                   </p>
                   <ul className="feature-checklist">
                     <li><MdCheckCircle className="icon-check" /> <strong>Actionable Procurement Signals</strong>: `ENTER_NOW_SPOT`, `ENTER_NOW_TERM_CONTRACT`, or `WAIT_N_WEEKS`.</li>
-                    <li><MdCheckCircle className="icon-check" /> <strong>Financial Cost Savings</strong>: Calculates projected USD savings by entering contracts before rate surges.</li>
+                    <li><MdCheckCircle className="icon-check" /> <strong>Financial Cost Savings</strong>: Calculates projected savings by entering contracts before rate surges.</li>
                     <li><MdCheckCircle className="icon-check" /> <strong>Ballast Leg Optimization</strong>: Analyzes triangular repositioning guidance to minimize empty vessel legs.</li>
                   </ul>
                   <button onClick={() => navigate('/strategy')} className="btn btn-secondary btn-sm" style={{ marginTop: '16px' }}>
@@ -438,7 +440,7 @@ export default function LandingPage() {
                     <div className="strategy-preview-box">
                       <div className="strategy-signal text-emerald">ENTER_NOW_TERM_CONTRACT</div>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-                        Bullish rate curve detected over next 12 weeks. Locking term contract today saves an estimated <strong>$184,000 USD</strong>.
+                        Bullish rate curve detected over next 12 weeks. Locking term contract today saves an estimated <strong>{formatMoney(184000, { decimals: 0, showCode: true })}</strong>.
                       </p>
                     </div>
                   </div>
@@ -584,3 +586,4 @@ export default function LandingPage() {
     </div>
   )
 }
+

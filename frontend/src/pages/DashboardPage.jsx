@@ -21,6 +21,7 @@ import {
   getMaritimeNews,
   getCopilotOverview
 } from '../api/client'
+import { usePreferences } from '../context/PreferencesContext'
 
 mapboxgl.accessToken =
   import.meta.env.VITE_MAPBOX_TOKEN ||
@@ -42,6 +43,7 @@ function getChokepointColor(risk) {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { axisCurrencyPrefix, formatMoney } = usePreferences()
 
   // State
   const [data, setData] = useState(null)
@@ -302,12 +304,12 @@ export default function DashboardPage() {
 
   // Bloomberg Ticker Strip Data
   const tickerItems = [
-    { code: 'BRENT', val: `$${kpis.brent_crude?.value || '82.40'}`, chg: kpis.brent_crude?.trend || '+1.2%', up: kpis.brent_crude?.trend_dir === 'up' },
+    { code: 'BRENT', val: formatMoney(kpis.brent_crude?.value || 82.40), chg: kpis.brent_crude?.trend || '+1.2%', up: kpis.brent_crude?.trend_dir === 'up' },
     { code: 'USD/INR', val: `${kpis.usd_inr?.value || '85.20'}`, chg: kpis.usd_inr?.trend || '+0.15%', up: true },
-    { code: 'NEWCASTLE COAL', val: `$${kpis.coal_price?.value || '130.00'}`, chg: '+2.4%', up: true },
+    { code: 'NEWCASTLE COAL', val: formatMoney(kpis.coal_price?.value || 130.00), chg: '+2.4%', up: true },
     { code: 'BDI INDEX', val: '1,842', chg: '-1.8%', up: false },
-    { code: 'CAPESIZE 5TC', val: '$24,150/d', chg: '+5.6%', up: true },
-    { code: 'PANAMAX 4TC', val: '$14,820/d', chg: '-0.8%', up: false },
+    { code: 'CAPESIZE 5TC', val: formatMoney(24150, { decimals: 0, suffix: '/d' }), chg: '+5.6%', up: true },
+    { code: 'PANAMAX 4TC', val: formatMoney(14820, { decimals: 0, suffix: '/d' }), chg: '-0.8%', up: false },
     { code: 'RED SEA RISK', val: '0.88 CRIT', chg: '+285% VOL', up: false },
     { code: 'SUEZ TRANSIT', val: '-58% YOY', chg: 'SURCHARGE', up: false },
   ]
@@ -471,7 +473,7 @@ export default function DashboardPage() {
           {(copilotBriefing?.key_insights || [
             "FinBERT Sentiment: Negative (-0.42)",
             "Red Sea Disruption Index: 0.88 (CRITICAL)",
-            "VLSFO Bunker Cost: ~$612/MT (Brent $82.40)",
+            `VLSFO Bunker Cost: ~${formatMoney(612, { decimals: 0, suffix: '/MT' })} (Brent ${formatMoney(82.4)})`,
             "Odisha Port Turnaround: 4.8 days average wait"
           ]).map((insight, idx) => (
             <div key={idx} style={{
@@ -616,7 +618,7 @@ export default function DashboardPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '11px', fontWeight: 700, color: '#ff9500', fontFamily: 'monospace' }}>
               <MdShowChart size={15} />
-              <span>FRT &lt;RATE&gt; — DRY BULK FREIGHT MATRIX ($/MT)</span>
+              <span>FRT &lt;RATE&gt; — DRY BULK FREIGHT MATRIX ({axisCurrencyPrefix}/MT)</span>
             </div>
             <button
               onClick={() => navigate('/forecast')}
@@ -655,8 +657,8 @@ export default function DashboardPage() {
                       <td style={{ padding: '7px 8px', fontWeight: 700, color: '#f0f6fc' }}>{f.route}</td>
                       <td style={{ padding: '7px 8px', color: '#8b949e' }}>{f.cargo}</td>
                       <td style={{ padding: '7px 8px', color: '#58a6ff' }}>{f.vessel}</td>
-                      <td style={{ padding: '7px 8px', fontWeight: 700, color: '#00e5ff' }}>{f.rate}</td>
-                      <td style={{ padding: '7px 8px', color: '#30d158' }}>${fwdVal}/MT</td>
+                      <td style={{ padding: '7px 8px', fontWeight: 700, color: '#00e5ff' }}>{formatMoney(rateVal, { suffix: '/MT' })}</td>
+                      <td style={{ padding: '7px 8px', color: '#30d158' }}>{formatMoney(fwdVal, { suffix: '/MT' })}</td>
                       <td style={{ padding: '7px 8px' }}>
                         <span style={{
                           padding: '2px 6px',
@@ -691,11 +693,11 @@ export default function DashboardPage() {
           }}>
             <div>
               <div style={{ color: '#8b949e' }}>VLSFO BUNKER</div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#ff9500' }}>$612/MT</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#ff9500' }}>{formatMoney(612, { decimals: 0, suffix: '/MT' })}</div>
             </div>
             <div>
               <div style={{ color: '#8b949e' }}>DEMURRAGE AVG</div>
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#f0f6fc' }}>$22.5k/d</div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#f0f6fc' }}>{formatMoney(22500, { compact: true, decimals: 1, suffix: '/d' })}</div>
             </div>
             <div>
               <div style={{ color: '#8b949e' }}>ODISHA TURNAROUND</div>
