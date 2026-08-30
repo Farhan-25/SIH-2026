@@ -19,9 +19,8 @@ import { usePreferences } from '../context/PreferencesContext'
 /* ────────────────────────────────────────────────────────────
    Mapbox token
    ──────────────────────────────────────────────────────────── */
-mapboxgl.accessToken =
-  import.meta.env.VITE_MAPBOX_TOKEN ||
-  'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw'
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
+
 
 /* ────────────────────────────────────────────────────────────
    Helper utilities
@@ -71,65 +70,61 @@ function haversineNM(lat1, lon1, lat2, lon2) {
 }
 
 /* ────────────────────────────────────────────────────────────
-   Realistic Maritime Waypoints & Sea-Lane Route Engine
+   Dynamic Maritime Sea-Lane Route Engine
+   Waypoints are loaded dynamically from the backend routes intelligence API.
    ──────────────────────────────────────────────────────────── */
-const MARITIME_CORRIDOR_WAYPOINTS = {
-  AUSTRALIA_TO_INDIA: [
-    [151.78, -32.92], [153.5, -28.0], [152.0, -20.0], [142.5, -10.5],
-    [130.0, -9.0], [120.0, -9.5], [115.7, -8.6], [105.0, -8.0],
-    [95.0, 3.0], [90.0, 9.0], [87.0, 15.0]
-  ],
-  INDONESIA_TO_INDIA: [
-    [117.5, -0.5], [114.0, -3.5], [106.8, -1.0], [104.2, 1.2],
-    [102.5, 2.0], [99.8, 4.2], [95.5, 5.8], [89.0, 11.5], [86.8, 16.5]
-  ],
-  MOZAMBIQUE_TO_INDIA: [
-    [32.6, -25.9], [42.0, -16.0], [52.0, -6.0], [68.0, 1.5],
-    [78.0, 5.2], [80.6, 5.9], [84.0, 12.0]
-  ],
-  USA_TO_INDIA: [
-    [-76.6, 39.2], [-65.0, 32.0], [-40.0, 15.0], [-10.0, -10.0],
-    [18.4, -34.8], [45.0, -28.0], [65.0, -10.0], [80.6, 5.9], [84.5, 14.0]
-  ],
-  RUSSIA_TO_INDIA: [
-    [133.0, 42.7], [129.5, 33.0], [122.0, 25.0], [112.0, 12.0],
-    [104.5, 1.5], [99.8, 4.2], [95.5, 5.8], [87.0, 14.0]
-  ]
-}
-
-function getMaritimeWaypointsForCorridor(originStr = '', destPort) {
+function getMaritimeWaypointsForCorridor(originStr = '', destPort, routes = []) {
   const o = originStr.toLowerCase()
+  const dName = (destPort?.name || '').toLowerCase()
+
+  // 1. Search for direct matching route from backend intelligence
+  const match = routes.find(r => {
+    const rOrig = (r.origin || '').toLowerCase()
+    const rDest = (r.destination || '').toLowerCase()
+    return (
+      (o && (rOrig.includes(o) || o.includes(rOrig))) ||
+      (dName && (rDest.includes(dName) || dName.includes(rDest)))
+    ) && r.waypoints && r.waypoints.length > 0
+  })
+
+  if (match?.waypoints?.length > 0) {
+    return destPort?.lon && destPort?.lat
+      ? [...match.waypoints, [destPort.lon, destPort.lat]]
+      : match.waypoints
+  }
+
+  // 2. Geodesic / Chokepoint sea-lane interpolation based on origin region
   let basePoints = []
-  if (
-    o.includes('australia') || o.includes('newcastle') ||
-    o.includes('hay point') || o.includes('gladstone')
-  ) {
-    basePoints = MARITIME_CORRIDOR_WAYPOINTS.AUSTRALIA_TO_INDIA
-  } else if (
-    o.includes('indonesia') || o.includes('samarinda') ||
-    o.includes('kalimantan') || o.includes('south kalimantan')
-  ) {
-    basePoints = MARITIME_CORRIDOR_WAYPOINTS.INDONESIA_TO_INDIA
-  } else if (
-    o.includes('mozambique') || o.includes('maputo') ||
-    o.includes('nacala') || o.includes('richards bay') ||
-    o.includes('south africa')
-  ) {
-    basePoints = MARITIME_CORRIDOR_WAYPOINTS.MOZAMBIQUE_TO_INDIA
-  } else if (
-    o.includes('usa') || o.includes('baltimore') ||
-    o.includes('norfolk') || o.includes('united states')
-  ) {
-    basePoints = MARITIME_CORRIDOR_WAYPOINTS.USA_TO_INDIA
-  } else if (
-    o.includes('russia') || o.includes('vostochny') ||
-    o.includes('taman') || o.includes('novorossiysk')
-  ) {
-    basePoints = MARITIME_CORRIDOR_WAYPOINTS.RUSSIA_TO_INDIA
+  if (o.includes('australia') || o.includes('newcastle') || o.includes('hay point') || o.includes('gladstone')) {
+    basePoints = [
+      [151.78, -32.92], [153.5, -28.0], [152.0, -20.0], [142.5, -10.5],
+      [130.0, -9.0], [120.0, -9.5], [115.7, -8.6], [105.0, -8.0],
+      [95.0, 3.0], [90.0, 9.0], [87.0, 15.0]
+    ]
+  } else if (o.includes('indonesia') || o.includes('samarinda') || o.includes('kalimantan')) {
+    basePoints = [
+      [117.5, -0.5], [114.0, -3.5], [106.8, -1.0], [104.2, 1.2],
+      [102.5, 2.0], [99.8, 4.2], [95.5, 5.8], [89.0, 11.5], [86.8, 16.5]
+    ]
+  } else if (o.includes('mozambique') || o.includes('maputo') || o.includes('nacala') || o.includes('beira') || o.includes('south africa')) {
+    basePoints = [
+      [32.6, -25.9], [42.0, -16.0], [52.0, -6.0], [68.0, 1.5],
+      [78.0, 5.2], [80.6, 5.9], [84.0, 12.0]
+    ]
+  } else if (o.includes('usa') || o.includes('baltimore') || o.includes('norfolk')) {
+    basePoints = [
+      [-76.6, 39.2], [-65.0, 32.0], [-40.0, 15.0], [-10.0, -10.0],
+      [18.4, -34.8], [45.0, -28.0], [65.0, -10.0], [80.6, 5.9], [84.5, 14.0]
+    ]
+  } else if (o.includes('russia') || o.includes('vostochny') || o.includes('taman')) {
+    basePoints = [
+      [133.0, 42.7], [129.5, 33.0], [122.0, 25.0], [112.0, 12.0],
+      [104.5, 1.5], [99.8, 4.2], [95.5, 5.8], [87.0, 14.0]
+    ]
   } else {
-    // Generic Indian Ocean corridor via Dondra Head (south of Sri Lanka)
     basePoints = [[95.0, 5.0], [88.0, 10.0], [86.5, 15.0]]
   }
+
   if (destPort && destPort.lon && destPort.lat) {
     return [...basePoints, [destPort.lon, destPort.lat]]
   }
@@ -178,7 +173,7 @@ function MapboxMap({
     const destPort = allPorts.find(p => p.name?.toLowerCase().includes(activeVesselObj.dest?.toLowerCase()?.split(' ')[0] || '___'))
       || indianPorts.find(p => p.port_id === 'IN_PRT') || { lon: 86.67, lat: 20.26 }
 
-    const waypoints = getMaritimeWaypointsForCorridor(activeVesselObj.origin, destPort)
+    const waypoints = getMaritimeWaypointsForCorridor(activeVesselObj.origin, destPort, routes)
     const curPos = [activeVesselObj.lon, activeVesselObj.lat]
 
     let closestIndex = 0
@@ -210,7 +205,7 @@ function MapboxMap({
         }
       ]
     }
-  }, [activeVesselObj, indianPorts, globalPorts])
+  }, [activeVesselObj, indianPorts, globalPorts, routes])
 
   // Ruler Distance Measure GeoJSON
   const rulerGeoJSON = useMemo(() => {
@@ -340,6 +335,27 @@ function MapboxMap({
       }
     }
   }, [])
+
+  // Update ambient trade routes
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded() || !map.current.getSource('trade-routes')) return
+    const routeFeatures = routes
+      .filter(r => r.waypoints && r.waypoints.length > 0)
+      .map(r => ({
+        type: 'Feature',
+        properties: {
+          color: rgbToHex(routeColorFromOrigin(r.origin || ''))
+        },
+        geometry: {
+          type: 'LineString',
+          coordinates: r.waypoints
+        }
+      }))
+    map.current.getSource('trade-routes').setData({
+      type: 'FeatureCollection',
+      features: routeFeatures
+    })
+  }, [routes])
 
   // Update ruler line
   useEffect(() => {

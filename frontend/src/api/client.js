@@ -10,8 +10,8 @@ const api = axios.create({
 export const getHealth = () => api.get('/health')
 
 // ─── Reference Data ───────────────────────────────────────
-export const getPorts = () => api.get('/ports')
-export const getRoutes = () => api.get('/routes')
+export const getPorts = () => api.get('/ports').then(r => r.data)
+export const getRoutes = () => api.get('/routes').then(r => r.data)
 
 // ─── Forecasting ──────────────────────────────────────────
 export const getForecast = (params) =>
@@ -40,6 +40,10 @@ export const getMarketTiming = (params) =>
 // ─── Dashboard (Live Aggregated Data) ────────────────────
 export const getDashboard = () =>
   api.get('/dashboard').then(r => r.data)
+
+// ─── Dynamic Commodity & Bunker Prices ───────────────────
+export const getCommodities = () =>
+  api.get('/commodities').then(r => r.data)
 
 // ─── Map Intelligence (GFW + AIS + Weather + FRED) ───────
 export const getMapIntelligence = () =>
