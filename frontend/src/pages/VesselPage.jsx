@@ -250,8 +250,8 @@ export default function VesselPage() {
           </h2>
           <Plot
             data={[
-              { x: costData.map(d => d.vessel), y: costData.map(d => d.freight), name: 'Freight', type: 'bar', marker: { color: 'hsl(200, 85%, 55%)' } },
-              { x: costData.map(d => d.vessel), y: costData.map(d => d.port), name: 'Port Charges', type: 'bar', marker: { color: 'hsl(270, 70%, 60%)' } },
+              { x: costData.map(d => d.vessel), y: costData.map(d => d.freight), name: 'Freight', type: 'bar', marker: { color: 'hsl(192, 80%, 55%)' } },
+              { x: costData.map(d => d.vessel), y: costData.map(d => d.port), name: 'Port Charges', type: 'bar', marker: { color: 'hsl(155, 70%, 45%)' } },
               { x: costData.map(d => d.vessel), y: costData.map(d => d.lighterage), name: 'Lighterage', type: 'bar', marker: { color: 'hsl(35, 95%, 60%)' } },
               { x: costData.map(d => d.vessel), y: costData.map(d => d.demurrage), name: 'Demurrage Risk', type: 'bar', marker: { color: 'hsl(0, 80%, 60%)' } },
             ]}
@@ -259,10 +259,10 @@ export default function VesselPage() {
               barmode: 'stack',
               paper_bgcolor: 'transparent',
               plot_bgcolor: 'transparent',
-              font: { family: 'Inter', color: 'hsl(220, 15%, 65%)', size: 11 },
+              font: { family: 'Inter', color: 'hsl(0, 0%, 55%)', size: 11 },
               margin: { t: 20, r: 20, b: 40, l: 50 },
               xaxis: { gridcolor: 'transparent' },
-              yaxis: { gridcolor: 'hsla(220, 20%, 30%, 0.2)', tickprefix: axisCurrencyPrefix, title: '' },
+              yaxis: { gridcolor: 'hsla(0, 0%, 20%, 0.2)', tickprefix: axisCurrencyPrefix, title: '' },
               legend: { orientation: 'h', y: -0.2, font: { size: 10 } },
             }}
             config={{ responsive: true, displayModeBar: false }}

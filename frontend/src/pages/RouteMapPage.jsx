@@ -1,7 +1,13 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MdMap, MdPublic, MdDirectionsBoat, MdWarning, MdRefresh, MdMyLocation, MdWaves, MdTrendingUp, MdAnchor, MdSignalWifi4Bar, MdSignalWifiOff, MdLocalShipping, MdCloud } from 'react-icons/md'
+import {
+  MdMap, MdPublic, MdDirectionsBoat, MdWarning, MdRefresh, MdMyLocation,
+  MdWaves, MdTrendingUp, MdAnchor, MdSignalWifi4Bar, MdSignalWifiOff,
+  MdLocalShipping, MdCloud, MdClose, MdNavigation, MdAttachMoney,
+  MdEco, MdSpeed, MdLocationOn, MdCheckCircle, MdScience,
+  MdArrowForward, MdSearch, MdStraighten, MdPause, MdPlayArrow
+} from 'react-icons/md'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Canvas } from '@react-three/fiber'

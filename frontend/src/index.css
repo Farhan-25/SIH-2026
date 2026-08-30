@@ -1,49 +1,55 @@
 /* ============================================================
    FreightIQ — Freight Intelligence Platform
-   Global Design System: Dark Glassmorphism + Ocean Theme
+   Global Design System: Minimal Monochrome
    ============================================================ */
 
 /* ----- CSS Custom Properties (Design Tokens) ----- */
 :root {
-  /* Background Scale */
-  --bg-primary: hsl(220, 25%, 6%);
-  --bg-secondary: hsl(220, 22%, 10%);
-  --bg-card: hsla(220, 25%, 14%, 0.55);
-  --bg-card-hover: hsla(220, 25%, 18%, 0.65);
-  --bg-elevated: hsla(220, 30%, 12%, 0.80);
-  --bg-input: hsla(220, 25%, 15%, 0.50);
-  --bg-sidebar: hsla(220, 30%, 8%, 0.92);
+  /* Background Scale — desaturated near-black */
+  --bg-primary: hsl(0, 0%, 4%);
+  --bg-secondary: hsl(0, 0%, 7%);
+  --bg-card: hsla(0, 0%, 10%, 0.7);
+  --bg-card-hover: hsla(0, 0%, 13%, 0.8);
+  --bg-elevated: hsla(0, 0%, 9%, 0.85);
+  --bg-input: hsla(0, 0%, 11%, 0.6);
+  --bg-sidebar: hsla(0, 0%, 5%, 0.95);
 
-  /* Accent Palette */
-  --accent-ocean: hsl(200, 85%, 55%);
-  --accent-ocean-dim: hsl(200, 70%, 35%);
-  --accent-ocean-glow: hsla(200, 85%, 55%, 0.25);
+  /* Accent — single cool cyan */
+  --accent: hsl(192, 80%, 55%);
+  --accent-dim: hsl(192, 60%, 35%);
+  --accent-glow: hsla(192, 80%, 55%, 0.18);
+  /* Legacy aliases for existing class references */
+  --accent-ocean: var(--accent);
+  --accent-ocean-dim: var(--accent-dim);
+  --accent-ocean-glow: var(--accent-glow);
+  --accent-violet: var(--accent);
+
+  /* Functional colors — unchanged */
   --accent-emerald: hsl(155, 70%, 45%);
   --accent-emerald-dim: hsl(155, 55%, 30%);
   --accent-amber: hsl(35, 95%, 60%);
   --accent-amber-dim: hsl(35, 80%, 40%);
   --accent-rose: hsl(0, 80%, 60%);
   --accent-rose-dim: hsl(0, 65%, 40%);
-  --accent-violet: hsl(270, 70%, 60%);
 
-  /* Text */
-  --text-primary: hsl(220, 15%, 92%);
-  --text-secondary: hsl(220, 12%, 65%);
-  --text-muted: hsl(220, 10%, 45%);
-  --text-inverse: hsl(220, 25%, 6%);
+  /* Text — pure neutral */
+  --text-primary: hsl(0, 0%, 95%);
+  --text-secondary: hsl(0, 0%, 55%);
+  --text-muted: hsl(0, 0%, 38%);
+  --text-inverse: hsl(0, 0%, 4%);
 
-  /* Borders */
-  --border-subtle: hsla(220, 20%, 30%, 0.35);
-  --border-active: hsla(200, 85%, 55%, 0.45);
+  /* Borders — neutral, no blue tint */
+  --border-subtle: hsla(0, 0%, 20%, 0.4);
+  --border-active: hsla(192, 80%, 55%, 0.4);
 
-  /* Glass Effect */
-  --glass-blur: 16px;
-  --glass-border: 1px solid hsla(220, 20%, 40%, 0.2);
-  --glass-shadow: 0 8px 32px hsla(0, 0%, 0%, 0.35);
+  /* Glass Effect — subtler */
+  --glass-blur: 12px;
+  --glass-border: 1px solid hsla(0, 0%, 22%, 0.25);
+  --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-serif: 'Libre Baskerville', Georgia, Cambria, 'Times New Roman', serif;
+  --font-serif: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-size-xs: 0.7rem;
   --font-size-sm: 0.8rem;
   --font-size-base: 0.9rem;
@@ -80,21 +86,21 @@
 }
 
 :root[data-theme='light'] {
-  --bg-primary: hsl(210, 35%, 96%);
-  --bg-secondary: hsl(210, 32%, 91%);
-  --bg-card: hsla(0, 0%, 100%, 0.78);
-  --bg-card-hover: hsla(0, 0%, 100%, 0.92);
+  --bg-primary: hsl(0, 0%, 97%);
+  --bg-secondary: hsl(0, 0%, 93%);
+  --bg-card: hsla(0, 0%, 100%, 0.85);
+  --bg-card-hover: hsla(0, 0%, 100%, 0.95);
   --bg-elevated: hsla(0, 0%, 100%, 0.94);
-  --bg-input: hsla(210, 30%, 98%, 0.9);
-  --bg-sidebar: hsla(212, 38%, 98%, 0.96);
-  --text-primary: hsl(218, 28%, 13%);
-  --text-secondary: hsl(218, 15%, 38%);
-  --text-muted: hsl(218, 12%, 52%);
+  --bg-input: hsla(0, 0%, 98%, 0.9);
+  --bg-sidebar: hsla(0, 0%, 98%, 0.96);
+  --text-primary: hsl(0, 0%, 10%);
+  --text-secondary: hsl(0, 0%, 38%);
+  --text-muted: hsl(0, 0%, 52%);
   --text-inverse: hsl(0, 0%, 100%);
-  --border-subtle: hsla(214, 18%, 64%, 0.45);
-  --border-active: hsla(200, 80%, 42%, 0.5);
-  --glass-border: 1px solid hsla(214, 18%, 64%, 0.32);
-  --glass-shadow: 0 10px 28px hsla(214, 30%, 30%, 0.14);
+  --border-subtle: hsla(0, 0%, 60%, 0.3);
+  --border-active: hsla(192, 80%, 42%, 0.45);
+  --glass-border: 1px solid hsla(0, 0%, 60%, 0.2);
+  --glass-shadow: 0 1px 4px hsla(0, 0%, 0%, 0.08);
 }
 
 /* ----- Global Reset & Base ----- */
@@ -120,26 +126,9 @@ body {
   overflow-x: hidden;
 }
 
-/* Animated gradient bg */
+/* Flat background — no decorative gradients */
 body::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background:
-    radial-gradient(ellipse at 15% 20%, hsla(200, 80%, 30%, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 85% 80%, hsla(270, 60%, 30%, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 50%, hsla(155, 50%, 20%, 0.04) 0%, transparent 60%);
-  pointer-events: none;
-  z-index: 0;
-}
-
-:root[data-theme='light'] body::before {
-  background:
-    radial-gradient(ellipse at 12% 18%, hsla(200, 80%, 60%, 0.16) 0%, transparent 48%),
-    radial-gradient(ellipse at 88% 84%, hsla(155, 65%, 55%, 0.12) 0%, transparent 52%);
+  display: none;
 }
 
 #root {
@@ -156,11 +145,11 @@ body::before {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsla(220, 15%, 40%, 0.4);
+  background: hsla(0, 0%, 30%, 0.4);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsla(220, 15%, 50%, 0.6);
+  background: hsla(0, 0%, 40%, 0.5);
 }
 
 /* ----- Layout & Collapsible Sidebar ----- */
@@ -228,8 +217,6 @@ body::before {
 .glass-card:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-active);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px hsla(0, 0%, 0%, 0.45), 0 0 20px var(--accent-ocean-glow);
 }
 
 /* ----- KPI Cards ----- */
@@ -296,7 +283,7 @@ body::before {
   pointer-events: none;
 }
 
-.kpi-card.ocean .kpi-icon { background: hsla(200, 85%, 55%, 0.15); color: var(--accent-ocean); }
+.kpi-card.ocean .kpi-icon { background: hsla(192, 80%, 55%, 0.12); color: var(--accent); }
 .kpi-card.ocean::after { background: var(--accent-ocean); }
 .kpi-card.emerald .kpi-icon { background: hsla(155, 70%, 45%, 0.15); color: var(--accent-emerald); }
 .kpi-card.emerald::after { background: var(--accent-emerald); }
@@ -304,8 +291,8 @@ body::before {
 .kpi-card.amber::after { background: var(--accent-amber); }
 .kpi-card.rose .kpi-icon { background: hsla(0, 80%, 60%, 0.15); color: var(--accent-rose); }
 .kpi-card.rose::after { background: var(--accent-rose); }
-.kpi-card.violet .kpi-icon { background: hsla(270, 70%, 60%, 0.15); color: var(--accent-violet); }
-.kpi-card.violet::after { background: var(--accent-violet); }
+.kpi-card.violet .kpi-icon { background: hsla(192, 80%, 55%, 0.12); color: var(--accent); }
+.kpi-card.violet::after { background: var(--accent); }
 
 /* ----- Sidebar ----- */
 .sidebar {
@@ -334,7 +321,7 @@ body::before {
   width: 38px;
   height: 38px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--accent-ocean), var(--accent-violet));
+  background: var(--accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -385,12 +372,12 @@ body::before {
 }
 .nav-link:hover {
   color: var(--text-primary);
-  background: hsla(200, 60%, 50%, 0.08);
+  background: hsla(192, 60%, 50%, 0.08);
 }
 .nav-link.active {
   color: var(--accent-ocean);
-  background: hsla(200, 85%, 55%, 0.12);
-  border: 1px solid hsla(200, 85%, 55%, 0.2);
+  background: hsla(192, 80%, 55%, 0.1);
+  border: 1px solid hsla(192, 80%, 55%, 0.18);
 }
 .nav-link .nav-icon {
   font-size: 1.15rem;
@@ -414,7 +401,7 @@ body::before {
   left: var(--sidebar-width);
   right: 0;
   height: var(--header-height);
-  background: hsla(220, 25%, 8%, 0.85);
+  background: hsla(0, 0%, 5%, 0.88);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
@@ -425,7 +412,7 @@ body::before {
 }
 
 :root[data-theme='light'] .top-header {
-  background: hsla(210, 35%, 98%, 0.86);
+  background: hsla(0, 0%, 98%, 0.88);
 }
 .header-title {
   font-size: var(--font-size-lg);
@@ -483,11 +470,11 @@ body::before {
 }
 
 :root[data-theme='light'] .landing-container {
-  background: radial-gradient(circle at 50% 0%, hsla(200, 85%, 60%, 0.16), transparent 70%), var(--bg-primary);
+  background: var(--bg-primary);
 }
 
 :root[data-theme='light'] .landing-nav {
-  background: hsla(210, 35%, 98%, 0.86);
+  background: hsla(0, 0%, 98%, 0.88);
 }
 
 /* ----- Buttons ----- */
@@ -507,13 +494,12 @@ body::before {
   text-decoration: none;
 }
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-ocean), hsl(210, 80%, 50%));
-  color: white;
-  box-shadow: 0 4px 14px hsla(200, 85%, 55%, 0.3);
+  background: var(--accent);
+  color: var(--text-inverse);
+  font-weight: 600;
 }
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px hsla(200, 85%, 55%, 0.4);
+  filter: brightness(1.1);
 }
 .btn-secondary {
   background: var(--bg-card);
@@ -530,7 +516,7 @@ body::before {
 }
 .btn-ghost:hover {
   color: var(--text-primary);
-  background: hsla(220, 20%, 30%, 0.2);
+  background: hsla(0, 0%, 22%, 0.25);
 }
 
 /* ----- Form Controls ----- */
@@ -583,7 +569,7 @@ select.form-control {
 .badge-success { background: hsla(155, 70%, 45%, 0.15); color: var(--accent-emerald); }
 .badge-warning { background: hsla(35, 95%, 60%, 0.15); color: var(--accent-amber); }
 .badge-danger { background: hsla(0, 80%, 60%, 0.15); color: var(--accent-rose); }
-.badge-info { background: hsla(200, 85%, 55%, 0.15); color: var(--accent-ocean); }
+.badge-info { background: hsla(192, 80%, 55%, 0.12); color: var(--accent); }
 
 /* ----- Tables ----- */
 .data-table {
@@ -604,7 +590,7 @@ select.form-control {
   font-weight: 600;
 }
 .data-table tr:hover td {
-  background: hsla(220, 25%, 18%, 0.3);
+  background: hsla(0, 0%, 14%, 0.3);
 }
 
 /* ----- Alert Cards ----- */
@@ -630,7 +616,7 @@ select.form-control {
   border-left-color: var(--accent-emerald);
 }
 .alert-card.info {
-  background: hsla(200, 85%, 55%, 0.08);
+  background: hsla(192, 80%, 55%, 0.06);
   border-left-color: var(--accent-ocean);
 }
 
@@ -684,10 +670,8 @@ select.form-control {
 .section-header h1 {
   font-size: var(--font-size-2xl);
   font-weight: 700;
-  background: linear-gradient(135deg, var(--text-primary), var(--accent-ocean));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 .section-header h2 {
   font-size: var(--font-size-xl);
@@ -722,9 +706,9 @@ select.form-control {
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 hsla(200, 85%, 55%, 0.4); }
-  70% { box-shadow: 0 0 0 15px hsla(200, 85%, 55%, 0); }
-  100% { box-shadow: 0 0 0 0 hsla(200, 85%, 55%, 0); }
+  0% { box-shadow: 0 0 0 0 hsla(192, 80%, 55%, 0.3); }
+  70% { box-shadow: 0 0 0 12px hsla(192, 80%, 55%, 0); }
+  100% { box-shadow: 0 0 0 0 hsla(192, 80%, 55%, 0); }
 }
 @keyframes shimmer {
   0% { background-position: -200% 0; }
@@ -770,7 +754,7 @@ select.form-control {
    ============================================================ */
 .landing-container {
   min-height: 100vh;
-  background: radial-gradient(circle at 50% 0%, hsla(200, 85%, 25%, 0.15), transparent 70%), var(--bg-primary);
+  background: var(--bg-primary);
   color: var(--text-primary);
   overflow-x: hidden;
 }
@@ -785,7 +769,7 @@ select.form-control {
   top: 0;
   z-index: 100;
   backdrop-filter: blur(16px);
-  background: hsla(220, 25%, 6%, 0.85);
+  background: hsla(0, 0%, 4%, 0.88);
   border-bottom: 1px solid var(--border-subtle);
 }
 .landing-nav-brand {
@@ -805,18 +789,16 @@ select.form-control {
   font-size: 1.3rem;
   font-weight: 800;
   letter-spacing: -0.5px;
-  background: linear-gradient(135deg, var(--text-primary), var(--accent-ocean));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
 }
 .brand-badge {
   font-size: 0.65rem;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 99px;
-  background: hsla(200, 85%, 55%, 0.15);
-  color: var(--accent-ocean);
-  border: 1px solid hsla(200, 85%, 55%, 0.3);
+  background: hsla(192, 80%, 55%, 0.1);
+  color: var(--accent);
+  border: 1px solid hsla(192, 80%, 55%, 0.25);
 }
 .landing-nav-links {
   display: flex;
@@ -883,8 +865,8 @@ select.form-control {
   top: 0;
   z-index: 100;
   backdrop-filter: blur(20px);
-  background: hsla(220, 25%, 6%, 0.65);
-  border-bottom: 1px solid hsla(220, 20%, 40%, 0.25);
+  background: hsla(0, 0%, 4%, 0.65);
+  border-bottom: 1px solid hsla(0, 0%, 20%, 0.25);
 }
 
 /* Floating video pause/play toggle */
@@ -899,8 +881,8 @@ select.form-control {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: hsla(220, 25%, 12%, 0.75);
-  border: 1px solid hsla(200, 85%, 55%, 0.4);
+  background: hsla(0, 0%, 8%, 0.75);
+  border: 1px solid hsla(192, 80%, 55%, 0.3);
   color: var(--text-primary);
   cursor: pointer;
   backdrop-filter: blur(12px);
@@ -932,7 +914,7 @@ select.form-control {
   transform: translateX(-50%);
   width: 650px;
   height: 380px;
-  background: radial-gradient(circle, hsla(200, 85%, 55%, 0.22), transparent 70%);
+  background: radial-gradient(circle, hsla(192, 80%, 55%, 0.12), transparent 70%);
   pointer-events: none;
   filter: blur(50px);
 }
@@ -947,8 +929,8 @@ select.form-control {
   gap: 8px;
   padding: 6px 16px;
   border-radius: 99px;
-  background: hsla(200, 85%, 55%, 0.1);
-  border: 1px solid hsla(200, 85%, 55%, 0.25);
+  background: hsla(192, 80%, 55%, 0.08);
+  border: 1px solid hsla(192, 80%, 55%, 0.2);
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--accent-ocean);
@@ -967,7 +949,7 @@ select.form-control {
   margin: 0 auto 24px;
 }
 .text-gradient {
-  background: linear-gradient(135deg, var(--accent-ocean), var(--accent-emerald));
+  background: linear-gradient(135deg, var(--accent), var(--accent-emerald));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -986,7 +968,7 @@ select.form-control {
   margin-bottom: 56px;
 }
 .glow-button {
-  box-shadow: 0 0 24px hsla(200, 85%, 55%, 0.4);
+  box-shadow: 0 0 16px hsla(192, 80%, 55%, 0.25);
 }
 
 .hero-metrics-grid {
@@ -1025,7 +1007,7 @@ select.form-control {
   margin: 0 auto;
 }
 .landing-section.bg-alt {
-  background: hsla(220, 22%, 8%, 0.75);
+  background: hsla(0, 0%, 6%, 0.75);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
@@ -1089,7 +1071,7 @@ select.form-control {
 .output-card.border-ocean { border-left-color: var(--accent-ocean); }
 .output-card.border-emerald { border-left-color: var(--accent-emerald); }
 .output-card.border-amber { border-left-color: var(--accent-amber); }
-.output-card.border-violet { border-left-color: var(--accent-violet); }
+.output-card.border-violet { border-left-color: var(--accent); }
 .card-badge {
   font-size: 0.7rem;
   font-weight: 700;
@@ -1170,7 +1152,7 @@ select.form-control {
   color: var(--text-primary);
 }
 .tab-btn.active {
-  background: hsla(200, 85%, 55%, 0.18);
+  background: hsla(192, 80%, 55%, 0.14);
   border-color: var(--accent-ocean);
   color: var(--accent-ocean);
 }
@@ -1387,7 +1369,7 @@ select.form-control {
 /* ──── Mapbox Dark Theme Overrides ──── */
 .mapbox-dark-popup .mapboxgl-popup-content {
   background: hsla(222,30%,9%,0.97) !important;
-  border: 1px solid hsla(200,60%,40%,0.3) !important;
+  border: 1px solid hsla(192,60%,40%,0.25) !important;
   border-radius: 12px !important;
   box-shadow: 0 8px 32px rgba(0,0,0,0.55) !important;
   padding: 0 !important;
@@ -1403,16 +1385,16 @@ select.form-control {
 .mapbox-dark-popup .mapboxgl-popup-tip { border-top-color: hsla(222,30%,9%,0.97) !important; }
 
 .mapboxgl-ctrl-group {
-  background: hsla(220,25%,12%,0.92) !important;
-  border: 1px solid hsla(220,20%,28%,0.4) !important;
+  background: hsla(0,0%,8%,0.92) !important;
+  border: 1px solid hsla(0,0%,20%,0.4) !important;
   border-radius: 10px !important;
 }
 .mapboxgl-ctrl-group button { background: transparent !important; }
-.mapboxgl-ctrl-group button + button { border-top: 1px solid hsla(220,20%,28%,0.4) !important; }
+.mapboxgl-ctrl-group button + button { border-top: 1px solid hsla(0,0%,20%,0.4) !important; }
 .mapboxgl-ctrl-icon { filter: invert(0.7) !important; }
 .mapboxgl-ctrl-scale {
-  background: hsla(220,25%,12%,0.85) !important;
-  border-color: hsla(220,20%,30%,0.5) !important;
+  background: hsla(0,0%,8%,0.85) !important;
+  border-color: hsla(0,0%,22%,0.5) !important;
   color: #94a3b8 !important;
   font-size: 10px !important;
 }
@@ -1456,8 +1438,8 @@ select.form-control {
   position: relative;
   display: flex;
   align-items: center;
-  background: hsla(220, 25%, 10%, 0.88);
-  border: 1px solid hsla(220, 20%, 35%, 0.4);
+  background: hsla(0, 0%, 7%, 0.9);
+  border: 1px solid hsla(0, 0%, 22%, 0.4);
   border-radius: var(--radius-lg);
   padding: 6px 14px;
   backdrop-filter: blur(16px);
@@ -1497,7 +1479,7 @@ select.form-control {
   border-radius: var(--radius-md);
   padding: 6px;
   z-index: 50;
-  background: hsla(220, 28%, 10%, 0.95);
+  background: hsla(0, 0%, 7%, 0.95);
   border: 1px solid var(--border-active);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7);
 }
@@ -1510,7 +1492,7 @@ select.form-control {
 }
 
 .dropdown-item:hover {
-  background: hsla(200, 85%, 55%, 0.15);
+  background: hsla(192, 80%, 55%, 0.12);
 }
 
 .item-title {
@@ -1535,8 +1517,8 @@ select.form-control {
   align-items: center;
   gap: 6px;
   padding: 5px 12px;
-  background: hsla(220, 25%, 8%, 0.85);
-  border: 1px solid hsla(220, 20%, 30%, 0.35);
+  background: hsla(0, 0%, 5%, 0.88);
+  border: 1px solid hsla(0, 0%, 22%, 0.35);
   border-radius: var(--radius-full);
   font-size: 0.75rem;
   color: var(--text-secondary);
@@ -1564,8 +1546,8 @@ select.form-control {
   gap: 6px;
   padding: 6px;
   border-radius: var(--radius-lg);
-  background: hsla(220, 25%, 10%, 0.88);
-  border: 1px solid hsla(220, 20%, 35%, 0.4);
+  background: hsla(0, 0%, 7%, 0.9);
+  border: 1px solid hsla(0, 0%, 22%, 0.4);
   backdrop-filter: blur(16px);
 }
 
@@ -1586,13 +1568,13 @@ select.form-control {
 
 .hud-btn:hover {
   color: var(--text-primary);
-  background: hsla(220, 20%, 20%, 0.6);
+  background: hsla(0, 0%, 15%, 0.5);
 }
 
 .hud-btn.active {
-  background: hsla(200, 85%, 55%, 0.2);
-  color: var(--accent-ocean);
-  border-color: hsla(200, 85%, 55%, 0.4);
+  background: hsla(192, 80%, 55%, 0.15);
+  color: var(--accent);
+  border-color: hsla(192, 80%, 55%, 0.35);
   font-weight: 600;
 }
 
@@ -1608,10 +1590,10 @@ select.form-control {
   flex-direction: column;
   padding: 20px;
   border-radius: var(--radius-xl);
-  background: hsla(220, 30%, 8%, 0.94);
-  border: 1px solid hsla(200, 85%, 55%, 0.35);
+  background: hsla(0, 0%, 5%, 0.95);
+  border: 1px solid hsla(192, 80%, 55%, 0.3);
   backdrop-filter: blur(24px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 20px hsla(200, 85%, 55%, 0.15);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
   overflow-y: auto;
 }
 
@@ -1623,7 +1605,7 @@ select.form-control {
   z-index: 40;
   padding: 20px;
   border-radius: var(--radius-xl);
-  background: hsla(220, 30%, 8%, 0.94);
+  background: hsla(0, 0%, 5%, 0.95);
   border: 1px solid hsla(155, 70%, 45%, 0.35);
   backdrop-filter: blur(24px);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
@@ -1640,7 +1622,7 @@ select.form-control {
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  background: linear-gradient(135deg, hsla(200, 85%, 55%, 0.2), hsla(270, 70%, 60%, 0.2));
+  background: hsla(192, 80%, 55%, 0.12);
   border: 1px solid var(--accent-ocean);
   display: flex;
   align-items: center;
@@ -1678,7 +1660,7 @@ select.form-control {
   font-weight: 700;
   text-transform: uppercase;
   color: var(--accent-ocean);
-  background: hsla(200, 85%, 55%, 0.15);
+  background: hsla(192, 80%, 55%, 0.12);
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -1704,8 +1686,8 @@ select.form-control {
 }
 
 .fr24-btn-close {
-  background: hsla(220, 20%, 20%, 0.6);
-  border: 1px solid hsla(220, 20%, 35%, 0.4);
+  background: hsla(0, 0%, 15%, 0.5);
+  border: 1px solid hsla(0, 0%, 22%, 0.4);
   color: var(--text-muted);
   border-radius: 50%;
   width: 28px;
@@ -1725,7 +1707,7 @@ select.form-control {
 /* ──── Route Bar in Card ──── */
 .fr24-route-box {
   margin-top: 16px;
-  background: hsla(220, 25%, 12%, 0.6);
+  background: hsla(0, 0%, 9%, 0.6);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: 14px;
@@ -1806,7 +1788,7 @@ select.form-control {
 }
 
 .telemetry-cell {
-  background: hsla(220, 25%, 12%, 0.5);
+  background: hsla(0, 0%, 9%, 0.5);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 10px;
@@ -1845,7 +1827,7 @@ select.form-control {
 /* ──── Cargo & Queue ──── */
 .fr24-cargo-box {
   margin-top: 12px;
-  background: hsla(220, 25%, 12%, 0.5);
+  background: hsla(0, 0%, 9%, 0.5);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 10px 12px;
@@ -1895,17 +1877,26 @@ select.form-control {
   padding-top: 14px;
 }
 
+/* ──── Mapbox Marker Positioning Fix ──── */
+.mapboxgl-marker {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  will-change: transform !important;
+}
+
 /* ──── Location Pins on Target Ports ──── */
 .port-location-pin {
   cursor: pointer;
-  transform: translate(-50%, -100%);
   pointer-events: auto;
+  user-select: none;
 }
 
 .port-pin-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
+  pointer-events: auto;
 }
 
 .port-pin-icon {
@@ -1933,7 +1924,7 @@ select.form-control {
   margin-top: 4px;
   padding: 2px 6px;
   border-radius: 4px;
-  background: hsla(220, 25%, 8%, 0.9);
+  background: hsla(0, 0%, 5%, 0.9);
   border: 1px solid;
   font-size: 10px;
   font-weight: 700;
@@ -1946,36 +1937,49 @@ select.form-control {
 
 /* ──── Interactive Vessel Marker (FR24 Chevron) ──── */
 .fr24-vessel-marker {
-  position: relative;
   cursor: pointer;
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: auto;
+  user-select: none;
 }
 
 .fr24-vessel-container {
   position: relative;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: auto;
 }
 
 .fr24-pulse-ring {
   position: absolute;
+  top: -3px;
+  left: -3px;
   width: 38px;
   height: 38px;
   border-radius: 50%;
   border: 2px solid;
   animation: vesselPing 2s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes vesselPing {
+  0% { transform: scale(0.7); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
 }
 
 .fr24-ship-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.3s ease;
+  width: 100%;
+  height: 100%;
 }
 
 .fr24-vessel-label {
@@ -1984,7 +1988,7 @@ select.form-control {
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: hsla(220, 25%, 10%, 0.9);
+  background: hsla(0, 0%, 7%, 0.9);
   border: 1px solid var(--accent-ocean);
   color: #fff;
   font-size: 9px;
@@ -2010,8 +2014,8 @@ select.form-control {
   display: flex;
   align-items: center;
   gap: 14px;
-  background: hsla(220, 25%, 8%, 0.88);
-  border: 1px solid hsla(220, 20%, 30%, 0.4);
+  background: hsla(0, 0%, 5%, 0.9);
+  border: 1px solid hsla(0, 0%, 22%, 0.4);
   border-radius: var(--radius-full);
   padding: 6px 18px;
   backdrop-filter: blur(16px);
@@ -2051,7 +2055,7 @@ select.form-control {
   display: flex;
   gap: 4px;
   margin-top: 14px;
-  background: hsla(220, 25%, 12%, 0.6);
+  background: hsla(0, 0%, 9%, 0.6);
   padding: 3px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
@@ -2079,7 +2083,7 @@ select.form-control {
 }
 
 .tab-pill.active {
-  background: hsla(200, 85%, 55%, 0.2);
+  background: hsla(192, 80%, 55%, 0.15);
   color: var(--accent-ocean);
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
@@ -2101,8 +2105,8 @@ select.form-control {
   gap: 12px;
   padding: 8px 18px;
   border-radius: var(--radius-full);
-  background: hsla(220, 30%, 8%, 0.92);
-  border: 1px solid hsla(200, 85%, 55%, 0.35);
+  background: hsla(0, 0%, 5%, 0.92);
+  border: 1px solid hsla(192, 80%, 55%, 0.3);
   backdrop-filter: blur(20px);
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
   min-width: 480px;
@@ -2161,7 +2165,7 @@ select.form-control {
 .scrubber-ticks span.active {
   color: #fff;
   font-weight: 700;
-  background: hsla(200, 85%, 55%, 0.2);
+  background: hsla(192, 80%, 55%, 0.15);
 }
 
 /* ──── Active Ruler Floating HUD ──── */
@@ -2176,7 +2180,7 @@ select.form-control {
   gap: 16px;
   padding: 8px 16px;
   border-radius: var(--radius-lg);
-  background: hsla(220, 30%, 8%, 0.94);
+  background: hsla(0, 0%, 5%, 0.95);
   border: 1px solid hsla(330, 85%, 60%, 0.4);
   backdrop-filter: blur(16px);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);

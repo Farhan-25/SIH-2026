@@ -283,7 +283,7 @@ export default function ForecastPage() {
     y: forecast.hist.map(v => v === null ? null : convertMoney(v)),
     mode: 'lines',
     name: 'Historical Rate',
-    line: { color: 'hsl(220, 15%, 60%)', width: 2.0 },
+    line: { color: 'hsl(0, 0%, 50%)', width: 2.0 },
     type: 'scatter',
   })
 
@@ -359,15 +359,15 @@ export default function ForecastPage() {
   const plotLayout = {
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
-    font: { family: 'Inter, sans-serif', color: 'hsl(220, 15%, 65%)', size: 11 },
+    font: { family: 'Inter, sans-serif', color: 'hsl(0, 0%, 55%)', size: 11 },
     margin: { t: 30, r: 30, b: 50, l: 60 },
     xaxis: {
-      gridcolor: 'hsla(220, 20%, 30%, 0.2)',
+      gridcolor: 'hsla(0, 0%, 20%, 0.2)',
       tickformat: '%b %Y',
       title: { text: '' },
     },
     yaxis: {
-      gridcolor: 'hsla(220, 20%, 30%, 0.2)',
+      gridcolor: 'hsla(0, 0%, 20%, 0.2)',
       title: { text: `Freight Rate (${currencyCode} / Metric Tonne)`, font: { size: 12 } },
       tickprefix: axisCurrencyPrefix,
     },
@@ -405,7 +405,7 @@ export default function ForecastPage() {
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: 'var(--space-md)',
-          background: 'linear-gradient(135deg, hsla(220, 30%, 14%, 0.7), hsla(200, 40%, 12%, 0.7))',
+          background: 'hsla(0, 0%, 8%, 0.7)',
           borderLeft: '4px solid var(--accent-ocean)',
         }}
       >
@@ -441,7 +441,7 @@ export default function ForecastPage() {
             Optimal Market Strategy
           </div>
           <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--accent-emerald)', marginTop: 4 }}>
-            {marketTiming.action.replace(/_/g, ' ')}
+            {(marketTiming.action || 'WAIT').replace(/_/g, ' ')}
           </div>
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2, lineBreak: 'anywhere' }}>
             {marketTiming.headline || 'Execute Charter on Optimal Timing Window'}
@@ -452,7 +452,7 @@ export default function ForecastPage() {
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Confidence & Cost Impact
           </div>
-          <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-violet)', marginTop: 2 }}>
+          <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent)', marginTop: 2 }}>
             {marketTiming.confidence_pct ? `${marketTiming.confidence_pct.toFixed(0)}%` : '85%'} Confidence
           </div>
           <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
@@ -582,7 +582,7 @@ export default function ForecastPage() {
                     style={{
                       height: '100%',
                       borderRadius: 'var(--radius-full)',
-                      background: `linear-gradient(90deg, var(--accent-ocean), var(--accent-violet))`,
+                      background: `linear-gradient(90deg, var(--accent), var(--accent-emerald))`,
                     }}
                   />
                 </div>
@@ -597,7 +597,7 @@ export default function ForecastPage() {
           <div className="glass-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-sm)' }}>
               <h2 style={{ fontSize: 'var(--font-size-md)', fontWeight: 600, margin: 0 }}>
-                <MdLayers style={{ verticalAlign: 'middle', marginRight: 8, color: 'var(--accent-violet)' }} />
+                <MdLayers style={{ verticalAlign: 'middle', marginRight: 8, color: 'var(--accent)' }} />
                 Dynamic Inverse-MAPE Model Weighting
               </h2>
             </div>
@@ -653,7 +653,7 @@ export default function ForecastPage() {
                 <tbody>
                   {[
                     { name: 'Multi-Model Ensemble', key: 'ensemble', color: 'var(--accent-ocean)', isPrimary: true },
-                    { name: 'PyTorch Deep BiLSTM', key: 'deep_learning', color: 'var(--accent-violet)' },
+                    { name: 'PyTorch Deep BiLSTM', key: 'deep_learning', color: 'var(--accent)' },
                     { name: 'LightGBM Regressor', key: 'lightgbm', color: 'var(--accent-amber)' },
                     { name: 'XGBoost Regressor', key: 'xgboost', color: 'var(--accent-emerald)' },
                   ].map((arch, i) => {
@@ -662,7 +662,7 @@ export default function ForecastPage() {
                       <tr
                         key={i}
                         style={{
-                          borderBottom: '1px solid hsla(220, 20%, 30%, 0.15)',
+                          borderBottom: '1px solid hsla(0, 0%, 20%, 0.15)',
                           background: arch.isPrimary ? 'hsla(200, 85%, 55%, 0.06)' : 'transparent',
                         }}
                       >

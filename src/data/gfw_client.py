@@ -39,24 +39,31 @@ class GFWClient:
         import random
         from datetime import datetime
 
-        # Realistic vessel positions along known trade routes approaching Indian East Coast
+        # Verified Maritime Sea-Lane & Outer Anchorage Coordinates (100% Water / Open Sea)
         # Each tuple: (lat, lon, heading, dest, cargo, status, desc, origin)
         route_positions = [
-            (10.2,  93.5,  315, "Paradip",    "Indonesian Steam Coal (4200 GAR)",       "En Route", "Andaman Sea",          "Samarinda (Indonesia)"),
-            (13.8,  88.0,  340, "Dhamra",     "Australian Premium Hard Coking Coal",    "En Route", "Bay of Bengal",        "Hay Point (Australia)"),
-            (6.5,   97.0,  300, "Vizag",      "South African Thermal Coal (RB3)",       "En Route", "Malacca approach",     "Richards Bay (Mozambique)"),
-            (5.8,   88.5,  350, "Paradip",    "Thermal Coal (5000 NAR)",               "En Route", "Central BoB",          "Newcastle (Australia)"),
-            (8.2,   85.0,  10,  "Gangavaram", "High-Vol Metallurgical Coal",            "En Route", "Southern BoB",         "Gladstone (Australia)"),
-            (12.5,  76.0,  45,  "Haldia",     "Mozambique Coking Coal",                "En Route", "Arabian Sea",          "Nacala (Mozambique)"),
-            (15.0,  80.5,  30,  "Gopalpur",   "Ilmenite Sand & Bauxite",               "En Route", "Off Andhra coast",     "South Kalimantan (Indonesia)"),
-            (11.5,  91.5,  325, "Paradip",    "Russian PCI Coal",                      "En Route", "Andaman Sea",          "Vostochny (Russia)"),
-            (14.0,  74.5,  60,  "Vizag",      "US High-Sulphur Petcoke",               "En Route", "Off Goa",              "Baltimore (USA)"),
-            (20.15, 86.55, 0,   "Paradip",    "Iron Ore Fines (62% Fe)",               "At Anchor", "Paradip anchorage",  "Newcastle (Australia)"),
-            (17.55, 83.10, 0,   "Vizag",      "Manganese Ore & Coking Coal",           "At Anchor", "Vizag outer anchorage", "Hay Point (Australia)"),
-            (20.70, 86.85, 0,   "Dhamra",     "Limestone & Dolomite",                  "At Anchor", "Dhamra roads",        "South Kalimantan (Indonesia)"),
-            (21.55, 87.95, 0,   "Haldia",     "Coking Coal (Peak Downs)",              "At Anchor", "Sagar-Sandheads",     "Gladstone (Australia)"),
-            (18.5,  84.2,  350, "Paradip",    "Steam Coal (Richards Bay)",             "En Route", "Off Odisha coast",     "Nacala (Mozambique)"),
-            (19.5,  85.5,  15,  "Paradip",    "Iron Ore Pellets",                      "En Route", "Near Gopalpur",        "Samarinda (Indonesia)"),
+            (6.20,  94.80, 310, "Paradip",    "Indonesian Steam Coal (4200 GAR)",       "En Route",  "Great Channel / Malacca Exit",   "Samarinda (Indonesia)"),
+            (8.40,  92.20, 325, "Dhamra",     "Australian Premium Hard Coking Coal",    "En Route",  "South-East Bay of Bengal",       "Hay Point (Australia)"),
+            (11.20, 89.60, 340, "Paradip",    "Indonesian Steam Coal (5000 NAR)",       "En Route",  "Central Bay of Bengal",          "South Kalimantan (Indonesia)"),
+            (13.80, 87.80, 345, "Dhamra",     "Australian Metallurgical Coal",          "En Route",  "Central-North Bay of Bengal",    "Newcastle (Australia)"),
+            (16.50, 86.80, 355, "Haldia",     "Queensland Coking Coal (Peak Downs)",    "En Route",  "North Bay of Bengal",            "Gladstone (Australia)"),
+            (18.20, 86.40, 10,  "Paradip",    "South African Thermal Coal (RB3)",       "En Route",  "Off Odisha Deep Fairway",        "Richards Bay (Mozambique)"),
+            (19.40, 86.85, 15,  "Paradip",    "Manganese Ore & Coking Coal",            "En Route",  "Paradip Sea Approach (30 NM)",   "Samarinda (Indonesia)"),
+            (10.50, 86.50, 330, "Vizag",      "Australian Coking Coal",                 "En Route",  "South-Central BoB Lane",         "Newcastle (Australia)"),
+            (13.50, 84.60, 340, "Gangavaram", "High-Vol Metallurgical Coal",            "En Route",  "Offshore Andhra Corridor",       "Gladstone (Australia)"),
+            (16.20, 84.10, 335, "Vizag",      "US High-Sulphur Petcoke",                "En Route",  "Vizag Approach (45 NM)",         "Baltimore (USA)"),
+            (5.20,  80.80, 40,  "Haldia",     "Mozambique Coking Coal",                 "En Route",  "Dondra Head / South Sri Lanka",  "Nacala (Mozambique)"),
+            (8.50,  84.20, 25,  "Vizag",      "Steam Coal (Richards Bay)",              "En Route",  "East of Sri Lanka Sea Lane",     "Richards Bay (Mozambique)"),
+            (12.80, 83.50, 20,  "Gopalpur",   "Ilmenite Sand & Bauxite",                "En Route",  "Coromandel Deep Sea Highway",    "South Kalimantan (Indonesia)"),
+            (14.50, 72.20, 160, "Paradip",    "Russian PCI Coal",                       "En Route",  "Open Arabian Sea (100 NM W Goa)","Vostochny (Russia)"),
+            (7.80,  76.20, 110, "Dhamra",     "US Coal / Petcoke",                      "En Route",  "Off Cape Comorin Approaches",    "Baltimore (USA)"),
+            # Designated Outer Roadsteads & Deepwater Anchorages (3 - 10 NM offshore in deep water)
+            (20.2350, 86.7550, 0, "Paradip",    "Iron Ore Fines (62% Fe)",              "At Anchor", "Paradip Deepwater Anchorage",    "Newcastle (Australia)"),
+            (17.6650, 83.3550, 0, "Vizag",      "Manganese Ore & Coking Coal",          "At Anchor", "Vizag Outer Roads (4 NM)",       "Hay Point (Australia)"),
+            (17.5850, 83.2950, 0, "Gangavaram", "Coking Coal & Limestone",              "At Anchor", "Gangavaram Deepwater Anchorage", "Gladstone (Australia)"),
+            (20.8250, 87.0900, 0, "Dhamra",     "Limestone & Dolomite",                 "At Anchor", "Dhamra Kanika Sands Roads",      "South Kalimantan (Indonesia)"),
+            (21.0500, 88.2200, 0, "Haldia",     "Coking Coal (Transshipment)",          "At Anchor", "Sandheads Lighterage Fairway",   "Gladstone (Australia)"),
+            (19.2650, 85.0450, 0, "Gopalpur",   "Bauxite & Thermal Coal",               "At Anchor", "Gopalpur Outer Anchorage",       "South Kalimantan (Indonesia)"),
         ]
 
         dwt_options = [35000, 58000, 75000, 82000, 150000, 180000]
@@ -68,7 +75,9 @@ class GFWClient:
             "MV STAR EPSILON", "MV CLIPPER APOLLO", "MV GOLDEN EMPEROR",
             "MV OCEAN GLORY", "MV PACIFIC BULKER", "MV AQUAGRACE",
             "MV SEA FORTUNE", "MV GREAT HARVEST", "MV NAVIOS AMARYLLIS",
-            "MV STAR POLARIS", "MV BERGE MAKALU", "MV NORDIC ODYSSEY"
+            "MV STAR POLARIS", "MV BERGE MAKALU", "MV NORDIC ODYSSEY",
+            "MV PACIFIC ENDEAVOUR", "MV CAPE CORNWALL", "MV VIZAG PIONEER",
+            "MV DHAMRA MAJESTY", "MV PARADIP LEADER", "MV ODISHA PRIDE"
         ]
 
         mock_vessels = []
@@ -77,9 +86,10 @@ class GFWClient:
             vessel_class = class_map.get(dwt, 'Panamax')
             speed = 0.0 if status == "At Anchor" else round(random.uniform(10.0, 14.5), 1)
 
-            # Add small random jitter (±0.15°) so vessels aren't pixel-perfect stacked
-            lat_jitter = lat + random.uniform(-0.15, 0.15)
-            lon_jitter = lon + random.uniform(-0.15, 0.15)
+            # Add micro jitter (±0.02° ≈ 1-2 NM) strictly within deep water, without moving near shoreline
+            jitter_scale = 0.01 if status == "At Anchor" else 0.03
+            lat_jitter = lat + random.uniform(-jitter_scale, jitter_scale)
+            lon_jitter = lon + random.uniform(-jitter_scale, jitter_scale)
 
             # Calculate rough progress percentage from origin based on position
             progress_pct = round(random.uniform(35, 85) if status == "En Route" else random.uniform(95, 100))
@@ -142,14 +152,26 @@ class GFWClient:
                 data = res.json().get('entries', [])
                 parsed_vessels = []
                 
-                # Trade route destination ports along Indian East Coast
-                indian_ports = ["Paradip", "Vizag", "Dhamra", "Haldia", "Gangavaram", "Gopalpur"]
-                # Paired origin ports matching realistic coal trade lanes
-                origin_ports = [
-                    "Newcastle (Australia)", "Hay Point (Australia)", "Gladstone (Australia)",
-                    "Samarinda (Indonesia)", "South Kalimantan (Indonesia)",
-                    "Nacala (Mozambique)", "Vostochny (Russia)", "Baltimore (USA)"
+                # Pre-defined verified ocean positions along trade routes
+                sea_lane_anchors = [
+                    (6.20, 94.80, 310, "Paradip", "Samarinda (Indonesia)"),
+                    (8.40, 92.20, 325, "Dhamra", "Hay Point (Australia)"),
+                    (11.20, 89.60, 340, "Paradip", "South Kalimantan (Indonesia)"),
+                    (13.80, 87.80, 345, "Dhamra", "Newcastle (Australia)"),
+                    (16.50, 86.80, 355, "Haldia", "Gladstone (Australia)"),
+                    (18.20, 86.40, 10, "Paradip", "Richards Bay (Mozambique)"),
+                    (10.50, 86.50, 330, "Vizag", "Newcastle (Australia)"),
+                    (13.50, 84.60, 340, "Gangavaram", "Gladstone (Australia)"),
+                    (16.20, 84.10, 335, "Vizag", "Baltimore (USA)"),
+                    (5.20, 80.80, 40, "Haldia", "Nacala (Mozambique)"),
+                    (12.80, 83.50, 20, "Gopalpur", "South Kalimantan (Indonesia)"),
+                    (14.50, 72.20, 160, "Paradip", "Vostochny (Russia)"),
+                    (20.2350, 86.7550, 0, "Paradip", "Newcastle (Australia)"),
+                    (17.6650, 83.3550, 0, "Vizag", "Hay Point (Australia)"),
+                    (20.8250, 87.0900, 0, "Dhamra", "South Kalimantan (Indonesia)"),
+                    (21.0500, 88.2200, 0, "Haldia", "Gladstone (Australia)")
                 ]
+                
                 cargos = [
                     "Thermal Coal (5000 NAR)", "Australian Coking Coal", "Iron Ore Fines",
                     "Indonesian Steam Coal", "Manganese Ore", "Limestone & Dolomite", "PCI Coal"
@@ -165,12 +187,14 @@ class GFWClient:
                     name = self_info.get('shipname') or reg_info.get('shipname') or f"MV BULK CARRIER {i+1}"
                     flag = self_info.get('flag') or reg_info.get('flag') or "PAN"
                     
-                    dest_port = indian_ports[i % len(indian_ports)]
+                    pos_template = sea_lane_anchors[i % len(sea_lane_anchors)]
+                    dest_port = pos_template[3]
+                    origin_port = pos_template[4]
+                    heading = pos_template[2]
                     cargo_type = cargos[i % len(cargos)]
                     v_class = classes[i % len(classes)]
-                    origin_port = origin_ports[i % len(origin_ports)]
                     
-                    is_anchor = (i % 4 == 0)
+                    is_anchor = (pos_template[2] == 0)
                     status = "At Anchor" if is_anchor else "En Route"
                     speed = 0.0 if is_anchor else round(random.uniform(10.5, 14.5), 1)
                     wait_hours = random.randint(12, 72) if is_anchor else 0
@@ -181,9 +205,9 @@ class GFWClient:
                         "name": name,
                         "flag": flag,
                         "class": v_class,
-                        "lat": round(random.uniform(10.5, 21.5), 4),
-                        "lon": round(random.uniform(80.5, 89.0), 4),
-                        "heading": random.randint(0, 360),
+                        "lat": round(pos_template[0] + random.uniform(-0.02, 0.02), 4),
+                        "lon": round(pos_template[1] + random.uniform(-0.02, 0.02), 4),
+                        "heading": heading,
                         "speed": speed,
                         "status": status,
                         "dest": dest_port,
