@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import Plot from 'react-plotly.js'
 import { MdTrendingUp, MdCompareArrows } from 'react-icons/md'
 import { getMarketTiming, getForecast } from '../api/client'
+import { usePreferences } from '../context/PreferencesContext'
 
 const SIGNAL_CONFIG = {
   ENTER_NOW_SPOT: { label: 'ENTER NOW — SPOT', color: 'var(--accent-emerald)', icon: '🟢', bgClass: 'enter' },
@@ -23,6 +24,7 @@ const DEFAULT_TIMING = {
 }
 
 export default function StrategyPage() {
+  const { axisCurrencyPrefix, formatMoney, convertMoney } = usePreferences()
   const [timing, setTiming] = useState(DEFAULT_TIMING)
   const [curve, setCurve] = useState(() => [
     { label: 'Spot', rate: 14.82 },
@@ -148,11 +150,11 @@ export default function StrategyPage() {
           </div>
           <div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Current Spot</div>
-            <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-emerald)' }}>${timing.current_spot_rate}/MT</div>
+            <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-emerald)' }}>{formatMoney(timing.current_spot_rate, { suffix: '/MT' })}</div>
           </div>
           <div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>3M Forward</div>
-            <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-amber)' }}>${timing.forward_3m_est}/MT</div>
+            <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-amber)' }}>{formatMoney(timing.forward_3m_est, { suffix: '/MT' })}</div>
           </div>
         </div>
       </motion.div>
@@ -167,7 +169,7 @@ export default function StrategyPage() {
           <Plot
             data={[{
               x: curve.map(c => c.label),
-              y: curve.map(c => c.rate),
+              y: curve.map(c => convertMoney(c.rate)),
               type: 'scatter',
               mode: 'lines+markers',
               line: { color: 'hsl(200, 85%, 55%)', width: 2.5, shape: 'spline' },
@@ -176,7 +178,7 @@ export default function StrategyPage() {
               fillcolor: 'hsla(200, 85%, 55%, 0.06)',
             }, {
               x: curve.map(c => c.label),
-              y: curve.map(() => timing.current_spot_rate),
+              y: curve.map(() => convertMoney(timing.current_spot_rate)),
               type: 'scatter',
               mode: 'lines',
               name: 'Spot Rate',
@@ -188,7 +190,7 @@ export default function StrategyPage() {
               font: { family: 'Inter', color: 'hsl(220, 15%, 65%)', size: 11 },
               margin: { t: 20, r: 20, b: 40, l: 50 },
               xaxis: { gridcolor: 'transparent', title: 'Forward Tenor' },
-              yaxis: { gridcolor: 'hsla(220, 20%, 30%, 0.2)', tickprefix: '$', title: '$/MT' },
+              yaxis: { gridcolor: 'hsla(220, 20%, 30%, 0.2)', tickprefix: axisCurrencyPrefix, title: `${axisCurrencyPrefix}/MT` },
               legend: { orientation: 'h', y: -0.2, font: { size: 10 } },
               showlegend: true,
             }}
@@ -221,9 +223,9 @@ export default function StrategyPage() {
                     {c.strategy}
                     {c.recommendation && <span className="badge badge-success" style={{ marginLeft: 8 }}>BEST</span>}
                   </td>
-                  <td style={{ fontWeight: 600, color: 'var(--accent-ocean)' }}>${c.rate}/MT</td>
+                  <td style={{ fontWeight: 600, color: 'var(--accent-ocean)' }}>{formatMoney(c.rate, { suffix: '/MT' })}</td>
                   <td style={{ fontSize: 'var(--font-size-sm)' }}>
-                    ${(c.total_cost / 1000).toFixed(0)}K
+                    {formatMoney(c.total_cost, { compact: true, decimals: 1 })}
                   </td>
                   <td>
                     <span className={`badge ${
@@ -245,11 +247,11 @@ export default function StrategyPage() {
             <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               {timing.savings_usd > 0 ? (
                 <>
-                  Optimal strategy projects estimated cost savings of <strong style={{ color: 'var(--accent-emerald)' }}>${timing.savings_usd.toLocaleString()}</strong> across parcel commitment.
+                  Optimal strategy projects estimated cost savings of <strong style={{ color: 'var(--accent-emerald)' }}>{formatMoney(timing.savings_usd, { decimals: 0 })}</strong> across parcel commitment.
                 </>
               ) : (
                 <>
-                  Current spot rate of <strong style={{ color: 'var(--accent-emerald)' }}>${timing.current_spot_rate}/MT</strong> offers balanced market entry without forward commitment premium.
+                  Current spot rate of <strong style={{ color: 'var(--accent-emerald)' }}>{formatMoney(timing.current_spot_rate, { suffix: '/MT' })}</strong> offers balanced market entry without forward commitment premium.
                 </>
               )}
             </div>

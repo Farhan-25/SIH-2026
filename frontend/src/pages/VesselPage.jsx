@@ -3,9 +3,10 @@ import { motion } from 'framer-motion'
 import Plot from 'react-plotly.js'
 import {
   MdDirectionsBoat, MdCheckCircle, MdCancel,
-  MdWarning
+  MdWarning, MdPlayArrow
 } from 'react-icons/md'
 import { getVesselRecommendation } from '../api/client'
+import { usePreferences } from '../context/PreferencesContext'
 
 const ORIGINS = [
   { id: 'newcastle', label: 'Newcastle (AU)' },
@@ -68,6 +69,7 @@ const DEMO_RESULTS = {
 }
 
 export default function VesselPage() {
+  const { axisCurrencyPrefix, formatMoney, convertMoney } = usePreferences()
   const [origin, setOrigin] = useState('newcastle')
   const [dest, setDest] = useState('paradip')
   const [cargo, setCargo] = useState('75000')
@@ -100,10 +102,10 @@ export default function VesselPage() {
   // Cost breakdown chart
   const costData = feasible.map(v => ({
     vessel: v.vessel_name,
-    freight: v.base_freight_usd_per_mt,
-    port: v.port_charges_usd_per_mt,
-    lighterage: v.lighterage_cost_usd_per_mt,
-    demurrage: v.demurrage_risk_usd_per_mt,
+    freight: convertMoney(v.base_freight_usd_per_mt),
+    port: convertMoney(v.port_charges_usd_per_mt),
+    lighterage: convertMoney(v.lighterage_cost_usd_per_mt),
+    demurrage: convertMoney(v.demurrage_risk_usd_per_mt),
   }))
 
   return (
@@ -174,7 +176,7 @@ export default function VesselPage() {
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Lowest Landed Cost</div>
             <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, color: 'var(--accent-ocean)' }}>
-              ${results.recommended_total_cost_usd_per_mt}/MT
+              {formatMoney(results.recommended_total_cost_usd_per_mt, { suffix: '/MT' })}
             </div>
           </div>
         </motion.div>
@@ -223,7 +225,7 @@ export default function VesselPage() {
                     )}
                   </td>
                   <td style={{ fontWeight: 600, color: v.is_feasible ? 'var(--accent-ocean)' : 'var(--text-muted)' }}>
-                    {v.is_feasible ? `$${v.total_landed_cost_usd_per_mt}` : '—'}
+                    {v.is_feasible ? formatMoney(v.total_landed_cost_usd_per_mt) : '—'}
                   </td>
                   <td style={{ fontSize: 'var(--font-size-sm)' }}>
                     {v.is_feasible ? `${v.estimated_discharge_days}d` : '—'}
@@ -244,7 +246,7 @@ export default function VesselPage() {
         {/* ─── Cost Breakdown Chart ─── */}
         <div className="glass-card chart-container" style={{ padding: 'var(--space-md)' }}>
           <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', fontWeight: 600 }}>
-            Landed Cost Breakdown ($/MT)
+            Landed Cost Breakdown ({axisCurrencyPrefix}/MT)
           </h2>
           <Plot
             data={[
@@ -260,7 +262,7 @@ export default function VesselPage() {
               font: { family: 'Inter', color: 'hsl(220, 15%, 65%)', size: 11 },
               margin: { t: 20, r: 20, b: 40, l: 50 },
               xaxis: { gridcolor: 'transparent' },
-              yaxis: { gridcolor: 'hsla(220, 20%, 30%, 0.2)', tickprefix: '$', title: '' },
+              yaxis: { gridcolor: 'hsla(220, 20%, 30%, 0.2)', tickprefix: axisCurrencyPrefix, title: '' },
               legend: { orientation: 'h', y: -0.2, font: { size: 10 } },
             }}
             config={{ responsive: true, displayModeBar: false }}
@@ -271,3 +273,5 @@ export default function VesselPage() {
     </motion.div>
   )
 }
+
+

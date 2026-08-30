@@ -7,6 +7,7 @@ import {
   MdAutoAwesome, MdOutlineContentCopy, MdBarChart
 } from 'react-icons/md'
 import { getCopilotOverview, askCopilot } from '../api/client'
+import { usePreferences } from '../context/PreferencesContext'
 
 const QUICK_PROMPTS = [
   { label: '📈 Newcastle → Paradip Drivers', query: 'Why are freight rates rising for Newcastle to Paradip?' },
@@ -17,6 +18,7 @@ const QUICK_PROMPTS = [
 ]
 
 export default function CopilotPage() {
+  const { formatMoney } = usePreferences()
   const [messages, setMessages] = useState([])
   const [inputMessage, setInputMessage] = useState('')
   const [overview, setOverview] = useState(null)
@@ -355,7 +357,7 @@ export default function CopilotPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 6, borderBottom: '1px solid var(--border-subtle)' }}>
                 <span style={{ color: 'var(--text-muted)' }}>VLSFO Bunker Est:</span>
-                <strong style={{ color: '#ff9500' }}>$612/MT</strong>
+                <strong style={{ color: '#ff9500' }}>{formatMoney(612, { decimals: 0, suffix: '/MT' })}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-muted)' }}>Recommended Fixing:</span>

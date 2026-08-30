@@ -15,6 +15,7 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Tube } from '@react-three/drei'
 import * as THREE from 'three'
 import { getMapIntelligence } from '../api/client'
+import { usePreferences } from '../context/PreferencesContext'
 
 /* ────────────────────────────────────────────────────────────
    Mapbox token
@@ -551,6 +552,7 @@ function MapboxMap({
    ──────────────────────────────────────────────────────────── */
 function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
   const navigate = useNavigate()
+  const { formatMoney } = usePreferences()
   const [activeTab, setActiveTab] = useState('telemetry') // 'telemetry', 'financial', 'green', 'berth'
 
   if (!vessel) return null
@@ -712,15 +714,15 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
             <div className="fr24-telemetry-grid">
               <div className="telemetry-cell">
                 <span className="cell-lbl">Demurrage Rate</span>
-                <span className="cell-val text-amber">${dailyDemurrageRate.toLocaleString()} <span className="unit">/ day</span></span>
+                <span className="cell-val text-amber">{formatMoney(dailyDemurrageRate, { decimals: 0 })} <span className="unit">/ day</span></span>
               </div>
               <div className="telemetry-cell">
                 <span className="cell-lbl">Queue Risk Exposure</span>
-                <span className="cell-val text-rose">${totalDemurrageRisk.toLocaleString()}</span>
+                <span className="cell-val text-rose">{formatMoney(totalDemurrageRisk, { decimals: 0 })}</span>
               </div>
               <div className="telemetry-cell">
                 <span className="cell-lbl">Estimated Landed Cost</span>
-                <span className="cell-val text-ocean">${landedLogisticsCostUSD} <span className="unit">/ MT</span></span>
+                <span className="cell-val text-ocean">{formatMoney(landedLogisticsCostUSD)} <span className="unit">/ MT</span></span>
               </div>
               <div className="telemetry-cell">
                 <span className="cell-lbl">Anchorage Queue</span>
@@ -730,7 +732,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
 
             <div className="queue-alert-box" style={{ marginTop: 12 }}>
               <MdWarning className="text-amber" />
-              <span><strong>${totalDemurrageRisk.toLocaleString()} USD</strong> estimated idle cost penalty at {destName.split(' ')[0]}</span>
+              <span><strong>{formatMoney(totalDemurrageRisk, { decimals: 0, showCode: true })}</strong> estimated idle cost penalty at {destName.split(' ')[0]}</span>
             </div>
           </motion.div>
         )}

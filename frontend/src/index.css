@@ -79,6 +79,24 @@
   --header-height: 60px;
 }
 
+:root[data-theme='light'] {
+  --bg-primary: hsl(210, 35%, 96%);
+  --bg-secondary: hsl(210, 32%, 91%);
+  --bg-card: hsla(0, 0%, 100%, 0.78);
+  --bg-card-hover: hsla(0, 0%, 100%, 0.92);
+  --bg-elevated: hsla(0, 0%, 100%, 0.94);
+  --bg-input: hsla(210, 30%, 98%, 0.9);
+  --bg-sidebar: hsla(212, 38%, 98%, 0.96);
+  --text-primary: hsl(218, 28%, 13%);
+  --text-secondary: hsl(218, 15%, 38%);
+  --text-muted: hsl(218, 12%, 52%);
+  --text-inverse: hsl(0, 0%, 100%);
+  --border-subtle: hsla(214, 18%, 64%, 0.45);
+  --border-active: hsla(200, 80%, 42%, 0.5);
+  --glass-border: 1px solid hsla(214, 18%, 64%, 0.32);
+  --glass-shadow: 0 10px 28px hsla(214, 30%, 30%, 0.14);
+}
+
 /* ----- Global Reset & Base ----- */
 *, *::before, *::after {
   margin: 0;
@@ -116,6 +134,12 @@ body::before {
     radial-gradient(ellipse at 50% 50%, hsla(155, 50%, 20%, 0.04) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
+}
+
+:root[data-theme='light'] body::before {
+  background:
+    radial-gradient(ellipse at 12% 18%, hsla(200, 80%, 60%, 0.16) 0%, transparent 48%),
+    radial-gradient(ellipse at 88% 84%, hsla(155, 65%, 55%, 0.12) 0%, transparent 52%);
 }
 
 #root {
@@ -399,6 +423,10 @@ body::before {
   padding: 0 var(--space-lg);
   z-index: 90;
 }
+
+:root[data-theme='light'] .top-header {
+  background: hsla(210, 35%, 98%, 0.86);
+}
 .header-title {
   font-size: var(--font-size-lg);
   font-weight: 600;
@@ -407,6 +435,59 @@ body::before {
   display: flex;
   align-items: center;
   gap: var(--space-md);
+}
+
+.preference-toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+}
+
+.preference-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.preference-toggle:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+  border-color: var(--border-active);
+}
+
+.currency-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+:root[data-theme='light'] .landing-container {
+  background: radial-gradient(circle at 50% 0%, hsla(200, 85%, 60%, 0.16), transparent 70%), var(--bg-primary);
+}
+
+:root[data-theme='light'] .landing-nav {
+  background: hsla(210, 35%, 98%, 0.86);
 }
 
 /* ----- Buttons ----- */

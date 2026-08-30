@@ -5,7 +5,7 @@ import {
   MdDashboard, MdShowChart, MdDirectionsBoat,
   MdMap, MdSecurity, MdTrendingUp, MdNotifications,
   MdSettings, MdHome, MdMenu, MdMenuOpen, MdChevronLeft, MdChevronRight,
-  MdSmartToy
+  MdSmartToy, MdDarkMode, MdLightMode, MdAttachMoney
 } from 'react-icons/md'
 
 import LandingPage from './pages/LandingPage'
@@ -16,6 +16,7 @@ import RouteMapPage from './pages/RouteMapPage'
 import RiskPage from './pages/RiskPage'
 import StrategyPage from './pages/StrategyPage'
 import CopilotPage from './pages/CopilotPage'
+import { PreferencesProvider, usePreferences } from './context/PreferencesContext'
 
 const navItems = [
   { to: '/', icon: <MdHome />, label: 'Product Landing', section: 'Overview' },
@@ -46,10 +47,17 @@ const pageTitles = {
   '/strategy': 'Market Timing & Strategy',
 }
 
-export default function App() {
+function AppShell() {
   const location = useLocation()
   const [alertCount] = useState(3)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const {
+    currency,
+    currencySymbol,
+    isLightMode,
+    toggleTheme,
+    toggleCurrency,
+  } = usePreferences()
 
   const isLandingPage = location.pathname === '/'
 
@@ -142,6 +150,26 @@ export default function App() {
           <h1 className="header-title">{pageTitles[location.pathname] || 'FreightIQ'}</h1>
         </div>
         <div className="header-actions">
+          <div className="preference-toggle-group" aria-label="Display preferences">
+            <button
+              className="preference-toggle"
+              onClick={toggleTheme}
+              title={isLightMode ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+              aria-label={isLightMode ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            >
+              {isLightMode ? <MdDarkMode size={18} /> : <MdLightMode size={18} />}
+              <span>{isLightMode ? 'Dark' : 'Light'}</span>
+            </button>
+            <button
+              className="preference-toggle"
+              onClick={toggleCurrency}
+              title={`Switch to ${currency === 'USD' ? 'Rupee' : 'Dollar'} Display`}
+              aria-label={`Switch to ${currency === 'USD' ? 'Rupee' : 'Dollar'} Display`}
+            >
+              {currency === 'USD' ? <MdAttachMoney size={18} /> : <span className="currency-icon">₹</span>}
+              <span>{currencySymbol} {currency}</span>
+            </button>
+          </div>
           <button className="btn btn-ghost" style={{ position: 'relative' }}>
             <MdNotifications size={20} />
             {alertCount > 0 && (
@@ -176,6 +204,14 @@ export default function App() {
         </AnimatePresence>
       </main>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <PreferencesProvider>
+      <AppShell />
+    </PreferencesProvider>
   )
 }
 
