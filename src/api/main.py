@@ -26,6 +26,7 @@ from src.optimization.market_timing import MarketTimingEngine
 from src.risk.risk_engine import RiskAndDisruptionEngine
 from src.risk.geopolitical_risk import GeopoliticalRiskEngine
 from src.api.copilot_engine import MaritimeCopilotEngine
+from src.data.worldbank_pinksheet import CommodityPriceTracker
 
 app = FastAPI(
     title="SIH26006 Intelligent Freight Forecasting API",
@@ -51,6 +52,7 @@ timing_engine = MarketTimingEngine()
 risk_engine = RiskAndDisruptionEngine()
 geopolitical_engine = GeopoliticalRiskEngine()
 copilot_engine = MaritimeCopilotEngine()
+commodity_tracker = CommodityPriceTracker()
 
 # Initialize and load models
 ml_forecaster = FreightMLForecaster()
@@ -169,7 +171,10 @@ def get_freight_forecast(req: ForecastRequest):
     normalized_route_id = normalize_route_id(req.route_id)
     data_path = "data/processed/unified_freight_timeseries.csv"
     if not os.path.exists(data_path):
-        return _generate_demo_forecast(req.horizon_weeks, req.vessel_class)
+        raise HTTPException(
+            status_code=503,
+            detail="Unified freight timeseries dataset not found. Please train models or run pipeline."
+        )
 
     df_raw = pd.read_csv(data_path)
     route_sub = df_raw[(df_raw["route_id"] == normalized_route_id) & (df_raw["vessel_class"] == req.vessel_class)]
@@ -183,7 +188,14 @@ def get_freight_forecast(req: ForecastRequest):
         route_sub = df_raw[df_raw["vessel_class"] == req.vessel_class]
 
     if route_sub.empty:
-        return _generate_demo_forecast(req.horizon_weeks, req.vessel_class)
+        # Fallback to entire dataset for generalized corridor inference
+        route_sub = df_raw
+
+    if route_sub.empty:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No timeseries data available for route {req.route_id} and vessel class {req.vessel_class}"
+        )
 
     forecast_res = ml_forecaster.predict_future(route_sub, horizon_weeks=req.horizon_weeks)
     latest_record = route_sub.iloc[-1].to_dict()
@@ -232,7 +244,7 @@ def get_freight_forecast(req: ForecastRequest):
         "top_driving_factors": forecast_res["top_driving_factors"],
         "evaluation_metrics": forecast_res["evaluation_metrics"],
         "deep_metrics": deep_res.get("evaluation_metrics") if deep_res else None,
-        "model_weights": forecast_res.get("model_weights", {"xgboost": 0.45, "lightgbm": 0.45, "elasticnet": 0.10}),
+        "model_weights": forecast_res.get("model_weights") or getattr(ml_forecaster, "model_weights", {}),
         "benchmarks": benchmarks,
         "market_timing": timing_insight,
         "forecast": forecast_res,
@@ -373,8 +385,10 @@ def run_full_scenario_analysis(req: ScenarioPlanRequest):
             forecast_res = ml_forecaster.predict_future(matched, horizon_weeks=req.horizon_weeks)
 
     if not forecast_res:
-        forecast_res = _generate_demo_forecast(req.horizon_weeks, rec_class)
-        latest_spot = forecast_res["predictions_usd_per_mt"][0] if forecast_res.get("predictions_usd_per_mt") else 16.50
+        raise HTTPException(
+            status_code=503,
+            detail="Forecasting model data not available for scenario analysis. Please verify dataset."
+        )
 
     # 3. Market Entry Timing
     timing_res = timing_engine.evaluate_strategy(
@@ -410,39 +424,6 @@ def run_full_scenario_analysis(req: ScenarioPlanRequest):
         "freight_forecast": forecast_res,
         "market_timing_strategy": timing_res,
         "risk_and_congestion": risk_res
-    }
-
-
-def _generate_demo_forecast(horizon_weeks: int, vessel_class: str) -> Dict[str, Any]:
-    """Generate deterministic forecast fallback data when timeseries is not present."""
-    from datetime import datetime, timedelta
-
-    base_rates = {
-        "Handysize": 24.50, "Supramax": 20.50, "Ultramax": 19.00,
-        "Panamax": 16.50, "Kamsarmax": 15.50, "Capesize": 12.80,
-        "Newcastlemax": 11.90
-    }
-    base = base_rates.get(vessel_class, 16.50)
-    today = datetime.now()
-
-    dates = [(today + timedelta(weeks=w)).strftime("%Y-%m-%d") for w in range(1, horizon_weeks + 1)]
-    rates = [round(base * (1.0 + 0.005 * (i + 1)), 2) for i in range(horizon_weeks)]
-    lower = [round(r * 0.94, 2) for r in rates]
-    upper = [round(r * 1.06, 2) for r in rates]
-
-    return {
-        "forecast_dates": dates,
-        "predictions_usd_per_mt": rates,
-        "lower_bound_80pct": lower,
-        "upper_bound_80pct": upper,
-        "top_driving_factors": {
-            "bunker_fuel_vlsfo": 0.218,
-            "bdi_index": 0.175,
-            "coal_price_newcastle": 0.142,
-            "usd_inr_fx": 0.098,
-            "port_congestion": 0.087,
-        },
-        "evaluation_metrics": {"mape": 6.14, "rmse": 1.23, "r2": 0.912}
     }
 
 
@@ -619,20 +600,38 @@ def get_dashboard_data():
     }
 
     # --- 5. Dynamic Alerts ---
-    now = datetime.now()
-    month = now.month
-    if 6 <= month <= 9:
-        result["alerts"].append({
-            "severity": "warning", "title": "Southwest Monsoon Active",
-            "message": "Monsoon season active (Jun-Sep). Expect 15-25% higher wave heights on East Coast routes. Sea-state premiums factored into rates.",
-            "time": "Live", "category": "Weather",
-        })
-    if month in [10, 11]:
-        result["alerts"].append({
-            "severity": "critical", "title": "Cyclone Season — Bay of Bengal",
-            "message": "Peak cyclone season (Oct-Nov). Historical route disruption probability 18-22%. Monitor IMD bulletins.",
-            "time": "Live", "category": "Weather",
-        })
+    try:
+        marine_weather = weather_client.get_marine_weather_summary(lat=20.26, lon=86.67)
+        wind_speed_kn = marine_weather.get("wind_speed_knots", 12.0)
+        wave_height_m = marine_weather.get("wave_height_meters", 1.4)
+        advisory = marine_weather.get("advisory", "")
+        
+        if wind_speed_kn >= 34 or wave_height_m >= 3.5:
+            result["alerts"].append({
+                "severity": "critical",
+                "title": "Severe Marine Depression / Cyclone Warning",
+                "message": f"Active storm alert in Bay of Bengal corridor: {wave_height_m}m swell & {wind_speed_kn} kn winds. {advisory}",
+                "time": "Live Weather",
+                "category": "Weather"
+            })
+        elif wind_speed_kn >= 22 or wave_height_m >= 2.0:
+            result["alerts"].append({
+                "severity": "warning",
+                "title": "Active Monsoon / Rough Sea State",
+                "message": f"Elevated wave heights ({wave_height_m}m) & {wind_speed_kn} kn winds along East Coast corridor. Navigation caution advised.",
+                "time": "Live Weather",
+                "category": "Weather"
+            })
+        else:
+            result["alerts"].append({
+                "severity": "success",
+                "title": "Calm Sea State — Favorable Sailing",
+                "message": f"Favorable maritime conditions across Bay of Bengal ({wave_height_m}m swell, {wind_speed_kn} kn winds).",
+                "time": "Live Weather",
+                "category": "Weather"
+            })
+    except Exception as e:
+        logger.info(f"Weather alert notice: {e}")
     if avg_freight_rate and rate_trend_pct < -3:
         result["alerts"].append({
             "severity": "success", "title": "Freight Rate Opportunity",
@@ -872,6 +871,7 @@ def get_map_intelligence():
                     "risk_score": risk_result.get("composite_risk_score", 0),
                     "risk_level": risk_result.get("risk_level", "Unknown"),
                     "alerts": risk_result.get("active_alerts", []),
+                    "waypoints": route.get("waypoints", []),
                 })
             except Exception as e:
                 print(f"Map Intel — Route risk error for {route.get('route_id', '?')}: {e}")
@@ -886,6 +886,7 @@ def get_map_intelligence():
                     "risk_score": 0,
                     "risk_level": "Unknown",
                     "alerts": [],
+                    "waypoints": route.get("waypoints", []),
                 })
     except Exception as e:
         print(f"Map Intel — Route risk iteration error: {e}")
@@ -903,6 +904,18 @@ def get_map_intelligence():
     _MAP_INTEL_CACHE = result
 
     return result
+
+
+@app.get("/api/v1/commodities")
+def get_live_commodities():
+    """
+    Returns real-time dynamic commodity & bunker fuel spot prices,
+    sourced from TwelveData, Yahoo Finance, and St. Louis FRED / World Bank Pink Sheet.
+    """
+    try:
+        return commodity_tracker.get_detailed_commodity_snapshot()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/news")
@@ -961,6 +974,7 @@ def get_nlp_forecast_features():
 
 
 @app.get("/api/v1/copilot/overview")
+@app.get("/api/v1/copilot/briefing")
 def get_copilot_overview():
     """Returns an executive AI Copilot overview briefing of the current terminal and market state."""
     try:
@@ -978,6 +992,123 @@ def ask_copilot(req: CopilotChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ── Admin Master Data Management Endpoints ──
+
+@app.post("/api/v1/admin/ports")
+def admin_upsert_port(port_data: Dict[str, Any]):
+    """Admin endpoint to create or modify port constraints, drafts, and handling rates."""
+    if "port_id" not in port_data or "port_name" not in port_data:
+        raise HTTPException(status_code=400, detail="port_id and port_name are required")
+    db_manager.save_port(port_data)
+    return {"status": "success", "message": f"Port '{port_data['port_id']}' saved successfully"}
+
+
+@app.delete("/api/v1/admin/ports/{port_id}")
+def admin_delete_port(port_id: str):
+    """Admin endpoint to delete a port record from the relational database."""
+    deleted = db_manager.delete_port(port_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Port '{port_id}' not found")
+    return {"status": "success", "message": f"Port '{port_id}' deleted successfully"}
+
+
+@app.post("/api/v1/admin/routes")
+def admin_upsert_route(route_data: Dict[str, Any]):
+    """Admin endpoint to create or update trade route distance, waypoints, and allowed vessel classes."""
+    if "route_id" not in route_data:
+        raise HTTPException(status_code=400, detail="route_id is required")
+    db_manager.save_route(route_data)
+    return {"status": "success", "message": f"Route '{route_data['route_id']}' saved successfully"}
+
+
+@app.delete("/api/v1/admin/routes/{route_id}")
+def admin_delete_route(route_id: str):
+    """Admin endpoint to delete a trade route."""
+    deleted = db_manager.delete_route(route_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Route '{route_id}' not found")
+    return {"status": "success", "message": f"Route '{route_id}' deleted successfully"}
+
+
+@app.post("/api/v1/admin/vessels")
+def admin_upsert_vessel_class(vessel_data: Dict[str, Any]):
+    """Admin endpoint to create or update a vessel class specification."""
+    if "class_name" not in vessel_data:
+        raise HTTPException(status_code=400, detail="class_name is required")
+    db_manager.save_vessel_class(vessel_data)
+    return {"status": "success", "message": f"Vessel class '{vessel_data['class_name']}' saved successfully"}
+
+
+@app.post("/api/v1/admin/fleet")
+def admin_upsert_fleet_vessel(fleet_data: Dict[str, Any]):
+    """Admin endpoint to add or update an active fleet vessel."""
+    if "vessel_id" not in fleet_data:
+        raise HTTPException(status_code=400, detail="vessel_id is required")
+    db_manager.save_fleet_vessel(fleet_data)
+    return {"status": "success", "message": f"Fleet vessel '{fleet_data['vessel_id']}' saved successfully"}
+
+
+@app.delete("/api/v1/admin/fleet/{vessel_id}")
+def admin_delete_fleet_vessel(vessel_id: str):
+    """Admin endpoint to delete a fleet vessel."""
+    deleted = db_manager.delete_fleet_vessel(vessel_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Fleet vessel '{vessel_id}' not found")
+    return {"status": "success", "message": f"Fleet vessel '{vessel_id}' deleted successfully"}
+
+
+@app.post("/api/v1/admin/rebuild-dataset")
+def admin_rebuild_dataset(start_date: str = "2018-01-01", end_date: Optional[str] = None):
+    """Admin endpoint to trigger dynamic dataset generation from relational database and live feeds."""
+    from src.data.freight_rate_synthesizer import build_unified_freight_dataset
+    df = build_unified_freight_dataset(start_date=start_date, end_date=end_date, db_manager=db_manager)
+    return {
+        "status": "success",
+        "records_generated": len(df),
+        "routes_count": int(df["route_id"].nunique()),
+        "latest_date": str(df["date"].max())
+    }
+
+
+@app.get("/api/v1/admin/chokepoints")
+def admin_get_chokepoints():
+    """Returns all monitored maritime chokepoints and search terms."""
+    return db_manager.load_chokepoints_master(active_only=False)
+
+
+@app.post("/api/v1/admin/chokepoints")
+def admin_upsert_chokepoint(chokepoint_data: Dict[str, Any]):
+    """Admin endpoint to add or modify a monitored maritime chokepoint and NLP search terms."""
+    if "chokepoint_key" not in chokepoint_data or "name" not in chokepoint_data:
+        raise HTTPException(status_code=400, detail="chokepoint_key and name are required")
+    db_manager.save_chokepoint(chokepoint_data)
+    return {"status": "success", "message": f"Chokepoint '{chokepoint_data['chokepoint_key']}' saved successfully"}
+
+
+@app.delete("/api/v1/admin/chokepoints/{chokepoint_key}")
+def admin_delete_chokepoint(chokepoint_key: str):
+    """Admin endpoint to delete or deactivate a monitored chokepoint."""
+    deleted = db_manager.delete_chokepoint(chokepoint_key)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Chokepoint '{chokepoint_key}' not found")
+    return {"status": "success", "message": f"Chokepoint '{chokepoint_key}' deleted successfully"}
+
+
+@app.get("/api/v1/admin/risk-weights")
+def admin_get_risk_weights():
+    """Returns the currently active risk scoring formula component weights."""
+    return db_manager.get_risk_scoring_weights()
+
+
+@app.post("/api/v1/admin/risk-weights")
+def admin_save_risk_weights(weights: Dict[str, float]):
+    """Admin endpoint to update risk scoring formula weights (automatically normalized to 1.0)."""
+    if not weights:
+        raise HTTPException(status_code=400, detail="Weights dictionary cannot be empty")
+    db_manager.save_risk_scoring_weights(weights)
+    return {"status": "success", "normalized_weights": db_manager.get_risk_scoring_weights()}
+
+
 @app.get("/api/vessels")
 def get_live_vessels():
     """
@@ -989,8 +1120,9 @@ def get_live_vessels():
 
 # --- Serve React Frontend (production mode) ---
 frontend_build = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
-if os.path.isdir(frontend_build):
-    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_build, "assets")), name="static-assets")
+assets_dir = os.path.join(frontend_build, "assets")
+if os.path.isdir(frontend_build) and os.path.isdir(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="static-assets")
 
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
