@@ -1,15 +1,11 @@
-"""
-Geopolitical Risk Engine & Disruption Index.
-Quantifies maritime disruption risk per chokepoint and global trade lane according to PRD FR-08 to FR-13.
-Computes volume anomaly z-scores, weighted disruption indices, and shock alerts.
-"""
-
+import os
 import math
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime
-from src.data.news_client import MaritimeNewsClient, CHOKEPOINTS
+from datetime import datetime, timedelta
+from src.data.news_client import MaritimeNewsClient
 from src.risk.nlp_engine import MaritimeNLPEngine
+from src.data.db_manager import FreightDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +13,26 @@ logger = logging.getLogger(__name__)
 class GeopoliticalRiskEngine:
     """
     Computes quantified Geopolitical Risk Scores, Chokepoint Disruption Indices,
-    and Shock Alerts using NLP signals from maritime news.
+    and Shock Alerts using NLP signals from maritime news and dynamic database-configured weights.
     """
 
-    def __init__(self):
+    def __init__(self, db_manager: Optional[FreightDBManager] = None):
+        self.db = db_manager or FreightDBManager()
         self.news_client = MaritimeNewsClient()
         self.nlp_engine = MaritimeNLPEngine()
+
+    def get_chokepoints(self) -> Dict[str, Any]:
+        """Loads active monitored chokepoints from SQLite."""
+        try:
+            return self.db.load_chokepoints_master(active_only=True)
+        except Exception:
+            return {
+                "red_sea": {"name": "Red Sea / Bab el-Mandeb", "terms": ["red sea", "bab el-mandeb"], "baseline_volume_per_day": 12.0},
+                "suez_canal": {"name": "Suez Canal", "terms": ["suez", "suez canal"], "baseline_volume_per_day": 8.0},
+                "malacca_strait": {"name": "Strait of Malacca", "terms": ["malacca", "strait of malacca"], "baseline_volume_per_day": 15.0},
+                "panama_canal": {"name": "Panama Canal", "terms": ["panama canal"], "baseline_volume_per_day": 6.0},
+                "strait_of_hormuz": {"name": "Strait of Hormuz", "terms": ["hormuz", "strait of hormuz"], "baseline_volume_per_day": 10.0}
+            }
 
     def get_processed_articles(self) -> List[Dict[str, Any]]:
         """Fetch and analyze latest maritime articles through the NLP engine."""
@@ -56,16 +66,35 @@ class GeopoliticalRiskEngine:
         neg_count = sum(1 for a in articles if a.get("sentiment") == "negative")
         total = len(articles)
 
-        # Build 14-day historical sentiment simulation leading to current state
+        # Build 14-day historical sentiment timeline from timestamped articles
+        now_dt = datetime.now()
         history = []
-        base_s = avg_score
+
         for d in range(14, 0, -1):
-            day_score = round(base_s + math.sin(d * 0.4) * 0.18 - (0.02 * (14 - d)), 2)
+            target_date = now_dt - timedelta(days=d)
+            target_str = target_date.strftime("%Y-%m-%d")
+            
+            # Find articles matching this day
+            day_matches = [
+                a for a in articles 
+                if (a.get("published_at") or a.get("processed_at") or "").startswith(target_str)
+            ]
+
+            if day_matches:
+                day_scores = [a.get("sentiment_score", 0.0) for a in day_matches]
+                day_score = round(sum(day_scores) / len(day_scores), 2)
+                vol = len(day_matches)
+            else:
+                # Weighted interpolation based on proximity to current sentiment
+                weight = (15 - d) / 15.0
+                day_score = round(avg_score * weight, 2)
+                vol = max(1, int(len(articles) / 14))
+
             history.append({
                 "day_offset": d,
-                "date": (datetime.now()).strftime("%b %d"),
+                "date": target_date.strftime("%b %d"),
                 "sentiment_score": max(-1.0, min(1.0, day_score)),
-                "news_volume": max(5, int(15 + math.cos(d * 0.5) * 8))
+                "news_volume": vol
             })
 
         return {
@@ -82,17 +111,18 @@ class GeopoliticalRiskEngine:
     def compute_chokepoint_risk(self, chokepoint_key: str) -> Dict[str, Any]:
         """
         Calculates the Maritime Disruption Risk Index for a specific chokepoint
-        using the PRD Section 14 formula:
-        Risk = 0.35 * Event_Severity + 0.25 * Volume_Anomaly + 0.20 * Negative_Sentiment + 0.20 * Recency
+        using dynamic component weights configured in the database:
+        Risk = w_event * Event_Severity + w_volume * Volume_Anomaly + w_sentiment * Negative_Sentiment + w_recency * Recency
         """
-        chk_info = CHOKEPOINTS.get(chokepoint_key, {
+        chokepoints = self.get_chokepoints()
+        chk_info = chokepoints.get(chokepoint_key, {
             "name": chokepoint_key.replace("_", " ").title(),
             "terms": [chokepoint_key.replace("_", " ")],
             "baseline_volume_per_day": 10.0
         })
 
         articles = self.get_processed_articles()
-        terms = [t.lower() for t in chk_info["terms"]]
+        terms = [t.lower() for t in chk_info.get("terms", [])]
 
         # Filter articles matching this chokepoint
         matching = []
@@ -101,15 +131,13 @@ class GeopoliticalRiskEngine:
             if any(t in text for t in terms):
                 matching.append(art)
 
-        baseline_vol = chk_info["baseline_volume_per_day"]
+        baseline_vol = chk_info.get("baseline_volume_per_day", 10.0)
         current_vol = max(1, len(matching) * 4)  # 24h scaled observation
 
         # 1. News Volume Anomaly (z-score approx)
-        # z = (current - baseline) / std_dev
         std_dev = max(2.0, baseline_vol * 0.35)
         z_score = round((current_vol - baseline_vol) / std_dev, 2)
         volume_increase_pct = round(((current_vol - baseline_vol) / baseline_vol) * 100)
-        # Normalize anomaly to [0.0, 1.0] where z=0 -> 0.2, z=3 -> 1.0
         norm_anomaly = min(1.0, max(0.0, 0.2 + (z_score / 3.5) * 0.8))
 
         # 2. Event Severity
@@ -134,12 +162,22 @@ class GeopoliticalRiskEngine:
         else:
             recency = 0.30
 
-        # PRD Weighted Disruption Risk Index
+        # Dynamic Weighted Disruption Risk Index from Configured Weights
+        weights = self.db.get_risk_scoring_weights()
+        w_event = float(os.environ.get("RISK_WEIGHT_EVENT_SEVERITY", weights.get("event_severity", 0.35)))
+        w_volume = float(os.environ.get("RISK_WEIGHT_VOLUME_ANOMALY", weights.get("volume_anomaly", 0.25)))
+        w_sentiment = float(os.environ.get("RISK_WEIGHT_NEGATIVE_SENTIMENT", weights.get("negative_sentiment", 0.20)))
+        w_recency = float(os.environ.get("RISK_WEIGHT_RECENCY", weights.get("recency", 0.20)))
+
+        tot_w = w_event + w_volume + w_sentiment + w_recency
+        if tot_w > 0:
+            w_event, w_volume, w_sentiment, w_recency = w_event/tot_w, w_volume/tot_w, w_sentiment/tot_w, w_recency/tot_w
+
         risk_score = (
-            0.35 * event_severity +
-            0.25 * norm_anomaly +
-            0.20 * neg_sentiment +
-            0.20 * recency
+            w_event * event_severity +
+            w_volume * norm_anomaly +
+            w_sentiment * neg_sentiment +
+            w_recency * recency
         )
         risk_score = round(min(1.0, max(0.0, risk_score)), 2)
 
@@ -160,7 +198,7 @@ class GeopoliticalRiskEngine:
 
         return {
             "chokepoint_key": chokepoint_key,
-            "name": chk_info["name"],
+            "name": chk_info.get("name", chokepoint_key),
             "risk_score": risk_score,
             "risk_level": risk_level,
             "components": {
@@ -168,6 +206,12 @@ class GeopoliticalRiskEngine:
                 "news_volume_anomaly": round(norm_anomaly, 2),
                 "negative_sentiment": round(neg_sentiment, 2),
                 "recency_score": round(recency, 2)
+            },
+            "formula_weights": {
+                "event_severity": round(w_event, 3),
+                "volume_anomaly": round(w_volume, 3),
+                "negative_sentiment": round(w_sentiment, 3),
+                "recency": round(w_recency, 3)
             },
             "volume_stats": {
                 "current_articles_24h": current_vol,
@@ -180,9 +224,10 @@ class GeopoliticalRiskEngine:
         }
 
     def get_all_chokepoint_risks(self) -> Dict[str, Any]:
-        """Calculates risk across all monitored chokepoints."""
+        """Calculates risk across all dynamically monitored chokepoints."""
         results = {}
-        for key in CHOKEPOINTS.keys():
+        chokepoints = self.get_chokepoints()
+        for key in chokepoints.keys():
             results[key] = self.compute_chokepoint_risk(key)
         return results
 
