@@ -45,15 +45,15 @@ def clean_pycache():
             p.unlink(missing_ok=True)
             cleaned += 1
     if cleaned > 0:
-        print(f"🧹 Cleaned {cleaned} cache artifacts.")
+        print(f" Cleaned {cleaned} cache artifacts.")
 
 
 def git_sync():
     """Fetches and pulls the latest changes from git remote repository."""
-    print("\n📦 Checking for remote Git updates...")
+    print("\n Checking for remote Git updates...")
     git_dir = PROJECT_ROOT / ".git"
     if not git_dir.exists():
-        print("ℹ️ No .git repository detected. Skipping git sync.")
+        print("ℹ No .git repository detected. Skipping git sync.")
         return
 
     try:
@@ -63,59 +63,59 @@ def git_sync():
         # Fetch remote changes
         fetch_res = subprocess.run(["git", "fetch", "--all"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=10)
         if fetch_res.returncode == 0:
-            print("✅ Git fetch completed.")
+            print(" Git fetch completed.")
         
         # Check if behind remote
         status_res = subprocess.run(["git", "status", "-uno"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=5)
         if "Your branch is behind" in status_res.stdout:
-            print("⬇️ Remote changes found. Pulling latest code...")
+            print(" Remote changes found. Pulling latest code...")
             pull_res = subprocess.run(["git", "pull", "--rebase"], cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=15)
             print(pull_res.stdout)
         else:
-            print("✨ Local repository is already up to date.")
+            print(" Local repository is already up to date.")
     except Exception as e:
-        print(f"⚠️ Git sync notice: {e}. Continuing with local files...")
+        print(f" Git sync notice: {e}. Continuing with local files...")
 
 
 def verify_python_environment():
     """Verifies that the package and its requirements are installed."""
-    print("\n🐍 Verifying Python packages...")
+    print("\n Verifying Python packages...")
     try:
         import fastapi
         import xgboost
         import pandas
         import uvicorn
         import src
-        print("✅ Python core dependencies and 'src' package are installed.")
+        print(" Python core dependencies and 'src' package are installed.")
     except ImportError:
-        print("⚙️ Installing/Updating Python package in editable mode...")
+        print(" Installing/Updating Python package in editable mode...")
         subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."], cwd=PROJECT_ROOT, check=True)
-        print("✅ Python package successfully installed.")
+        print(" Python package successfully installed.")
 
 
 def verify_frontend_environment():
     """Verifies that frontend node_modules are installed."""
-    print("\n⚛️ Verifying Frontend dependencies...")
+    print("\n Verifying Frontend dependencies...")
     node_modules = FRONTEND_DIR / "node_modules"
     if not node_modules.exists() or not any(node_modules.iterdir()):
-        print("⚙️ Running 'npm install' in frontend directory...")
+        print(" Running 'npm install' in frontend directory...")
         subprocess.run(["npm", "install"], cwd=FRONTEND_DIR, shell=True, check=True)
-        print("✅ Frontend dependencies installed.")
+        print(" Frontend dependencies installed.")
     else:
-        print("✅ Frontend node_modules verified.")
+        print(" Frontend node_modules verified.")
 
 
 def run_servers(run_backend=True, run_frontend=True):
     """Launches backend and/or frontend processes concurrently."""
     processes = []
     print("\n" + "=" * 60)
-    print("🚀 LAUNCHING SIH26006 FREIGHT INTELLIGENCE PLATFORM")
+    print(" LAUNCHING SIH26006 FREIGHT INTELLIGENCE PLATFORM")
     print("=" * 60)
 
     try:
         if run_backend:
-            print("🔹 Backend starting on:  http://localhost:8000")
-            print("🔹 API Documentation at: http://localhost:8000/docs")
+            print(" Backend starting on:  http://localhost:8000")
+            print(" API Documentation at: http://localhost:8000/docs")
             backend_cmd = [
                 sys.executable, "-B", "-m", "uvicorn",
                 "src.api.main:app",
@@ -127,23 +127,23 @@ def run_servers(run_backend=True, run_frontend=True):
             processes.append(("Backend", p_back))
 
         if run_frontend:
-            print("🔹 Frontend starting on: http://localhost:5173")
+            print(" Frontend starting on: http://localhost:5173")
             frontend_cmd = ["npm", "run", "dev"]
             p_front = subprocess.Popen(frontend_cmd, cwd=FRONTEND_DIR, shell=True)
             processes.append(("Frontend", p_front))
 
-        print("\n✨ All services started! Press Ctrl+C to stop all servers gracefully.\n")
+        print("\n All services started! Press Ctrl+C to stop all servers gracefully.\n")
 
         # Keep parent script running and monitor child processes
         while True:
             time.sleep(1)
             for name, proc in processes:
                 if proc.poll() is not None:
-                    print(f"⚠️ {name} stopped unexpectedly (exit code {proc.returncode}).")
+                    print(f" {name} stopped unexpectedly (exit code {proc.returncode}).")
                     break
 
     except KeyboardInterrupt:
-        print("\n\n🛑 Stopping all services...")
+        print("\n\n Stopping all services...")
     finally:
         for name, proc in processes:
             print(f"   Terminating {name}...")
@@ -153,7 +153,7 @@ def run_servers(run_backend=True, run_frontend=True):
             except subprocess.TimeoutExpired:
                 proc.kill()
         clean_pycache()
-        print("👋 All services stopped cleanly.")
+        print(" All services stopped cleanly.")
 
 
 def main():
@@ -169,7 +169,7 @@ def main():
     clean_pycache()
 
     if args.clean:
-        print("✅ Cache cleanup complete.")
+        print(" Cache cleanup complete.")
         return
 
     if not args.no_sync:
@@ -179,7 +179,7 @@ def main():
     verify_frontend_environment()
 
     if args.sync_only:
-        print("\n🎉 Sync and dependency verification complete!")
+        print("\n Sync and dependency verification complete!")
         return
 
     # Determine which servers to run

@@ -1,10 +1,10 @@
-# 🚢 SIH26006: Setup & Execution Guide
+#  SIH26006: Setup & Execution Guide
 
 > **Intelligent Freight Forecasting Model for Optimized Vessel Chartering & Bulk Cargo Procurement (Overseas $\rightarrow$ East Coast India)**
 
 ---
 
-## ⚡ Quick Start: 1-Command Automated Runner
+##  Quick Start: 1-Command Automated Runner
 
 We provide an automated Python script that **fetches latest git changes**, **checks/installs all dependencies**, **cleans bytecode/cache**, and **launches both the backend and frontend servers simultaneously**:
 
@@ -17,7 +17,7 @@ cd SIH-2026
 python sync_and_run.py
 ```
 
-### 🎛️ Runner Options:
+###  Runner Options:
 ```bash
 python sync_and_run.py               # Auto-sync Git + verify dependencies + launch Backend & Frontend
 python sync_and_run.py --no-sync     # Launch without checking/pulling Git remote
@@ -29,7 +29,7 @@ python sync_and_run.py --clean       # Purge cache and exit
 
 ---
 
-## 🖥️ Live Service URLs
+##  Live Service URLs
 
 | Service | URL | Description |
 | :--- | :--- | :--- |
@@ -40,7 +40,7 @@ python sync_and_run.py --clean       # Purge cache and exit
 
 ---
 
-## 🛠️ Manual Step-by-Step Setup
+##  Manual Step-by-Step Setup
 
 If you prefer to set up and run the services manually in separate terminals:
 
@@ -80,7 +80,7 @@ npm run dev
 
 ---
 
-## 🔑 Environment Configuration (`.env`)
+##  Environment Configuration (`.env`)
 
 Create a `.env` file in the project root with the following keys (defaults and fallback synthetic generators are included so the system runs smoothly even offline):
 
@@ -97,7 +97,7 @@ TWELVEDATA_API_KEY=29feab62b6574c3e9d006c52c97b46d7
 
 ---
 
-## 🧪 Running Automated Tests
+##  Running Automated Tests
 
 To verify all data pipelines, ML forecasting algorithms, and vessel optimization constraint solvers:
 
@@ -107,43 +107,43 @@ pytest tests/ -v
 
 ---
 
-## 📁 Project Architecture Overview
+##  Project Architecture Overview
 
 ```
 SIH-2026/
-├── pyproject.toml               # Native Python package definition
-├── sync_and_run.py              # Automated Git sync & concurrent runner
-├── setup.md                     # This setup guide
-├── ps.md                        # Problem statement specification
-├── requirement.md               # Functional & non-functional requirements
-├── task.md                      # Milestone execution tracker
-├── memory.md                    # System state & persistent log
-│
-├── src/                         # Core Python Backend Package
-│   ├── api/                     # FastAPI endpoints & routes (main.py)
-│   ├── data/                    # Ingestion clients (AIS, Weather, FX, OGD Ports)
-│   ├── models/                  # ML Engine (XGBoost, Feature Engineering, Quantiles)
-│   ├── optimization/            # Constraint solver (Draft, LOA, Lighterage, Landed Cost)
-│   └── risk/                    # Composite risk engine (AIS queue + Sea state)
-│
-├── frontend/                    # Modern React + Vite Web Application
-│   ├── src/
-│   │   ├── api/client.js        # Backend API integration
-│   │   ├── pages/               # Dashboard, Forecast, Vessels, Routes, Risk, Strategy
-│   │   └── index.css            # Dark glassmorphism design system
-│   ├── vite.config.js           # Vite dev server & proxy configuration
-│   └── package.json             # NPM dependencies
-│
-├── data/
-│   ├── reference/               # Master Port, Vessel Class, and Route catalogs
-│   └── raw/                     # Historical OGD port performance records
-│
-└── tests/                       # Automated pytest test suites
+ pyproject.toml               # Native Python package definition
+ sync_and_run.py              # Automated Git sync & concurrent runner
+ setup.md                     # This setup guide
+ ps.md                        # Problem statement specification
+ requirement.md               # Functional & non-functional requirements
+ task.md                      # Milestone execution tracker
+ memory.md                    # System state & persistent log
+
+ src/                         # Core Python Backend Package
+    api/                     # FastAPI endpoints & routes (main.py)
+    data/                    # Ingestion clients (AIS, Weather, FX, OGD Ports)
+    models/                  # ML Engine (XGBoost, Feature Engineering, Quantiles)
+    optimization/            # Constraint solver (Draft, LOA, Lighterage, Landed Cost)
+    risk/                    # Composite risk engine (AIS queue + Sea state)
+
+ frontend/                    # Modern React + Vite Web Application
+    src/
+       api/client.js        # Backend API integration
+       pages/               # Dashboard, Forecast, Vessels, Routes, Risk, Strategy
+       index.css            # Dark glassmorphism design system
+    vite.config.js           # Vite dev server & proxy configuration
+    package.json             # NPM dependencies
+
+ data/
+    reference/               # Master Port, Vessel Class, and Route catalogs
+    raw/                     # Historical OGD port performance records
+
+ tests/                       # Automated pytest test suites
 ```
 
 ---
 
-## ❓ Troubleshooting & FAQs
+##  Troubleshooting & FAQs
 
 ### Q: Why do I see no `__pycache__` folders?
 **A**: We configured `PYTHONDONTWRITEBYTECODE=1` and IDE settings in `.vscode/settings.json` to keep the codebase clean and avoid generating compiled bytecode folders.

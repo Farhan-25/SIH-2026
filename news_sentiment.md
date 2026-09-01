@@ -552,7 +552,7 @@ Strong negative sentiment
 Example:
 
 ```text
-🚨 MARITIME SHOCK DETECTED
+ MARITIME SHOCK DETECTED
 
 Region: Red Sea
 
@@ -598,7 +598,7 @@ Risk(t) - Risk(t-1) > threshold
 Example:
 
 ```text
-⚠ RED SEA RISK INCREASE
+ RED SEA RISK INCREASE
 
 Risk:
 0.42 → 0.81
@@ -651,18 +651,18 @@ Seasonality
 
 ```text
                 Freight Data
-                     │
+                     
                 Market Data
-                     │
+                     
               NLP Risk Signals
-                     │
-                     ▼
+                     
+                     
              Feature Engineering
-                     │
-                     ▼
+                     
+                     
               Forecasting Model
-                     │
-                     ▼
+                     
+                     
               Freight Prediction
 ```
 
@@ -729,7 +729,7 @@ Malacca          0.21   LOW
 ## C. Active Alerts
 
 ```text
-🚨 RED SEA DISRUPTION
+ RED SEA DISRUPTION
 
 Risk: 0.88
 News surge: +285%
@@ -764,9 +764,9 @@ Shipping companies divert vessels from Red Sea
 Trade News
 10:42 AM
 
-🔴 Negative -0.91
-📍 Red Sea
-⚠ Vessel Diversion
+ Negative -0.91
+ Red Sea
+ Vessel Diversion
 Severity: HIGH
 ```
 
@@ -896,47 +896,47 @@ Docker
 
 ```text
                     NEWS SOURCES
-                         │
-              ┌──────────┴──────────┐
-              │                     │
+                         
+              
+                                   
            RSS/API               GDELT
-              │                     │
-              └──────────┬──────────┘
-                         ▼
+                                   
+              
+                         
                  NEWS INGESTION
-                         │
-                         ▼
+                         
+                         
                  DEDUPLICATION
-                         │
-                         ▼
+                         
+                         
                  RELEVANCE FILTER
-                         │
-                         ▼
-                 ┌───────┴────────┐
-                 │                │
+                         
+                         
+                 
+                                 
              FinBERT          NER/Event
              Sentiment         Detection
-                 │                │
-                 └───────┬────────┘
-                         ▼
+                                 
+                 
+                         
                   FEATURE ENGINE
-                         │
-             ┌───────────┼───────────┐
-             ▼           ▼           ▼
+                         
+             
+                                   
         Sentiment    News Volume   Events
-             │           │           │
-             └───────────┼───────────┘
-                         ▼
+                                   
+             
+                         
                 RISK CALCULATION
-                         │
-             ┌───────────┴───────────┐
-             ▼                       ▼
+                         
+             
+                                    
        Dashboard                 Alerts
-             │
-             ▼
+             
+             
       FREIGHT FORECAST
-             │
-             ▼
+             
+             
      CHARTERING DECISION
 ```
 
@@ -1238,7 +1238,7 @@ Risk rises:
 System generates:
 
 ```text
-⚠ ELEVATED RED SEA RISK
+ ELEVATED RED SEA RISK
 ```
 
 ---
@@ -1270,7 +1270,7 @@ Risk:
 System generates:
 
 ```text
-🚨 CRITICAL MARITIME DISRUPTION
+ CRITICAL MARITIME DISRUPTION
 
 Red Sea
 
@@ -1309,7 +1309,7 @@ $35.8 / MT
 The chartering dashboard can then flag:
 
 ```text
-⚠ Consider earlier vessel fixing
+ Consider earlier vessel fixing
 ```
 
 The system does **not** automatically execute the decision.
@@ -1364,8 +1364,8 @@ Use the geopolitical risk index as a dynamic forecasting feature.
 Display:
 
 ```text
-Red Sea       🔴
-Suez          🔴
+Red Sea       
+Suez          
 Malacca       🟢
 Panama        🟠
 Black Sea     🟠

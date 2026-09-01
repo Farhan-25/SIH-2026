@@ -65,7 +65,7 @@ Build these as **separate modules that feed one dashboard**, not one giant model
 
 ---
 
-### 🔴 Phase 4 — Advanced Layer (Week 3–4, "wow factor")
+###  Phase 4 — Advanced Layer (Week 3–4, "wow factor")
 **Goal:** Differentiate from other teams.
 
 - **Deep learning upgrade:** LSTM or Temporal Fusion Transformer (TFT) for freight rate forecasting — TFT is especially good because it explains *which features* drove a forecast (great for judges).
@@ -78,7 +78,7 @@ Build these as **separate modules that feed one dashboard**, not one giant model
 
 ---
 
-### 🔵 Phase 5 — Dashboard / UX (Week 3–4, parallel track)
+###  Phase 5 — Dashboard / UX (Week 3–4, parallel track)
 **Goal:** Make it usable by a non-technical logistics manager — the PS explicitly asks for this.
 
 - Inputs: cargo type, quantity, origin port, destination port, contract duration.
@@ -93,7 +93,7 @@ Build these as **separate modules that feed one dashboard**, not one giant model
 
 ---
 
-### ⚫ Phase 6 — Integration, Testing, Pitch Prep (Final days)
+###  Phase 6 — Integration, Testing, Pitch Prep (Final days)
 - Wire all modules into the dashboard end-to-end demo (one real scenario: e.g., "100,000t Australian coal to Vizag, Q1 2027").
 - Prepare a **PPT** for the SIH round covering: problem understanding, approach, tech stack, architecture diagram, feasibility, impact (cost savings %, reduced idle time %), and a live/video demo.
 - Prepare a fallback: pre-recorded demo video in case live demo fails.

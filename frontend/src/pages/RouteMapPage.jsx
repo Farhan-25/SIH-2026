@@ -1,7 +1,13 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MdMap, MdPublic, MdDirectionsBoat, MdWarning, MdRefresh, MdMyLocation, MdWaves, MdTrendingUp, MdAnchor, MdSignalWifi4Bar, MdSignalWifiOff, MdLocalShipping, MdCloud } from 'react-icons/md'
+import {
+  MdMap, MdPublic, MdDirectionsBoat, MdWarning, MdRefresh, MdMyLocation,
+  MdWaves, MdTrendingUp, MdAnchor, MdSignalWifi4Bar, MdSignalWifiOff,
+  MdLocalShipping, MdCloud, MdClose, MdNavigation, MdAttachMoney, MdEco,
+  MdSpeed, MdLocationOn, MdCheckCircle, MdScience, MdArrowForward,
+  MdSearch, MdStraighten, MdPause, MdPlayArrow
+} from 'react-icons/md'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Canvas } from '@react-three/fiber'
@@ -10,16 +16,16 @@ import * as THREE from 'three'
 import { getMapIntelligence } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
 
-/* ────────────────────────────────────────────────────────────
+/* 
    Mapbox token
-   ──────────────────────────────────────────────────────────── */
+    */
 mapboxgl.accessToken =
   import.meta.env.VITE_MAPBOX_TOKEN ||
   'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw'
 
-/* ────────────────────────────────────────────────────────────
+/* 
    Helper utilities
-   ──────────────────────────────────────────────────────────── */
+    */
 function congestionColor(index) {
   if (index >= 60) return '#ef4444'
   if (index >= 35) return '#f59e0b'
@@ -64,9 +70,9 @@ function haversineNM(lat1, lon1, lat2, lon2) {
   return Math.round(R * c)
 }
 
-/* ────────────────────────────────────────────────────────────
+/* 
    Realistic Maritime Waypoints & Sea-Lane Route Engine
-   ──────────────────────────────────────────────────────────── */
+    */
 const MARITIME_CORRIDOR_WAYPOINTS = {
   AUSTRALIA_TO_INDIA: [
     [151.78, -32.92], [153.5, -28.0], [152.0, -20.0], [142.5, -10.5],
@@ -131,9 +137,9 @@ function getMaritimeWaypointsForCorridor(originStr = '', destPort) {
 }
 
 
-/* ────────────────────────────────────────────────────────────
+/* 
    2D Mapbox Map Component — FlightRadar24 Ultra
-   ──────────────────────────────────────────────────────────── */
+    */
 function MapboxMap({
   indianPorts,
   globalPorts,
@@ -371,14 +377,14 @@ function MapboxMap({
   // Country flag helper
   const getPortFlag = (country = '') => {
     const c = country.toLowerCase()
-    if (c.includes('india')) return '🇮🇳'
-    if (c.includes('australia')) return '🇦🇺'
-    if (c.includes('indonesia')) return '🇮🇩'
-    if (c.includes('mozambique')) return '🇲🇿'
-    if (c.includes('south africa')) return '🇿🇦'
-    if (c.includes('usa') || c.includes('united states')) return '🇺🇸'
-    if (c.includes('russia')) return '🇷🇺'
-    return '🌐'
+    if (c.includes('india')) return ''
+    if (c.includes('australia')) return ''
+    if (c.includes('indonesia')) return ''
+    if (c.includes('mozambique')) return ''
+    if (c.includes('south africa')) return ''
+    if (c.includes('usa') || c.includes('united states')) return ''
+    if (c.includes('russia')) return ''
+    return ''
   }
 
   // Render High-Visibility Location Pins for ALL Global & Indian Ports
@@ -405,7 +411,7 @@ function MapboxMap({
         el.innerHTML = `
           <div class="port-pin-wrapper">
             <div class="port-pin-icon ${port.isTargetIndia ? 'pin-india' : 'pin-global'}" style="background: ${color}; box-shadow: 0 0 20px ${color}99;">
-              <span class="pin-symbol">${port.isTargetIndia ? '⚓' : '🚢'}</span>
+              <span class="pin-symbol">${port.isTargetIndia ? '' : ''}</span>
             </div>
             <div class="port-pin-badge" style="border-color: ${color}77;">
               <span class="port-flag">${flag}</span>
@@ -519,7 +525,7 @@ function MapboxMap({
           display: flex; align-items: center; gap: 4px; backdrop-filter: blur(8px);
           cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         `
-        el.innerHTML = `<span>🌊</span><span>${wx.wave_height_m}m</span>`
+        el.innerHTML = `<span></span><span>${wx.wave_height_m}m</span>`
 
         const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([wx.lon, wx.lat])
@@ -540,9 +546,9 @@ function MapboxMap({
   )
 }
 
-/* ────────────────────────────────────────────────────────────
+/* 
    FlightRadar24 Pop-up Side Card Drawer Component (All Features)
-   ──────────────────────────────────────────────────────────── */
+    */
 function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
   const navigate = useNavigate()
   const { formatMoney } = usePreferences()
@@ -589,7 +595,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
       transition={{ type: 'spring', damping: 25, stiffness: 220 }}
       className="fr24-side-drawer glass-panel"
     >
-      {/* ── Top Header with Ship Badge & Close ── */}
+      {/*  Top Header with Ship Badge & Close  */}
       <div className="fr24-card-header">
         <div className="fr24-vessel-avatar">
           <MdDirectionsBoat size={28} />
@@ -601,7 +607,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
           </div>
           <h2 className="fr24-vessel-name">{vessel.name}</h2>
           <div className="fr24-flag-row">
-            <span className="fr24-flag">⚓ {vessel.operator || 'Bulk Carrier Live Fleet'}</span>
+            <span className="fr24-flag"> {vessel.operator || 'Bulk Carrier Live Fleet'}</span>
           </div>
         </div>
         <button onClick={onClose} className="fr24-btn-close" title="Close Vessel Card">
@@ -609,7 +615,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
         </button>
       </div>
 
-      {/* ── FlightRadar24 Route Corridor & Progress Bar ── */}
+      {/*  FlightRadar24 Route Corridor & Progress Bar  */}
       <div className="fr24-route-box">
         <div className="fr24-route-endpoints">
           <div className="endpoint-col left">
@@ -639,7 +645,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
         </div>
       </div>
 
-      {/* ── Feature Tabs ── */}
+      {/*  Feature Tabs  */}
       <div className="fr24-tab-nav">
         <button
           className={`tab-pill ${activeTab === 'telemetry' ? 'active' : ''}`}
@@ -667,7 +673,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
         </button>
       </div>
 
-      {/* ── TAB CONTENT ── */}
+      {/*  TAB CONTENT  */}
       <div className="fr24-tab-body">
         {/* 1. Telemetry Tab */}
         {activeTab === 'telemetry' && (
@@ -693,7 +699,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
 
             <div className="fr24-cargo-box">
               <div className="cargo-header">
-                <span className="cargo-title">📦 Cargo Consignment</span>
+                <span className="cargo-title"> Cargo Consignment</span>
                 <span className="cargo-amount">{vessel.materials_transferred ? Number(vessel.materials_transferred).toLocaleString() : '107,062'} MT</span>
               </div>
               <p className="cargo-desc">{vessel.cargo || 'Manganese Ore & Premium Hard Coking Coal'}</p>
@@ -777,7 +783,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
                 {isHaldiaLighterage
-                  ? '⚠️ Mandatory lighterage transfer required at Sagar Anchorage before entering Haldia dock basin.'
+                  ? ' Mandatory lighterage transfer required at Sagar Anchorage before entering Haldia dock basin.'
                   : isDraftFeasible
                   ? `Vessel draft of ${vesselDraft}m satisfies the tidal draft clearance at ${destName}.`
                   : `Vessel requires partial deballasting or lightering.`}
@@ -787,7 +793,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
         )}
       </div>
 
-      {/* ── Bottom Action Controls ── */}
+      {/*  Bottom Action Controls  */}
       <div className="fr24-card-actions">
         <button onClick={onCenter} className="btn btn-primary btn-sm" style={{ flex: 1 }}>
           <MdMyLocation /> Center Vessel
@@ -800,9 +806,9 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
   )
 }
 
-/* ────────────────────────────────────────────────────────────
+/* 
    Selected Port Info Drawer Component
-   ──────────────────────────────────────────────────────────── */
+    */
 function PortInfoDrawer({ port, onClose }) {
   if (!port) return null
   const color = congestionColor(port.congestion_index || 0)
@@ -817,7 +823,7 @@ function PortInfoDrawer({ port, onClose }) {
     >
       <div className="fr24-card-header">
         <div className="fr24-port-avatar" style={{ background: color }}>
-          ⚓
+          
         </div>
         <div className="fr24-vessel-meta">
           <span className="fr24-badge-class" style={{ color }}>{port.congestion_status || 'MODERATE QUEUE'}</span>
@@ -850,7 +856,7 @@ function PortInfoDrawer({ port, onClose }) {
 
       <div className="fr24-cargo-box" style={{ marginTop: 14 }}>
         <div className="cargo-header">
-          <span className="cargo-title">🚢 Primary Cargo Handled</span>
+          <span className="cargo-title"> Primary Cargo Handled</span>
         </div>
         <p className="cargo-desc">{(port.primary_cargoes || ['Thermal Coal', 'Coking Coal', 'Iron Ore']).join(', ')}</p>
         {port.lighterage_required && (
@@ -864,9 +870,9 @@ function PortInfoDrawer({ port, onClose }) {
   )
 }
 
-/* ────────────────────────────────────────────────────────────
+/* 
    3D Globe Component
-   ──────────────────────────────────────────────────────────── */
+    */
 const GLOBE_RADIUS = 2.5
 
 function latLonToVec3(lat, lon, r = GLOBE_RADIUS) {
@@ -947,9 +953,9 @@ function GlobeScene({ indianPorts, globalPorts, routes, vessels }) {
   )
 }
 
-/* ────────────────────────────────────────────────────────────
+/* 
    Main RouteMapPage Component
-   ──────────────────────────────────────────────────────────── */
+    */
 export default function RouteMapPage() {
   const [viewMode, setViewMode] = useState('map')
   const [selectedVessel, setSelectedVessel] = useState(null)
@@ -1041,7 +1047,7 @@ export default function RouteMapPage() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fr24-map-container">
-      {/* ──── Full-Bleed Map Viewport ──── */}
+      {/*  Full-Bleed Map Viewport  */}
       <div className="fr24-map-stage">
         {viewMode === 'map' ? (
           <MapboxMap
@@ -1080,7 +1086,7 @@ export default function RouteMapPage() {
           </div>
         )}
 
-        {/* ──── Top-Left HUD: Live Search Bar & Active Stats ──── */}
+        {/*  Top-Left HUD: Live Search Bar & Active Stats  */}
         <div className="fr24-top-left-hud">
           <div className="fr24-search-box">
             <MdSearch className="search-icon" size={20} />
@@ -1108,7 +1114,7 @@ export default function RouteMapPage() {
                     }}
                     className="dropdown-item"
                   >
-                    <div className="item-title">🚢 {v.name}</div>
+                    <div className="item-title"> {v.name}</div>
                     <div className="item-sub">{v.class} • {v.cargo} → {v.dest}</div>
                   </div>
                 ))}
@@ -1132,7 +1138,7 @@ export default function RouteMapPage() {
           </div>
         </div>
 
-        {/* ──── Top-Right HUD: Layers & Controls ──── */}
+        {/*  Top-Right HUD: Layers & Controls  */}
         <div className="fr24-top-right-hud">
           <div className="fr24-control-group glass-panel">
             <button
@@ -1185,7 +1191,7 @@ export default function RouteMapPage() {
           </div>
         </div>
 
-        {/* ──── Active Ruler Measurement Tool Floating Chip ──── */}
+        {/*  Active Ruler Measurement Tool Floating Chip  */}
         {rulerActive && (
           <div className="fr24-ruler-hud glass-panel">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1209,7 +1215,7 @@ export default function RouteMapPage() {
           </div>
         )}
 
-        {/* ──── FlightRadar24 Slide-in Pop-up Vessel Side Card ──── */}
+        {/*  FlightRadar24 Slide-in Pop-up Vessel Side Card  */}
         <AnimatePresence>
           {activeVesselData && (
             <FlightRadarSideCard
@@ -1221,7 +1227,7 @@ export default function RouteMapPage() {
           )}
         </AnimatePresence>
 
-        {/* ──── Slide-in Port Info Drawer ──── */}
+        {/*  Slide-in Port Info Drawer  */}
         <AnimatePresence>
           {selectedPort && (
             <PortInfoDrawer
@@ -1231,7 +1237,7 @@ export default function RouteMapPage() {
           )}
         </AnimatePresence>
 
-        {/* ──── FlightRadar24 Voyage Time Scrubber Bar ──── */}
+        {/*  FlightRadar24 Voyage Time Scrubber Bar  */}
         <div className="fr24-scrubber-bar glass-panel">
           <button
             onClick={() => setIsPlayingScrubber(p => !p)}

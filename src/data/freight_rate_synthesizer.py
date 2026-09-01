@@ -191,5 +191,5 @@ def build_unified_freight_dataset(
 
 if __name__ == "__main__":
     df = build_unified_freight_dataset()
-    print(f"✅ Generated {len(df)} records across all routes and vessel types.")
+    print(f" Generated {len(df)} records across all routes and vessel types.")
     print("Columns:", list(df.columns))

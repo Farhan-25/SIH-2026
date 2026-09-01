@@ -201,7 +201,7 @@ class DeepLearningFreightForecaster:
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.epochs, eta_min=1e-5)
 
         if verbose:
-            print(f"\n🧠 Starting PyTorch Deep Learning Training on {self.device}:")
+            print(f"\n Starting PyTorch Deep Learning Training on {self.device}:")
             print(f"   • Model Architecture: BiLSTM + Multi-Head Self-Attention + Quantile Risk Heads")
             print(f"   • Total Trainable Parameters: {sum(p.numel() for p in self.model.parameters()):,}")
             print(f"   • Training Batches per Epoch: {len(train_loader)} (Batch Size = {self.batch_size})")

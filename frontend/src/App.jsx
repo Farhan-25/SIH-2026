@@ -83,11 +83,13 @@ function AppShell() {
 
   return (
     <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* ──── Sidebar ──── */}
+      {/*  Sidebar  */}
       <aside className="sidebar">
         <div className="sidebar-brand" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-            <div className="brand-icon">🚢</div>
+            <div className="brand-icon" style={{ display: 'flex', alignItems: 'center', background: 'transparent' }}>
+              <img src="/frieght_iq_logo.jpg" alt="FreightIQ Logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover' }} />
+            </div>
             <div className="brand-text">
               <h2>FreightIQ</h2>
             </div>
@@ -135,7 +137,7 @@ function AppShell() {
         </div>
       </aside>
 
-      {/* ──── Header ──── */}
+      {/*  Header  */}
       <header className="top-header">
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {/* Cascade Drop/Toggle Sidebar Button */}
@@ -186,7 +188,7 @@ function AppShell() {
         </div>
       </header>
 
-      {/* ──── Main Content ──── */}
+      {/*  Main Content  */}
       <main className="main-content">
         <AnimatePresence mode="wait">
           <motion.div key={location.pathname} {...pageTransition}>

@@ -205,7 +205,7 @@ class GeopoliticalRiskEngine:
                 alerts.append({
                     "id": f"shock_{chk_key}",
                     "severity": "CRITICAL",
-                    "title": f"🚨 CRITICAL MARITIME SHOCK — {data['name']}",
+                    "title": f" CRITICAL MARITIME SHOCK — {data['name']}",
                     "region": data["name"],
                     "risk_score": r_score,
                     "news_surge": f"+{inc_pct}%",
@@ -220,7 +220,7 @@ class GeopoliticalRiskEngine:
                 alerts.append({
                     "id": f"warning_{chk_key}",
                     "severity": "WARNING",
-                    "title": f"⚠️ ELEVATED TRANSIT RISK — {data['name']}",
+                    "title": f" ELEVATED TRANSIT RISK — {data['name']}",
                     "region": data["name"],
                     "risk_score": r_score,
                     "news_surge": f"+{inc_pct}%",

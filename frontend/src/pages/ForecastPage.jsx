@@ -386,7 +386,7 @@ export default function ForecastPage() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-      {/* ─── Page Header ─── */}
+      {/*  Page Header  */}
       <div className="section-header">
         <div>
           <h1>Freight Rate Forecasting & Neural Intelligence</h1>
@@ -396,7 +396,7 @@ export default function ForecastPage() {
         </div>
       </div>
 
-      {/* ─── Strategic Summary Banner ─── */}
+      {/*  Strategic Summary Banner  */}
       <div
         className="glass-card"
         style={{
@@ -463,7 +463,7 @@ export default function ForecastPage() {
         </div>
       </div>
 
-      {/* ─── Controls & Filters ─── */}
+      {/*  Controls & Filters  */}
       <div
         className="glass-card"
         style={{
@@ -533,7 +533,7 @@ export default function ForecastPage() {
         </button>
       </div>
 
-      {/* ─── Chart ─── */}
+      {/*  Chart  */}
       <div className="glass-card chart-container" style={{ marginBottom: 'var(--space-md)', padding: 'var(--space-md)' }}>
         <Plot
           data={plotData}
@@ -543,7 +543,7 @@ export default function ForecastPage() {
         />
       </div>
 
-      {/* ─── Lower Intelligence Panels ─── */}
+      {/*  Lower Intelligence Panels  */}
       <div className="grid-2">
         {/* Left Column: SHAP Feature Attribution & Dynamic Weights */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
@@ -613,13 +613,13 @@ export default function ForecastPage() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-size-xs)' }}>
               <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>
-                ● XGBoost: {((modelWeights.xgboost || 0.45) * 100).toFixed(1)}%
+                 XGBoost: {((modelWeights.xgboost || 0.45) * 100).toFixed(1)}%
               </span>
               <span style={{ color: 'var(--accent-amber)', fontWeight: 600 }}>
-                ● LightGBM: {((modelWeights.lightgbm || 0.45) * 100).toFixed(1)}%
+                 LightGBM: {((modelWeights.lightgbm || 0.45) * 100).toFixed(1)}%
               </span>
               <span style={{ color: 'var(--accent-ocean)', fontWeight: 600 }}>
-                ● ElasticNet: {((modelWeights.elasticnet || 0.10) * 100).toFixed(1)}%
+                 ElasticNet: {((modelWeights.elasticnet || 0.10) * 100).toFixed(1)}%
               </span>
             </div>
           </div>
@@ -667,7 +667,7 @@ export default function ForecastPage() {
                         }}
                       >
                         <td style={{ padding: '10px 6px', fontWeight: arch.isPrimary ? 700 : 500, color: arch.color }}>
-                          {arch.name} {arch.isPrimary && '★'}
+                          {arch.name} {arch.isPrimary && ''}
                         </td>
                         <td style={{ padding: '10px 6px', fontWeight: 600 }}>
                           {(m.mape_pct ?? m.mape ?? 3.9).toFixed(2)}%
@@ -698,7 +698,7 @@ export default function ForecastPage() {
                 color: 'var(--accent-ocean)',
               }}
             >
-              ⚡ <strong>Multi-Model Superiority:</strong> The adaptive weighted ensemble delivers sub-4% MAPE, outperforming single-model baselines across varying market volatility regimes.
+               <strong>Multi-Model Superiority:</strong> The adaptive weighted ensemble delivers sub-4% MAPE, outperforming single-model baselines across varying market volatility regimes.
             </div>
           </div>
 

@@ -7,10 +7,10 @@ import { usePreferences } from '../context/PreferencesContext'
 
 const SIGNAL_CONFIG = {
   ENTER_NOW_SPOT: { label: 'ENTER NOW — SPOT', color: 'var(--accent-emerald)', icon: '🟢', bgClass: 'enter' },
-  ENTER_NOW_TERM_CONTRACT: { label: 'ENTER NOW — TERM CONTRACT', color: 'var(--accent-ocean)', icon: '🔵', bgClass: 'enter' },
-  ENTER_NOW_TERM: { label: 'ENTER NOW — TERM CONTRACT', color: 'var(--accent-ocean)', icon: '🔵', bgClass: 'enter' },
+  ENTER_NOW_TERM_CONTRACT: { label: 'ENTER NOW — TERM CONTRACT', color: 'var(--accent-ocean)', icon: '', bgClass: 'enter' },
+  ENTER_NOW_TERM: { label: 'ENTER NOW — TERM CONTRACT', color: 'var(--accent-ocean)', icon: '', bgClass: 'enter' },
   WAIT_4W: { label: 'WAIT 4 WEEKS', color: 'var(--accent-amber)', icon: '🟡', bgClass: 'wait' },
-  DEFER: { label: 'DEFER / EXIT', color: 'var(--accent-rose)', icon: '🔴', bgClass: 'exit' },
+  DEFER: { label: 'DEFER / EXIT', color: 'var(--accent-rose)', icon: '', bgClass: 'exit' },
 }
 
 const DEFAULT_TIMING = {
@@ -123,7 +123,7 @@ export default function StrategyPage() {
         </div>
       </div>
 
-      {/* ─── Signal Card ─── */}
+      {/*  Signal Card  */}
       <motion.div
         className="glass-card signal-card"
         initial={{ scale: 0.95 }}
@@ -160,7 +160,7 @@ export default function StrategyPage() {
       </motion.div>
 
       <div className="grid-2" style={{ alignItems: 'start' }}>
-        {/* ─── Forward Freight Curve ─── */}
+        {/*  Forward Freight Curve  */}
         <div className="glass-card chart-container" style={{ padding: 'var(--space-md)' }}>
           <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', fontWeight: 600 }}>
             <MdTrendingUp style={{ verticalAlign: 'middle', marginRight: 8, color: 'var(--accent-ocean)' }} />
@@ -199,7 +199,7 @@ export default function StrategyPage() {
           />
         </div>
 
-        {/* ─── Strategy Comparison Table ─── */}
+        {/*  Strategy Comparison Table  */}
         <div className="glass-card">
           <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-md)', fontWeight: 600 }}>
             <MdCompareArrows style={{ verticalAlign: 'middle', marginRight: 8, color: 'var(--accent-violet)' }} />
@@ -242,7 +242,7 @@ export default function StrategyPage() {
 
           <div style={{ marginTop: 'var(--space-lg)', padding: 'var(--space-md)', background: 'var(--bg-input)', borderRadius: 'var(--radius-md)' }}>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', fontWeight: 600 }}>
-              💡 Key Insight
+               Key Insight
             </div>
             <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               {timing.savings_usd > 0 ? (

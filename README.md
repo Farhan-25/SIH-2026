@@ -1,4 +1,4 @@
-# 🚢 SIH26006: Intelligent Freight Forecasting & Vessel Chartering Optimization Platform
+#  SIH26006: Intelligent Freight Forecasting & Vessel Chartering Optimization Platform
 
 <div align="center">
 
@@ -18,25 +18,25 @@
 
 ---
 
-## 📌 Problem Overview & Impact
+##  Problem Overview & Impact
 
 India's thermal power plants, steel mills, and heavy industrial hubs on the East Coast import millions of metric tonnes of **Thermal Coal, Coking Coal, Iron Ore, and Bauxite** annually from major overseas origins (Australia, USA, Mozambique, Russia, and Indonesia).
 
 Currently, charterers and procurement managers rely on **daily reactive spot-market quotes**, leading to:
-- ❌ **Sub-optimal entry timing** during global freight rate spikes.
-- ❌ **Demurrage and lighterage penalties** due to uncoordinated vessel-port draft and LOA constraints (e.g. at Haldia, Paradip, and Vizag).
-- ❌ **Lack of forward risk visibility** regarding Bay of Bengal cyclonic sea states and port anchorage queues.
+-  **Sub-optimal entry timing** during global freight rate spikes.
+-  **Demurrage and lighterage penalties** due to uncoordinated vessel-port draft and LOA constraints (e.g. at Haldia, Paradip, and Vizag).
+-  **Lack of forward risk visibility** regarding Bay of Bengal cyclonic sea states and port anchorage queues.
 
-### 💡 Our Solution
+###  Our Solution
 **FreightIQ (SIH26006)** is a 4-engine predictive intelligence and constraint optimization system that combines multi-factor machine learning, maritime operational constraints, real-time AIS vessel tracking, and forward rate simulation into an intuitive executive platform.
 
 ---
 
-## 🗺️ System Architecture
+##  System Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Data_Layer ["📡 Live & Historical Data Ingestion"]
+    subgraph Data_Layer [" Live & Historical Data Ingestion"]
         D1[data.gov.in OGD Port Output]
         D2[AISStream.io Live Anchorage Queues]
         D3[Open-Meteo Marine Weather API]
@@ -44,14 +44,14 @@ flowchart TD
         D5[Master Port & Vessel Databases]
     end
 
-    subgraph Core_Engines ["⚙️ Core Intelligence Engines"]
+    subgraph Core_Engines [" Core Intelligence Engines"]
         M1["Module A: Multi-Factor ML Forecaster<br/>(XGBoost / Quantile Cones / SHAP)"]
         M2["Module B: Vessel & Port Constraint Solver<br/>(Draft, LOA, Beam, Lighterage, Landed Cost)"]
         M3["Module C: Market Timing & Strategy<br/>(Spot vs COA vs Defer Evaluator)"]
         M4["Module D: Corridor Risk & Disruption Monitor<br/>(Anchorage Queue + Cyclone Season Risk)"]
     end
 
-    subgraph Serving_Layer ["🚀 Serving & UI Layer"]
+    subgraph Serving_Layer [" Serving & UI Layer"]
         API["FastAPI REST Backend (:8000)"]
         UI["React + Vite Decision Dashboard (:3000)"]
     end
@@ -63,31 +63,31 @@ flowchart TD
 
 ---
 
-## ⚙️ Core Engines
+##  Core Engines
 
-### 1. 📈 Module A: Freight Rate ML Forecaster
+### 1.  Module A: Freight Rate ML Forecaster
 - **Multi-horizon recursive predictions** (4, 8, 12, 16, 24 weeks forward) in USD/MT.
 - **80% & 90% Quantile Confidence Cones** to capture freight market volatility.
 - **SHAP Feature Attribution** explaining key cost drivers (bunker fuel, BDI index, FX rates, port queues).
 
-### 2. 🚢 Module B: Vessel & Port Constraint Solver
+### 2.  Module B: Vessel & Port Constraint Solver
 - Solves physical berth compatibility for **Handysize, Supramax, Ultramax, Panamax, Kamsarmax, and Capesize** vessels.
 - Evaluates **maximum permissible draft, LOA, beam, and tidal windows** across 7 Indian East Coast ports (Paradip, Vizag, Gangavaram, Gopalpur, Dhamra, Sagar, Haldia).
 - Computes **Total Landed Logistics Cost** ($\text{Freight} + \text{Port Dues} + \text{Mandatory Lighterage at Sagar} + \text{Demurrage Risk}$).
 
-### 3. 🎯 Module C: Market Timing & Contract Strategy
+### 3.  Module C: Market Timing & Contract Strategy
 - Evaluates instantaneous spot rates against forward multi-voyage contracts (COA).
 - Outputs actionable procurement signals: `ENTER_NOW_SPOT`, `ENTER_NOW_TERM_CONTRACT`, or `WAIT_N_WEEKS`.
 - Evaluates idle time and triangular repositioning guidance to minimize ballast legs.
 
-### 4. ⚠️ Module D: Corridor Risk & Disruption Monitor
+### 4.  Module D: Corridor Risk & Disruption Monitor
 - Real-time **AIS anchorage density** and turnaround wait estimates.
 - **Marine sea state & wave height monitoring** in the Bay of Bengal and Malacca Strait.
 - Composite risk index (0–100) with automatic operational alerts.
 
 ---
 
-## 🖥️ Web Platform
+##  Web Platform
 
 The interactive UI is built with **React + Vite** and features a modern dark glassmorphism design:
 
@@ -102,7 +102,7 @@ The interactive UI is built with **React + Vite** and features a modern dark gla
 
 ---
 
-## ⚡ Quick Start
+##  Quick Start
 
 ### 1-Command Automated Runner:
 ```bash
@@ -132,39 +132,39 @@ For full setup documentation, environment key configuration, and troubleshooting
 
 ---
 
-## 📋 Project TODOs & Active Roadmap
+##  Project TODOs & Active Roadmap
 
 Below is the active task list for scaling this prototype to a national hackathon-winning production platform:
 
-### 🧠 1. Machine Learning & Model Training Pipeline
+###  1. Machine Learning & Model Training Pipeline
 - [x] **Train Deep Time-Series Models**: Implement Temporal Fusion Transformer (TFT) and LSTM deep learning models alongside XGBoost for multi-horizon attention.
 - [x] **Dynamic Ensemble Engine**: Build an automated model selector that dynamically weights XGBoost, LightGBM, and ElasticNet based on rolling backtest MAPE.
 - [ ] **Automated Model Retraining Job**: Add scheduled pipeline to re-fit models weekly as new OGD port and commodity data arrives.
 - [ ] **SHAP Interactive Visualizer**: Expose raw SHAP force plot JSON directly to the frontend for interactive node drill-downs.
 
-### 🎨 2. UI/UX & Design Polish
+###  2. UI/UX & Design Polish
 - [ ] **Generic / Executive View**: Add a simplified high-level view for senior procurement executives with 1-click summary insights.
 - [ ] **Light / Dark Theme Toggle**: Implement accessible light mode palette alongside current dark glassmorphism theme.
 - [ ] **Multi-Language Localization**: Add Hindi/English language toggle for national procurement accessibility.
 - [ ] **Scenario Export**: 1-click **Download PDF / Excel** procurement briefing for management review.
 
-### 🚢 3. Advanced Optimization & Fleet Management
+###  3. Advanced Optimization & Fleet Management
 - [ ] **Multi-Parcel Fleet Scheduler**: Implement Genetic Algorithm (NSGA-II) for scheduling multiple cargo parcels across multi-port discharge itineraries.
 - [ ] **Carbon Emission (EEXI / CII) Calculator**: Estimate voyage fuel burn and carbon intensity rating per vessel class.
 - [ ] **Port Tariff Engine**: Dynamic tariff computation based on vessel Gross Tonnage (GT) and cargo handling productivity.
 
-### 📰 4. NLP Market Sentiment & Macro Shocks
+###  4. NLP Market Sentiment & Macro Shocks
 - [x] **Maritime News Sentiment Tracker**: Scrape and analyze global shipping headlines (Baltic Exchange, TradeWinds, Platts) with FinBERT to compute market sentiment scores (News links added, sentiment WIP).
 - [ ] **Geopolitical & Chokepoint Alerts**: Event-driven flags for Red Sea / Suez / Malacca transit disruptions.
 
-### 🐳 5. DevOps & Presentation Deliverables
+###  5. DevOps & Presentation Deliverables
 - [ ] **Docker Compose Setup**: Multi-container `docker-compose.yml` (FastAPI + Nginx React Frontend).
 - [ ] **GitHub Actions CI/CD**: Automated linting and pytest pipeline on every push.
 - [ ] **SIH Final Pitch Deck**: Slide deck highlighting ROI, landed cost savings (5–12%), and national logistics impact.
 
 ---
 
-## 🧪 Testing & Validation
+##  Testing & Validation
 
 Run the automated test suite:
 ```bash
@@ -175,6 +175,6 @@ All core unit tests verify master dataset integrity, draft/lighterage constraint
 
 ---
 
-## 📄 License & Team
+##  License & Team
 Developed for **Smart India Hackathon 2026 (SIH26006)**.  
 Repository: [Farhan-25/SIH-2026](https://github.com/Farhan-25/SIH-2026)

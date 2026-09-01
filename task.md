@@ -7,7 +7,7 @@
 
 ---
 
-## 📁 Phase 0: Project Setup & Groundwork
+##  Phase 0: Project Setup & Groundwork
 - [x] Create core problem statement file ([ps.md](file:///d:/SIH-2026/ps.md))
 - [x] Create requirements specification file ([requirement.md](file:///d:/SIH-2026/requirement.md))
 - [x] Create project execution checklist ([task.md](file:///d:/SIH-2026/task.md))
@@ -51,7 +51,7 @@
 
 ---
 
-## 🔴 Phase 4: Market Timing, Risk & Explainability
+##  Phase 4: Market Timing, Risk & Explainability
 - [x] Spot vs Term contract evaluation matrix (`market_timing.py`)
 - [x] Market Timing Signal generator (ENTER_NOW / WAIT / DEFER)
 - [x] Idle scenario & repositioning guidance
@@ -60,7 +60,7 @@
 
 ---
 
-## 🔵 Phase 5: React + Vite Premium Dashboard (v2.0)
+##  Phase 5: React + Vite Premium Dashboard (v2.0)
 - [x] **Replaced Streamlit with React + Vite** (modern SPA)
 - [x] Dark glassmorphism design system (CSS custom properties, Inter font)
 - [x] Animated sidebar navigation with route grouping
@@ -76,7 +76,7 @@
 
 ---
 
-## ⚫ Phase 6: Advanced Differentiators (SIH-Winner Tier)
+##  Phase 6: Advanced Differentiators (SIH-Winner Tier)
 - [ ] LSTM/TFT deep learning ensemble (`deep_forecasting.py`)
 - [ ] Dynamic ensemble engine (XGBoost + LSTM + Prophet)
 - [ ] Genetic multi-objective optimizer (NSGA-II Pareto frontier)
@@ -90,7 +90,7 @@
 
 ---
 
-## ✅ Phase 7: Final Verification & Delivery
+##  Phase 7: Final Verification & Delivery
 - [x] Automated pytest suite (100% pass rate)
 - [x] Frontend build verification (`npm run build`)
 - [x] Backend + Frontend simultaneous startup verified
@@ -99,7 +99,7 @@
 
 ---
 
-## 🌌 Phase 8: 3D UI, Map & Advanced Tracking
+##  Phase 8: 3D UI, Map & Advanced Tracking
 - [ ] Upgrade UI with 3D elements and advanced aesthetics
   - [ ] Integrate React Three Fiber/Three.js dependencies in the frontend
   - [ ] Implement a 3D animated hero section/background for the dashboard

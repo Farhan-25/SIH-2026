@@ -43,7 +43,7 @@ export default class ErrorBoundary extends React.Component {
             boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
             textAlign: 'center'
           }}>
-            <div style={{ fontSize: '3rem', marginBottom: '12px' }}>⚠️</div>
+            <div style={{ fontSize: '3rem', marginBottom: '12px' }}></div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f87171', marginBottom: '8px' }}>
               Something went wrong
             </h2>

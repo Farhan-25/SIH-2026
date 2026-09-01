@@ -727,14 +727,14 @@ def get_map_intelligence():
         "timestamp": datetime.now().isoformat(),
     }
 
-    # ── Load port & route master data from JSON (reference files, not hardcoded) ──
+    #  Load port & route master data from JSON (reference files, not hardcoded) 
     ports_master = db_manager.load_ports_master()
     routes_master = db_manager.load_routes_master()
     indian_ports_data = ports_master.get("indian_east_coast_ports", {})
     global_ports_data = ports_master.get("global_load_ports", {})
     trade_routes_list = routes_master.get("trade_routes", []) if isinstance(routes_master, dict) else routes_master
 
-    # ── 1. GFW Vessel Positions ──
+    #  1. GFW Vessel Positions 
     gfw_status = "offline"
     try:
         vessels = gfw_client.get_live_cargo_vessels()
@@ -744,7 +744,7 @@ def get_map_intelligence():
         print(f"Map Intel — GFW error: {e}")
         gfw_status = f"error: {str(e)[:60]}"
 
-    # ── 2. Port Congestion (blended GFW + AIS) for each Indian port ──
+    #  2. Port Congestion (blended GFW + AIS) for each Indian port 
     ais_status = "offline"
     try:
         for port_id, port_data in indian_ports_data.items():
@@ -790,7 +790,7 @@ def get_map_intelligence():
             "avg_queue_days": port_data.get("average_queue_waiting_days", 0),
         })
 
-    # ── 3. Marine Weather (Open-Meteo) — 12-hourly for each Indian port ──
+    #  3. Marine Weather (Open-Meteo) — 12-hourly for each Indian port 
     weather_status = "offline"
     try:
         def fetch_weather(port_id, lat, lon, port_name):
@@ -834,7 +834,7 @@ def get_map_intelligence():
         print(f"Map Intel — Weather error: {e}")
         weather_status = f"error: {str(e)[:60]}"
 
-    # ── 4. FRED Market Indicators (reuse shared cache) ──
+    #  4. FRED Market Indicators (reuse shared cache) 
     fred_status = "offline"
     try:
         fred_data = get_cached_fred_data()
@@ -844,7 +844,7 @@ def get_map_intelligence():
         print(f"Map Intel — FRED error: {e}")
         fred_status = f"error: {str(e)[:60]}"
 
-    # ── 5. Per-Route Risk Scores ──
+    #  5. Per-Route Risk Scores 
     try:
         for route in (trade_routes_list if isinstance(trade_routes_list, list) else []):
             origin_id = route.get("origin_port", "")
@@ -890,7 +890,7 @@ def get_map_intelligence():
     except Exception as e:
         print(f"Map Intel — Route risk iteration error: {e}")
 
-    # ── 6. API Status Summary ──
+    #  6. API Status Summary 
     result["api_status"] = {
         "gfw": gfw_status,
         "ais": ais_status,

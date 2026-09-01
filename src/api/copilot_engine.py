@@ -175,7 +175,7 @@ class MaritimeCopilotEngine:
     def _explain_freight_forecast(self, query: str, state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "response": (
-                "### 📈 Freight Rate Forecast & SHAP Driver Explanation\n\n"
+                "###  Freight Rate Forecast & SHAP Driver Explanation\n\n"
                 "For **Newcastle (Australia) → Paradip (India)** importing Thermal/Coking Coal:\n\n"
                 "1. **Spot vs. Forward Trend:**\n"
                 "   • Current Spot Rate: **$14.82/MT**\n"
@@ -206,7 +206,7 @@ class MaritimeCopilotEngine:
 
         return {
             "response": (
-                "### 🚨 Geopolitical Disruption & Chokepoint Risk Assessment\n\n"
+                "###  Geopolitical Disruption & Chokepoint Risk Assessment\n\n"
                 f"• **Red Sea / Bab el-Mandeb (Disruption Index: {red_sea_risk:.2f} — CRITICAL):**\n"
                 "  Continuous drone and missile incidents have prompted major dry bulk carriers to bypass the southern Red Sea. "
                 "Vessels rerouting via the **Cape of Good Hope** incur **12 to 14 additional transit days** and ~$180k–$260k in extra bunker fuel burn.\n\n"
@@ -231,7 +231,7 @@ class MaritimeCopilotEngine:
     def _explain_vessel_optimization(self, query: str, state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "response": (
-                "### 🚢 Vessel Constraint Optimization & Port Feasibility\n\n"
+                "###  Vessel Constraint Optimization & Port Feasibility\n\n"
                 "When chartering for East Coast India discharge:\n\n"
                 "1. **Paradip / Dhamra (Deep-Draft Ports):**\n"
                 "   • **Permissible Draft:** 17.1m – 18.5m\n"
@@ -257,7 +257,7 @@ class MaritimeCopilotEngine:
     def _explain_market_timing(self, query: str, state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "response": (
-                "### 📊 Spot vs. Forward Market Timing Strategy\n\n"
+                "###  Spot vs. Forward Market Timing Strategy\n\n"
                 "• **Current Spot Rate:** $14.82/MT\n"
                 "• **Forward Rate Trend:** Rising (+0.8% to +1.2% per week projected over next 8 weeks)\n"
                 "• **Strategy Recommendation:** **LOCK FORWARD (60% Contract / 40% Spot)**\n\n"
@@ -281,7 +281,7 @@ class MaritimeCopilotEngine:
     def _generate_general_maritime_response(self, query: str, state: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "response": (
-                f"### 🤖 FreightIQ Intelligence Response\n\n"
+                f"###  FreightIQ Intelligence Response\n\n"
                 f"Regarding *\"{query}\"*:\n\n"
                 f"The platform integrates real-time machine learning freight forecasts, live AIS/GFW vessel positions, "
                 f"and FinBERT geopolitical shock detection.\n\n"

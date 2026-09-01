@@ -6,46 +6,46 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// ─── Health ───────────────────────────────────────────────
+//  Health 
 export const getHealth = () => api.get('/health')
 
-// ─── Reference Data ───────────────────────────────────────
+//  Reference Data 
 export const getPorts = () => api.get('/ports')
 export const getRoutes = () => api.get('/routes')
 
-// ─── Forecasting ──────────────────────────────────────────
+//  Forecasting 
 export const getForecast = (params) =>
   api.post('/forecast', params).then(r => r.data)
 
-// ─── Vessel Optimization ─────────────────────────────────
+//  Vessel Optimization 
 export const getVesselRecommendation = (params) =>
   api.post('/recommend-vessel', params).then(r => r.data)
 
-// ─── Full Scenario Analysis ──────────────────────────────
+//  Full Scenario Analysis 
 export const analyzeScenario = (params) =>
   api.post('/scenario-analyze', params).then(r => r.data)
 
-// ─── SHAP Explainability ─────────────────────────────────
+//  SHAP Explainability 
 export const getShapExplanation = (params) =>
   api.post('/shap-explain', params).then(r => r.data)
 
-// ─── Risk Assessment ─────────────────────────────────────
+//  Risk Assessment 
 export const getRiskAssessment = (params) =>
   api.post('/risk-assess', params).then(r => r.data)
 
-// ─── Market Timing ───────────────────────────────────────
+//  Market Timing 
 export const getMarketTiming = (params) =>
   api.post('/market-timing', params).then(r => r.data)
 
-// ─── Dashboard (Live Aggregated Data) ────────────────────
+//  Dashboard (Live Aggregated Data) 
 export const getDashboard = () =>
   api.get('/dashboard').then(r => r.data)
 
-// ─── Map Intelligence (GFW + AIS + Weather + FRED) ───────
+//  Map Intelligence (GFW + AIS + Weather + FRED) 
 export const getMapIntelligence = () =>
   api.get('/map-intelligence').then(r => r.data)
 
-// ─── Maritime Market Intelligence & Geopolitical Risk ───
+//  Maritime Market Intelligence & Geopolitical Risk 
 export const getMaritimeNews = (limit = 50) =>
   api.get(`/news?limit=${limit}`).then(r => r.data)
 
@@ -61,7 +61,7 @@ export const getGeopoliticalAlerts = () =>
 export const getNLPForecastFeatures = () =>
   api.get('/forecast/features').then(r => r.data)
 
-// ─── AI Maritime Intelligence Copilot ───────────────────
+//  AI Maritime Intelligence Copilot 
 export const getCopilotOverview = () =>
   api.get('/copilot/overview').then(r => r.data)
 

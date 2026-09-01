@@ -27,9 +27,9 @@ mapboxgl.accessToken =
   import.meta.env.VITE_MAPBOX_TOKEN ||
   'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw'
 
-/* ────────────────────────────────────────────────────────────
+/* 
    Bloomberg-Style Amber / Matrix / Dark Theme Helpers
-   ──────────────────────────────────────────────────────────── */
+    */
 function formatNumber(val, decimals = 2) {
   if (val === undefined || val === null || isNaN(val)) return '—'
   return Number(val).toFixed(decimals)
@@ -244,7 +244,7 @@ export default function DashboardPage() {
               align-items: center;
               justify-content: center;
               font-size: 9px;
-            ">🚢</div>
+            "></div>
           </div>
         `
 
@@ -284,7 +284,7 @@ export default function DashboardPage() {
           align-items: center;
           gap: 4px;
         `
-        pEl.innerHTML = `<span style="color:${pColor}; font-size:11px;">⚓</span><span>${p.name?.split(' ')[0]}</span><span style="color:${pColor};">(${p.anchored_vessels || 0})</span>`
+        pEl.innerHTML = `<span style="color:${pColor}; font-size:11px;"></span><span>${p.name?.split(' ')[0]}</span><span style="color:${pColor};">(${p.anchored_vessels || 0})</span>`
 
         const portMarker = new mapboxgl.Marker({ element: pEl, anchor: 'bottom' })
           .setLngLat([p.lon, p.lat])
@@ -325,7 +325,7 @@ export default function DashboardPage() {
       gap: 8,
       padding: '8px 12px 24px 12px'
     }}>
-      {/* ─── 1. BLOOMBERG TERMINAL TOP COMMAND BAR ─── */}
+      {/*  1. BLOOMBERG TERMINAL TOP COMMAND BAR  */}
       <div style={{
         background: '#0d1117',
         border: '1px solid #30363d',
@@ -390,7 +390,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ─── 2. RUNNING REAL-TIME TICKER TAPE ─── */}
+      {/*  2. RUNNING REAL-TIME TICKER TAPE  */}
       <div style={{
         background: '#090d13',
         border: '1px solid #21262d',
@@ -407,14 +407,14 @@ export default function DashboardPage() {
             <span style={{ color: '#8b949e', fontWeight: 600 }}>{item.code}</span>
             <span style={{ color: '#f0f6fc', fontWeight: 700 }}>{item.val}</span>
             <span style={{ color: item.up ? '#30d158' : '#ff453a', fontWeight: 700 }}>
-              {item.up ? '▲' : '▼'} {item.chg}
+              {item.up ? '' : ''} {item.chg}
             </span>
             {idx < tickerItems.length - 1 && <span style={{ color: '#30363d' }}>|</span>}
           </div>
         ))}
       </div>
 
-      {/* ─── 2.5 BLOOMBERG AI COPILOT REASONING & EXECUTIVE SUMMARY CONSOLE ─── */}
+      {/*  2.5 BLOOMBERG AI COPILOT REASONING & EXECUTIVE SUMMARY CONSOLE  */}
       <div style={{
         background: 'linear-gradient(90deg, #0d1117 0%, rgba(31, 111, 235, 0.08) 50%, #0d1117 100%)',
         border: '1px solid #30363d',
@@ -463,7 +463,7 @@ export default function DashboardPage() {
                 gap: 4
               }}
             >
-              🤖 LAUNCH FULL COPILOT CHAT &gt;
+               LAUNCH FULL COPILOT CHAT &gt;
             </button>
           </div>
         </div>
@@ -486,14 +486,14 @@ export default function DashboardPage() {
               alignItems: 'center',
               gap: 5
             }}>
-              <span style={{ color: '#58a6ff' }}>▸</span>
+              <span style={{ color: '#58a6ff' }}></span>
               <span>{insight}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ─── 3. CORE BLOOMBERG 4-QUADRANT COMMAND GRID ─── */}
+      {/*  3. CORE BLOOMBERG 4-QUADRANT COMMAND GRID  */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1.35fr) minmax(0, 1fr)',
@@ -501,7 +501,7 @@ export default function DashboardPage() {
         gap: 10
       }}>
 
-        {/* ─── QUADRANT 1: INTEGRATED MARITIME RADAR & VESSEL FLEET MAP ─── */}
+        {/*  QUADRANT 1: INTEGRATED MARITIME RADAR & VESSEL FLEET MAP  */}
         <div style={{
           background: '#0d1117',
           border: '1px solid #30363d',
@@ -575,7 +575,7 @@ export default function DashboardPage() {
                     onClick={() => setSelectedVessel(null)}
                     style={{ background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: '12px' }}
                   >
-                    ✕
+                    
                   </button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, color: '#c9d1d9' }}>
@@ -600,7 +600,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ─── QUADRANT 2: SPOT & FORWARD CORRIDOR RATES (BLOOMBERG QUOTE BOARD) ─── */}
+        {/*  QUADRANT 2: SPOT & FORWARD CORRIDOR RATES (BLOOMBERG QUOTE BOARD)  */}
         <div style={{
           background: '#0d1117',
           border: '1px solid #30363d',
@@ -710,7 +710,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ─── QUADRANT 3: GEOPOLITICAL CHOKEPOINTS & FINBERT SENTIMENT INTELLIGENCE ─── */}
+        {/*  QUADRANT 3: GEOPOLITICAL CHOKEPOINTS & FINBERT SENTIMENT INTELLIGENCE  */}
         <div style={{
           background: '#0d1117',
           border: '1px solid #30363d',
@@ -803,7 +803,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ─── QUADRANT 4: LIVE DISRUPTION ALERTS & MARKET TELETYPE FEED ─── */}
+        {/*  QUADRANT 4: LIVE DISRUPTION ALERTS & MARKET TELETYPE FEED  */}
         <div style={{
           background: '#0d1117',
           border: '1px solid #30363d',
@@ -918,7 +918,7 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* ─── 4. TERMINAL FOOTER STATUS STRIP ─── */}
+      {/*  4. TERMINAL FOOTER STATUS STRIP  */}
       <div style={{
         background: '#0d1117',
         border: '1px solid #30363d',

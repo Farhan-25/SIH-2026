@@ -10,11 +10,11 @@ import { getCopilotOverview, askCopilot } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
 
 const QUICK_PROMPTS = [
-  { label: '📈 Newcastle → Paradip Drivers', query: 'Why are freight rates rising for Newcastle to Paradip?' },
-  { label: '🛡️ Red Sea & Suez Crisis Impact', query: 'Assess Red Sea disruption impact on Cape routing and landed costs' },
-  { label: '🚢 Optimum Bulker for 75k MT Coal', query: 'Recommend the best vessel class for importing 75,000 MT Coal to Dhamra vs Haldia' },
-  { label: '📊 Spot vs Forward Decision', query: 'Should we fix spot or lock forward contracts for East Coast India imports?' },
-  { label: '⚓ Port Queue & Demurrage Check', query: 'What are current port waiting days and demurrage risks across Odisha ports?' }
+  { label: ' Newcastle → Paradip Drivers', query: 'Why are freight rates rising for Newcastle to Paradip?' },
+  { label: ' Red Sea & Suez Crisis Impact', query: 'Assess Red Sea disruption impact on Cape routing and landed costs' },
+  { label: ' Optimum Bulker for 75k MT Coal', query: 'Recommend the best vessel class for importing 75,000 MT Coal to Dhamra vs Haldia' },
+  { label: ' Spot vs Forward Decision', query: 'Should we fix spot or lock forward contracts for East Coast India imports?' },
+  { label: ' Port Queue & Demurrage Check', query: 'What are current port waiting days and demurrage risks across Odisha ports?' }
 ]
 
 export default function CopilotPage() {
@@ -112,11 +112,11 @@ export default function CopilotPage() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      {/* ─── Header ─── */}
+      {/*  Header  */}
       <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <span style={{ fontSize: '1.5rem' }}>🤖</span>
+            <span style={{ fontSize: '1.5rem' }}></span>
             <h1 style={{ margin: 0 }}>AI Maritime Intelligence Copilot</h1>
             <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>NLP + XAI REASONING</span>
           </div>
@@ -134,10 +134,10 @@ export default function CopilotPage() {
         </div>
       </div>
 
-      {/* ─── Layout: 2 Columns (Main Chat + Context Inspector Sidebar) ─── */}
+      {/*  Layout: 2 Columns (Main Chat + Context Inspector Sidebar)  */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: 20, alignItems: 'start' }}>
         
-        {/* ─── Column 1: Main Conversational Area ─── */}
+        {/*  Column 1: Main Conversational Area  */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', height: '720px', padding: 0, overflow: 'hidden' }}>
           
           {/* Top Chat Bar */}
@@ -182,7 +182,7 @@ export default function CopilotPage() {
                     fontSize: '0.75rem',
                     color: 'var(--text-muted)'
                   }}>
-                    <span>{isUser ? 'Procurement Lead' : '🤖 FreightIQ Copilot'}</span>
+                    <span>{isUser ? 'Procurement Lead' : ' FreightIQ Copilot'}</span>
                     <span>•</span>
                     <span>{msg.timestamp}</span>
                   </div>
@@ -244,7 +244,7 @@ export default function CopilotPage() {
                           onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-ocean)'}
                           onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-subtle)'}
                         >
-                          ⚡ {act}
+                           {act}
                         </button>
                       ))}
                     </div>
@@ -331,7 +331,7 @@ export default function CopilotPage() {
           </div>
         </div>
 
-        {/* ─── Column 2: Live Maritime Context Inspector ─── */}
+        {/*  Column 2: Live Maritime Context Inspector  */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           
           {/* Executive Briefing Summary Card */}

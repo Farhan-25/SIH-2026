@@ -117,7 +117,7 @@ export default function VesselPage() {
         </div>
       </div>
 
-      {/* ─── Controls ─── */}
+      {/*  Controls  */}
       <div className="glass-card" style={{ marginBottom: 'var(--space-md)', display: 'flex', gap: 'var(--space-md)', alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div className="form-group" style={{ flex: 1, minWidth: 160, marginBottom: 0 }}>
           <label>Origin Port</label>
@@ -147,7 +147,7 @@ export default function VesselPage() {
         </button>
       </div>
 
-      {/* ─── Recommendation Banner ─── */}
+      {/*  Recommendation Banner  */}
       {(results.recommended_vessel_name || results.recommended_vessel_class) && (
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
@@ -164,7 +164,7 @@ export default function VesselPage() {
         >
           <div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--accent-emerald)', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>
-              ✦ Recommended Vessel
+               Recommended Vessel
             </div>
             <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 700, marginTop: 4 }}>
               {results.recommended_vessel_name || results.recommended_vessel_class}
@@ -183,7 +183,7 @@ export default function VesselPage() {
       )}
 
       <div className="grid-2" style={{ alignItems: 'start' }}>
-        {/* ─── Feasibility Matrix ─── */}
+        {/*  Feasibility Matrix  */}
         <div className="glass-card">
           <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-md)', fontWeight: 600 }}>
             <MdDirectionsBoat style={{ verticalAlign: 'middle', marginRight: 8, color: 'var(--accent-ocean)' }} />
@@ -243,7 +243,7 @@ export default function VesselPage() {
           </table>
         </div>
 
-        {/* ─── Cost Breakdown Chart ─── */}
+        {/*  Cost Breakdown Chart  */}
         <div className="glass-card chart-container" style={{ padding: 'var(--space-md)' }}>
           <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-sm)', fontWeight: 600 }}>
             Landed Cost Breakdown ({axisCurrencyPrefix}/MT)

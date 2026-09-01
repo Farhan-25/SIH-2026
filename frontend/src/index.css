@@ -775,7 +775,7 @@ select.form-control {
   overflow-x: hidden;
 }
 
-/* ──── Navbar ──── */
+/*  Navbar  */
 .landing-nav {
   display: flex;
   align-items: center;
@@ -839,7 +839,7 @@ select.form-control {
   gap: 12px;
 }
 
-/* ──── Global Full-Page Video Background for Landing Page ──── */
+/*  Global Full-Page Video Background for Landing Page  */
 .landing-container.full-page-video-active {
   position: relative;
   min-height: 100vh;
@@ -915,7 +915,7 @@ select.form-control {
   box-shadow: 0 0 16px var(--accent-ocean-glow);
 }
 
-/* ──── Hero Section ──── */
+/*  Hero Section  */
 .landing-hero {
   position: relative;
   z-index: 2;
@@ -1016,7 +1016,7 @@ select.form-control {
   margin-top: 4px;
 }
 
-/* ──── Sections ──── */
+/*  Sections  */
 .landing-section {
   position: relative;
   z-index: 2;
@@ -1060,7 +1060,7 @@ select.form-control {
   margin: 0 auto;
 }
 
-/* ──── Sandbox ──── */
+/*  Sandbox  */
 .sandbox-card {
   padding: 32px;
   border-radius: var(--radius-xl);
@@ -1139,7 +1139,7 @@ select.form-control {
   margin-top: 6px;
 }
 
-/* ──── Engine Tabs ──── */
+/*  Engine Tabs  */
 .engine-tabs-wrapper {
   max-width: 1100px;
   margin: 0 auto;
@@ -1261,7 +1261,7 @@ select.form-control {
   color: var(--text-secondary);
 }
 
-/* ──── Comparison Grid ──── */
+/*  Comparison Grid  */
 .comparison-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1295,7 +1295,7 @@ select.form-control {
   color: var(--text-muted);
 }
 
-/* ──── Impact Grid ──── */
+/*  Impact Grid  */
 .impact-cards-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1319,7 +1319,7 @@ select.form-control {
   line-height: 1.6;
 }
 
-/* ──── Footer ──── */
+/*  Footer  */
 .landing-footer {
   position: relative;
   z-index: 2;
@@ -1384,7 +1384,7 @@ select.form-control {
   .footer-content { grid-template-columns: 1fr; }
 }
 
-/* ──── Mapbox Dark Theme Overrides ──── */
+/*  Mapbox Dark Theme Overrides  */
 .mapbox-dark-popup .mapboxgl-popup-content {
   background: hsla(222,30%,9%,0.97) !important;
   border: 1px solid hsla(200,60%,40%,0.3) !important;
@@ -1440,7 +1440,7 @@ select.form-control {
   height: 100%;
 }
 
-/* ──── Top Left HUD ──── */
+/*  Top Left HUD  */
 .fr24-top-left-hud {
   position: absolute;
   top: 16px;
@@ -1550,7 +1550,7 @@ select.form-control {
   transform: translateY(-1px);
 }
 
-/* ──── Top Right HUD Controls ──── */
+/*  Top Right HUD Controls  */
 .fr24-top-right-hud {
   position: absolute;
   top: 16px;
@@ -1596,7 +1596,7 @@ select.form-control {
   font-weight: 600;
 }
 
-/* ──── FlightRadar24 Pop-up Side Card Drawer ──── */
+/*  FlightRadar24 Pop-up Side Card Drawer  */
 .fr24-side-drawer {
   position: absolute;
   top: 16px;
@@ -1722,7 +1722,7 @@ select.form-control {
   color: #fff;
 }
 
-/* ──── Route Bar in Card ──── */
+/*  Route Bar in Card  */
 .fr24-route-box {
   margin-top: 16px;
   background: hsla(220, 25%, 12%, 0.6);
@@ -1797,7 +1797,7 @@ select.form-control {
   padding-top: 8px;
 }
 
-/* ──── Telemetry Grid ──── */
+/*  Telemetry Grid  */
 .fr24-telemetry-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1842,7 +1842,7 @@ select.form-control {
   font-weight: 400;
 }
 
-/* ──── Cargo & Queue ──── */
+/*  Cargo & Queue  */
 .fr24-cargo-box {
   margin-top: 12px;
   background: hsla(220, 25%, 12%, 0.5);
@@ -1895,7 +1895,7 @@ select.form-control {
   padding-top: 14px;
 }
 
-/* ──── Location Pins on Target Ports ──── */
+/*  Location Pins on Target Ports  */
 .port-location-pin {
   cursor: pointer;
   transform: translate(-50%, -100%);
@@ -1944,7 +1944,7 @@ select.form-control {
   gap: 4px;
 }
 
-/* ──── Interactive Vessel Marker (FR24 Chevron) ──── */
+/*  Interactive Vessel Marker (FR24 Chevron)  */
 .fr24-vessel-marker {
   position: relative;
   cursor: pointer;
@@ -2000,7 +2000,7 @@ select.form-control {
   display: block;
 }
 
-/* ──── Bottom Legend ──── */
+/*  Bottom Legend  */
 .fr24-bottom-legend {
   position: absolute;
   bottom: 16px;
@@ -2046,7 +2046,7 @@ select.form-control {
 .track-sample.past { background: #0ea5e9; }
 .track-sample.future { background: #f59e0b; }
 
-/* ──── FR24 Card Tabbed Navigation ──── */
+/*  FR24 Card Tabbed Navigation  */
 .fr24-tab-nav {
   display: flex;
   gap: 4px;
@@ -2089,7 +2089,7 @@ select.form-control {
   flex: 1;
 }
 
-/* ──── FlightRadar24 Voyage Time Scrubber Bar ──── */
+/*  FlightRadar24 Voyage Time Scrubber Bar  */
 .fr24-scrubber-bar {
   position: absolute;
   bottom: 20px;
@@ -2164,7 +2164,7 @@ select.form-control {
   background: hsla(200, 85%, 55%, 0.2);
 }
 
-/* ──── Active Ruler Floating HUD ──── */
+/*  Active Ruler Floating HUD  */
 .fr24-ruler-hud {
   position: absolute;
   top: 76px;
@@ -2183,7 +2183,7 @@ select.form-control {
   min-width: 280px;
 }
 
-/* ──── Bloomberg Terminal Mode Styles ──── */
+/*  Bloomberg Terminal Mode Styles  */
 .bloomberg-terminal-container {
   letter-spacing: -0.01em;
 }
