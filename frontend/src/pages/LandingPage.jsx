@@ -179,7 +179,7 @@ export default function LandingPage() {
               <div className="metric-lbl">East Coast Berth Catalogs</div>
             </div>
             <div className="metric-box">
-              <div className="metric-val text-violet">24 Weeks</div>
+              <div className="metric-val" style={{ color: 'var(--accent)' }}>24 Weeks</div>
               <div className="metric-lbl">Forward Confidence Cones</div>
             </div>
           </div>
@@ -302,7 +302,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="output-card border-violet">
+              <div className="output-card border-ocean">
                 <div className="card-badge">Module D: Disruption Score</div>
                 <div className="output-val">{sandboxResult.risk_and_congestion?.risk_assessment?.composite_risk_score ?? '42.5'} <span className="unit">/ 100</span></div>
                 <div className="output-desc">

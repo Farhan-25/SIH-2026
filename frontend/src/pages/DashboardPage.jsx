@@ -23,9 +23,8 @@ import {
 } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
 
-mapboxgl.accessToken =
-  import.meta.env.VITE_MAPBOX_TOKEN ||
-  'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw'
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
+
 
 /* 
    Bloomberg-Style Amber / Matrix / Dark Theme Helpers

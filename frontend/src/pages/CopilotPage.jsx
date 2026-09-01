@@ -409,7 +409,7 @@ export default function CopilotPage() {
                   <strong>+9.8%</strong>
                 </div>
                 <div style={{ height: 4, background: 'var(--bg-input)', borderRadius: 2 }}>
-                  <div style={{ width: '40%', height: '100%', background: 'var(--accent-violet)', borderRadius: 2 }} />
+                  <div style={{ width: '40%', height: '100%', background: 'var(--accent)', borderRadius: 2 }} />
                 </div>
               </div>
             </div>

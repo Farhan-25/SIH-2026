@@ -14,6 +14,8 @@ from datetime import datetime, timedelta
 import requests
 import xml.etree.ElementTree as ET
 
+from src.data.db_manager import FreightDBManager
+
 logger = logging.getLogger(__name__)
 
 # Keywords for maritime and shipping relevance filtering
@@ -34,35 +36,41 @@ MARITIME_KEYWORDS = {
     ]
 }
 
-# Monitored Maritime Chokepoints
-CHOKEPOINTS = {
-    "red_sea": {
-        "name": "Red Sea / Bab el-Mandeb",
-        "terms": ["red sea", "bab el-mandeb", "bab-el-mandeb", "yemen", "houthi", "gulf of aden", "southern red sea"],
-        "baseline_volume_per_day": 12.0
-    },
-    "suez_canal": {
-        "name": "Suez Canal",
-        "terms": ["suez", "suez canal", "ever given", "sczone", "port said"],
-        "baseline_volume_per_day": 8.0
-    },
-    "malacca_strait": {
-        "name": "Strait of Malacca",
-        "terms": ["malacca", "strait of malacca", "singapore strait", "phillip channel", "malacca straits"],
-        "baseline_volume_per_day": 15.0
-    },
-    "panama_canal": {
-        "name": "Panama Canal",
-        "terms": ["panama canal", "gatun lake", "panama transit", "draft restriction panama"],
-        "baseline_volume_per_day": 6.0
-    },
-    "strait_of_hormuz": {
-        "name": "Strait of Hormuz",
-        "terms": ["hormuz", "strait of hormuz", "persian gulf", "gulf of oman"],
-        "baseline_volume_per_day": 10.0
+# Monitored Maritime Chokepoints (Loaded dynamically from FreightDBManager)
+try:
+    _db_mgr = FreightDBManager()
+    CHOKEPOINTS = _db_mgr.load_chokepoints_master()
+except Exception:
+    CHOKEPOINTS = {
+        "red_sea": {
+            "name": "Red Sea / Bab el-Mandeb",
+            "terms": ["red sea", "bab el-mandeb", "bab-el-mandeb", "yemen", "houthi", "gulf of aden", "southern red sea"],
+            "baseline_volume_per_day": 12.0
+        },
+        "suez_canal": {
+            "name": "Suez Canal",
+            "terms": ["suez", "suez canal", "ever given", "sczone", "port said"],
+            "baseline_volume_per_day": 8.0
+        },
+        "malacca_strait": {
+            "name": "Strait of Malacca",
+            "terms": ["malacca", "strait of malacca", "singapore strait", "phillip channel", "malacca straits"],
+            "baseline_volume_per_day": 15.0
+        },
+        "panama_canal": {
+            "name": "Panama Canal",
+            "terms": ["panama canal", "gatun lake", "panama transit", "draft restriction panama"],
+            "baseline_volume_per_day": 6.0
+        },
+        "strait_of_hormuz": {
+            "name": "Strait of Hormuz",
+            "terms": ["hormuz", "strait of hormuz", "persian gulf", "gulf of oman"],
+            "baseline_volume_per_day": 10.0
+        }
     }
-}
 
+
+import concurrent.futures
 
 class MaritimeNewsClient:
     """Client for collecting, filtering, and caching maritime news articles."""
@@ -77,42 +85,73 @@ class MaritimeNewsClient:
 
     GDELT_DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
 
-    def __init__(self, cache_ttl_seconds: int = 600):
+    # Global class-level singleton cache across all instances
+    _GLOBAL_CACHE: List[Dict[str, Any]] = []
+    _GLOBAL_LAST_FETCH = 0.0
+
+    def __init__(self, cache_ttl_seconds: int = 900, db_manager: Optional[FreightDBManager] = None):
         self.cache_ttl = cache_ttl_seconds
-        self._articles_cache: List[Dict[str, Any]] = []
-        self._last_fetch_time = 0.0
+        self.db = db_manager or FreightDBManager()
 
     def get_articles(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
-        """Retrieve deduplicated, relevance-filtered maritime news articles."""
+        """Retrieve deduplicated, relevance-filtered maritime news articles with instant return."""
         current_time = time.time()
-        if not force_refresh and self._articles_cache and (current_time - self._last_fetch_time < self.cache_ttl):
-            return self._articles_cache
+        if not force_refresh and MaritimeNewsClient._GLOBAL_CACHE and (current_time - MaritimeNewsClient._GLOBAL_LAST_FETCH < self.cache_ttl):
+            return MaritimeNewsClient._GLOBAL_CACHE
+
+        # Check SQLite cached articles if in-memory cache is cold
+        if not force_refresh and not MaritimeNewsClient._GLOBAL_CACHE:
+            try:
+                db_articles = self.db.get_latest_news_articles(limit=50)
+                if db_articles:
+                    MaritimeNewsClient._GLOBAL_CACHE = db_articles
+                    MaritimeNewsClient._GLOBAL_LAST_FETCH = current_time
+                    return MaritimeNewsClient._GLOBAL_CACHE
+            except Exception:
+                pass
 
         fetched = []
-        
-        # 1. Ingest from Live Maritime RSS Feeds
-        for feed in self.RSS_FEEDS:
+
+        # Concurrent parallel fetch across feeds
+        def fetch_feed(feed):
             try:
-                res = requests.get(feed["url"], timeout=4, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+                res = requests.get(feed["url"], timeout=2.5, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
                 if res.status_code == 200:
-                    parsed = self._parse_rss(res.text, feed["name"])
-                    fetched.extend(parsed)
-            except Exception as e:
-                logger.debug(f"RSS fetch skipped for {feed['name']}: {e}")
+                    return self._parse_rss(res.text, feed["name"])
+            except Exception:
+                pass
+            return []
 
-        # 2. Ingest from Live GDELT 2.0 Global Maritime & Chokepoints Query
-        try:
-            gdelt_articles = self._fetch_gdelt_maritime_news()
-            fetched.extend(gdelt_articles)
-        except Exception as e:
-            logger.debug(f"GDELT fetch notice: {e}")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            future_to_feed = {executor.submit(fetch_feed, f): f for f in self.RSS_FEEDS}
+            future_gdelt = executor.submit(self._fetch_gdelt_maritime_news)
 
-        # 3. Deduplicate and score relevance purely from live feeds (no mock/fallback articles)
+            for future in concurrent.futures.as_completed(future_to_feed, timeout=3.5):
+                try:
+                    res = future.result()
+                    if res:
+                        fetched.extend(res)
+                except Exception:
+                    pass
+
+            try:
+                gdelt_res = future_gdelt.result(timeout=2.5)
+                if gdelt_res:
+                    fetched.extend(gdelt_res)
+            except Exception:
+                pass
+
+        # Deduplicate and score relevance
         processed = self._process_and_filter(fetched)
-        
-        self._articles_cache = processed
-        self._last_fetch_time = current_time
-        return self._articles_cache
+        if processed:
+            MaritimeNewsClient._GLOBAL_CACHE = processed
+            MaritimeNewsClient._GLOBAL_LAST_FETCH = current_time
+            try:
+                self.db.save_news_articles(processed)
+            except Exception:
+                pass
+
+        return MaritimeNewsClient._GLOBAL_CACHE or processed
 
     def _fetch_gdelt_maritime_news(self) -> List[Dict[str, Any]]:
         """Queries the live GDELT 2.0 Doc API for real-time global maritime incidents and disruptions."""

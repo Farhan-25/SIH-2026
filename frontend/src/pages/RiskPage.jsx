@@ -524,10 +524,10 @@ export default function RiskPage() {
               layout={{
                 paper_bgcolor: 'transparent',
                 plot_bgcolor: 'transparent',
-                font: { family: 'Inter', color: 'hsl(220, 15%, 65%)', size: 10 },
+                font: { family: 'Inter', color: 'hsl(0, 0%, 55%)', size: 10 },
                 margin: { t: 10, r: 40, b: 30, l: 40 },
                 xaxis: { gridcolor: 'transparent' },
-                yaxis: { gridcolor: 'hsla(220, 20%, 30%, 0.2)', title: 'Sentiment Score [-1.0 to +1.0]', range: [-1, 1] },
+                yaxis: { gridcolor: 'hsla(0, 0%, 20%, 0.2)', title: 'Sentiment Score [-1.0 to +1.0]', range: [-1, 1] },
                 yaxis2: { title: 'Article Volume', overlaying: 'y', side: 'right', gridcolor: 'transparent' },
                 legend: { orientation: 'h', y: -0.15 },
                 showlegend: true,
@@ -693,7 +693,7 @@ export default function RiskPage() {
               </span>
             </div>
 
-            <div className="glass-card kpi-card violet">
+            <div className="glass-card kpi-card ocean">
               <div className="kpi-icon"><MdTrendingUp /></div>
               <div className="kpi-value">12.5%</div>
               <div className="kpi-label">Freight Rate Volatility (30d)</div>

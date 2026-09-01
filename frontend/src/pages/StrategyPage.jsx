@@ -187,10 +187,10 @@ export default function StrategyPage() {
             layout={{
               paper_bgcolor: 'transparent',
               plot_bgcolor: 'transparent',
-              font: { family: 'Inter', color: 'hsl(220, 15%, 65%)', size: 11 },
+              font: { family: 'Inter', color: 'hsl(0, 0%, 55%)', size: 11 },
               margin: { t: 20, r: 20, b: 40, l: 50 },
               xaxis: { gridcolor: 'transparent', title: 'Forward Tenor' },
-              yaxis: { gridcolor: 'hsla(220, 20%, 30%, 0.2)', tickprefix: axisCurrencyPrefix, title: `${axisCurrencyPrefix}/MT` },
+              yaxis: { gridcolor: 'hsla(0, 0%, 20%, 0.2)', tickprefix: axisCurrencyPrefix, title: `${axisCurrencyPrefix}/MT` },
               legend: { orientation: 'h', y: -0.2, font: { size: 10 } },
               showlegend: true,
             }}
@@ -202,7 +202,7 @@ export default function StrategyPage() {
         {/*  Strategy Comparison Table  */}
         <div className="glass-card">
           <h2 style={{ fontSize: 'var(--font-size-lg)', marginBottom: 'var(--space-md)', fontWeight: 600 }}>
-            <MdCompareArrows style={{ verticalAlign: 'middle', marginRight: 8, color: 'var(--accent-violet)' }} />
+            <MdCompareArrows style={{ verticalAlign: 'middle', marginRight: 8, color: 'var(--accent)' }} />
             Strategy Comparison (75,000 MT)
           </h2>
           <table className="data-table">

@@ -8,6 +8,9 @@ import json
 from typing import Dict, Any, List, Optional
 
 
+from src.data.db_manager import FreightDBManager
+
+
 class VesselConstraintOptimizer:
     """Solves vessel class compatibility and computes full landed chartering costs."""
 
@@ -15,20 +18,35 @@ class VesselConstraintOptimizer:
         self,
         ports_path: str = "data/reference/ports_master.json",
         vessels_path: str = "data/reference/vessels_master.json",
-        routes_path: str = "data/reference/routes_master.json"
+        routes_path: str = "data/reference/routes_master.json",
+        db_manager: Optional[FreightDBManager] = None
     ):
-        with open(ports_path, "r") as f:
-            pdata = json.load(f)
-            self.indian_ports = pdata["indian_east_coast_ports"]
-            self.global_ports = pdata["global_load_ports"]
+        self.db = db_manager or FreightDBManager()
+        try:
+            pdata = self.db.load_ports_master()
+            self.indian_ports = pdata.get("indian_east_coast_ports", {})
+            self.global_ports = pdata.get("global_load_ports", {})
+        except Exception:
+            with open(ports_path, "r") as f:
+                pdata = json.load(f)
+                self.indian_ports = pdata["indian_east_coast_ports"]
+                self.global_ports = pdata["global_load_ports"]
 
-        with open(vessels_path, "r") as f:
-            v_data = json.load(f)
-            self.vessels = v_data["vessel_classes"]
+        try:
+            v_data = self.db.load_vessels_master()
+            self.vessels = v_data.get("vessel_classes", {})
             self.active_fleet = v_data.get("active_fleet", [])
+        except Exception:
+            with open(vessels_path, "r") as f:
+                v_data = json.load(f)
+                self.vessels = v_data["vessel_classes"]
+                self.active_fleet = v_data.get("active_fleet", [])
 
-        with open(routes_path, "r") as f:
-            self.routes = {r["route_id"]: r for r in json.load(f)["trade_routes"]}
+        try:
+            self.routes = {r["route_id"]: r for r in self.db.load_routes_master().get("trade_routes", [])}
+        except Exception:
+            with open(routes_path, "r") as f:
+                self.routes = {r["route_id"]: r for r in json.load(f)["trade_routes"]}
 
     PORT_ALIASES = {
         "newcastle": "AU_NEW",
@@ -53,6 +71,33 @@ class VesselConstraintOptimizer:
         "sagar": "IN_SGR",
     }
 
+    def _resolve_port(self, port_id: str, is_destination: bool = False) -> Optional[Dict[str, Any]]:
+        """Resolves port ID or name against Indian and Global port records."""
+        if not port_id:
+            return None
+        p_clean = port_id.strip()
+        p_lower = p_clean.lower()
+        norm_key = self.PORT_ALIASES.get(p_lower, p_clean.upper())
+
+        # Check direct dictionary key
+        if is_destination:
+            port = self.indian_ports.get(norm_key) or self.global_ports.get(norm_key)
+        else:
+            port = self.global_ports.get(norm_key) or self.indian_ports.get(norm_key)
+
+        if port:
+            return port
+
+        # Case-insensitive search across keys & names
+        all_ports = {**self.global_ports, **self.indian_ports}
+        for k, v in all_ports.items():
+            if k.lower() == p_lower or v.get("port_id", "").lower() == p_lower:
+                return v
+            if p_lower in v.get("port_name", "").lower():
+                return v
+
+        return None
+
     def optimize_vessel_choice(
         self,
         cargo_parcel_mt: float,
@@ -64,14 +109,11 @@ class VesselConstraintOptimizer:
         """
         Evaluates physical feasibility of all vessel classes and ranks them by total landed cost per tonne.
         """
-        norm_origin = self.PORT_ALIASES.get(origin_port_id.lower(), origin_port_id.upper())
-        norm_dest = self.PORT_ALIASES.get(dest_port_id.lower(), dest_port_id.upper())
-
-        origin_port = self.global_ports.get(norm_origin) or self.indian_ports.get(norm_origin)
-        dest_port = self.indian_ports.get(norm_dest) or self.global_ports.get(norm_dest)
+        origin_port = self._resolve_port(origin_port_id, is_destination=False)
+        dest_port = self._resolve_port(dest_port_id, is_destination=True)
 
         if not origin_port or not dest_port:
-            raise ValueError(f"Invalid ports: {origin_port_id} ({norm_origin}) -> {dest_port_id} ({norm_dest})")
+            raise ValueError(f"Invalid ports: {origin_port_id} -> {dest_port_id}")
 
         results = []
 

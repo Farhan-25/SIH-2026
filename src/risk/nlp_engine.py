@@ -298,6 +298,6 @@ class MaritimeNLPEngine:
         processed = dict(article)
         processed.update(sentiment_res)
         processed.update(event_res)
-        processed["processed_at"] = os.environ.get("MOCK_DATE", "2026-08-29T17:00:00")
+        processed["processed_at"] = article.get("published_at") or datetime.now(timezone.utc).isoformat()
 
         return processed
