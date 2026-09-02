@@ -5,11 +5,13 @@ import {
   MdDashboard, MdShowChart, MdDirectionsBoat,
   MdMap, MdSecurity, MdTrendingUp, MdNotifications,
   MdSettings, MdHome, MdMenu, MdMenuOpen, MdChevronLeft, MdChevronRight,
-  MdSmartToy, MdDarkMode, MdLightMode, MdAttachMoney, MdLogout
+  MdSmartToy, MdDarkMode, MdLightMode, MdAttachMoney, MdLogout,
+  MdTune
 } from 'react-icons/md'
 
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import OnboardingPage from './pages/OnboardingPage'
 import DashboardPage from './pages/DashboardPage'
 import ForecastPage from './pages/ForecastPage'
 import VesselPage from './pages/VesselPage'
@@ -18,6 +20,7 @@ import RiskPage from './pages/RiskPage'
 import StrategyPage from './pages/StrategyPage'
 import CopilotPage from './pages/CopilotPage'
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext'
+import { UserProfileProvider, useUserProfile } from './context/UserProfileContext'
 
 const navItems = [
   { to: '/', icon: <MdHome />, label: 'Product Landing', section: 'Overview' },
@@ -57,6 +60,7 @@ function AppShell() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('freightiq_token')
   })
+  const { isOnboarded, resetProfile } = useUserProfile()
   const {
     currency,
     currencySymbol,
@@ -97,6 +101,16 @@ function AppShell() {
               setIsAuthenticated(true)
             }
           }} />
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
+  if (!isOnboarded) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div key="onboarding" {...pageTransition}>
+          <OnboardingPage />
         </motion.div>
       </AnimatePresence>
     )
@@ -266,6 +280,13 @@ function AppShell() {
 
                   <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', margin: 'var(--space-sm) 0 4px 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>System</div>
                   
+                  <button onClick={() => { resetProfile(); setShowSettings(false) }} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', textAlign: 'left', cursor: 'pointer', padding: '8px', display: 'flex', gap: '12px', alignItems: 'center', borderRadius: '4px', width: '100%' }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-elevated)'} onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                    <div style={{ background: 'var(--bg-elevated)', padding: '6px', borderRadius: '6px', display: 'flex' }}>
+                       <MdTune size={16} color="var(--accent)" />
+                    </div>
+                    <span>Reconfigure Profile</span>
+                  </button>
+
                   <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', textAlign: 'left', cursor: 'pointer', padding: '8px', display: 'flex', gap: '12px', alignItems: 'center', borderRadius: '4px' }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-elevated)'} onMouseOut={e => e.currentTarget.style.background = 'none'}>
                     <div style={{ background: 'var(--bg-elevated)', padding: '6px', borderRadius: '6px', display: 'flex' }}>
                        <MdSecurity size={16} color="var(--accent-rose)" />
@@ -310,7 +331,9 @@ function AppShell() {
 export default function App() {
   return (
     <PreferencesProvider>
-      <AppShell />
+      <UserProfileProvider>
+        <AppShell />
+      </UserProfileProvider>
     </PreferencesProvider>
   )
 }
