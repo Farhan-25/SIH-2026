@@ -296,7 +296,7 @@ export default function LandingPage() {
                   {sandboxResult.market_timing_strategy?.recommended_action ?? 'ENTER_NOW_SPOT'}
                 </div>
                 <div className="output-desc">
-                  Estimated Savings: {formatMoney(sandboxResult.market_timing_strategy?.estimated_cost_savings_usd || 142500, { decimals: 0 })}
+                  Estimated Savings: {formatMoney(sandboxResult.market_timing_strategy?.estimated_cost_savings_usd || 0, { decimals: 0 })}
                 </div>
               </div>
 

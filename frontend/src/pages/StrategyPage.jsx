@@ -4,6 +4,7 @@ import Plot from 'react-plotly.js'
 import { MdTrendingUp, MdCompareArrows } from 'react-icons/md'
 import { getMarketTiming, getForecast } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
+import { useUserProfile } from '../context/UserProfileContext'
 
 const SIGNAL_CONFIG = {
   ENTER_NOW_SPOT: { label: 'ENTER NOW — SPOT', color: 'var(--accent-emerald)', icon: '🟢', bgClass: 'enter' },
@@ -25,32 +26,27 @@ const DEFAULT_TIMING = {
 
 export default function StrategyPage() {
   const { axisCurrencyPrefix, formatMoney, convertMoney } = usePreferences()
+  const { selectedRoutes } = useUserProfile()
+  const defaultRoute = selectedRoutes.length > 0 ? selectedRoutes[0] : 'AU_NEW_TO_IN_PRT'
   const [timing, setTiming] = useState(DEFAULT_TIMING)
-  const [curve, setCurve] = useState(() => [
-    { label: 'Spot', rate: 14.82 },
-    { label: '4W', rate: 15.10 },
-    { label: '8W', rate: 15.60 },
-    { label: '12W', rate: 16.10 },
-    { label: '16W', rate: 15.80 },
-    { label: '24W', rate: 15.40 },
-  ])
+  const [curve, setCurve] = useState([])
 
   const signalInfo = SIGNAL_CONFIG[timing.signal] || SIGNAL_CONFIG.ENTER_NOW_SPOT
 
   useEffect(() => {
     Promise.all([
-      getMarketTiming({ current_spot_rate: 14.82, vessel_class: 'Panamax', target_volume_mt: 75000 }),
-      getForecast({ route_id: 'AU_NEW_TO_IN_PRT', vessel_class: 'Panamax', horizon_weeks: 24 })
+      getMarketTiming({ current_spot_rate: 0, vessel_class: 'Panamax', target_volume_mt: 75000 }),
+      getForecast({ route_id: defaultRoute, vessel_class: 'Panamax', horizon_weeks: 24 })
     ])
       .then(([timeData, fcData]) => {
         if (timeData) {
-          const spot = timeData.current_spot_usd_per_mt || 14.82
+          const spot = timeData.current_spot_usd_per_mt || 0
           const p12w = timeData.projected_12w_avg_usd_per_mt || spot * 1.05
           const termRate = timeData.term_contract_estimated_rate_usd_per_mt || spot * 0.98
 
           setTiming({
             signal: timeData.recommended_action || 'ENTER_NOW_SPOT',
-            confidence: timeData.confidence_score_pct || 82,
+            confidence: timeData.confidence_score_pct ?? null,
             current_spot_rate: spot,
             forward_3m_est: p12w,
             term_contract_rate: termRate,
@@ -61,7 +57,7 @@ export default function StrategyPage() {
 
         if (fcData?.predictions_usd_per_mt) {
           const preds = fcData.predictions_usd_per_mt
-          const spot = fcData.latest_actual_rate_usd_per_mt || preds[0] || 14.82
+          const spot = fcData.latest_actual_rate_usd_per_mt || preds[0] || 0
           const dynamicCurve = [{ label: 'Spot', rate: spot }]
           if (preds[3]) dynamicCurve.push({ label: '4W', rate: preds[3] })
           if (preds[7]) dynamicCurve.push({ label: '8W', rate: preds[7] })
