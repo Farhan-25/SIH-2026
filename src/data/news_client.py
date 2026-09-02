@@ -9,6 +9,7 @@ import re
 import time
 import logging
 import hashlib
+import threading
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import requests
@@ -88,6 +89,7 @@ class MaritimeNewsClient:
     # Global class-level singleton cache across all instances
     _GLOBAL_CACHE: List[Dict[str, Any]] = []
     _GLOBAL_LAST_FETCH = 0.0
+    _REFRESH_LOCK = threading.Lock()
 
     def __init__(self, cache_ttl_seconds: int = 900, db_manager: Optional[FreightDBManager] = None):
         self.cache_ttl = cache_ttl_seconds
@@ -99,63 +101,86 @@ class MaritimeNewsClient:
         if not force_refresh and MaritimeNewsClient._GLOBAL_CACHE and (current_time - MaritimeNewsClient._GLOBAL_LAST_FETCH < self.cache_ttl):
             return MaritimeNewsClient._GLOBAL_CACHE
 
-        # Check SQLite cached articles if in-memory cache is cold
-        if not force_refresh and not MaritimeNewsClient._GLOBAL_CACHE:
-            try:
-                db_articles = self.db.get_latest_news_articles(limit=50)
-                if db_articles:
-                    MaritimeNewsClient._GLOBAL_CACHE = db_articles
-                    MaritimeNewsClient._GLOBAL_LAST_FETCH = current_time
-                    return MaritimeNewsClient._GLOBAL_CACHE
-            except Exception:
-                pass
+        # Serialize refresh — Risk page fires news/sentiment/chokepoint/alerts together
+        with MaritimeNewsClient._REFRESH_LOCK:
+            current_time = time.time()
+            if not force_refresh and MaritimeNewsClient._GLOBAL_CACHE and (current_time - MaritimeNewsClient._GLOBAL_LAST_FETCH < self.cache_ttl):
+                return MaritimeNewsClient._GLOBAL_CACHE
 
-        fetched = []
-
-        # Concurrent parallel fetch across feeds
-        def fetch_feed(feed):
-            try:
-                res = requests.get(feed["url"], timeout=2.5, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
-                if res.status_code == 200:
-                    return self._parse_rss(res.text, feed["name"])
-            except Exception:
-                pass
-            return []
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-            future_to_feed = {executor.submit(fetch_feed, f): f for f in self.RSS_FEEDS}
-            future_gdelt = executor.submit(self._fetch_gdelt_maritime_news)
-
-            for future in concurrent.futures.as_completed(future_to_feed, timeout=3.5):
+            if not force_refresh and not MaritimeNewsClient._GLOBAL_CACHE:
                 try:
-                    res = future.result()
-                    if res:
-                        fetched.extend(res)
+                    db_articles = self.db.get_latest_news_articles(limit=50)
+                    if db_articles:
+                        MaritimeNewsClient._GLOBAL_CACHE = db_articles
+                        MaritimeNewsClient._GLOBAL_LAST_FETCH = current_time
+                        return MaritimeNewsClient._GLOBAL_CACHE
                 except Exception:
                     pass
 
+            fetched: List[Dict[str, Any]] = []
+
+            def fetch_feed(feed):
+                try:
+                    res = requests.get(
+                        feed["url"],
+                        timeout=2.5,
+                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+                    )
+                    if res.status_code == 200:
+                        return self._parse_rss(res.text, feed["name"])
+                except Exception:
+                    pass
+                return []
+
             try:
-                gdelt_res = future_gdelt.result(timeout=2.5)
-                if gdelt_res:
-                    fetched.extend(gdelt_res)
-            except Exception:
-                pass
+                with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+                    future_to_feed = {executor.submit(fetch_feed, f): f for f in self.RSS_FEEDS}
+                    future_gdelt = executor.submit(self._fetch_gdelt_maritime_news)
 
-        # Deduplicate and score relevance
-        processed = self._process_and_filter(fetched)
-        if not processed:
-            fallback = self._generate_realistic_news_stream()
-            processed = self._process_and_filter(fallback)
+                    try:
+                        for future in concurrent.futures.as_completed(future_to_feed, timeout=3.5):
+                            try:
+                                res = future.result()
+                                if res:
+                                    fetched.extend(res)
+                            except Exception:
+                                pass
+                    except concurrent.futures.TimeoutError:
+                        logger.warning("Maritime RSS fetch timed out; using partial results (%s articles)", len(fetched))
+                        for future in future_to_feed:
+                            if future.done():
+                                try:
+                                    res = future.result(timeout=0)
+                                    if res:
+                                        fetched.extend(res)
+                                except Exception:
+                                    pass
 
-        if processed:
-            MaritimeNewsClient._GLOBAL_CACHE = processed
-            MaritimeNewsClient._GLOBAL_LAST_FETCH = current_time
-            try:
-                self.db.save_news_articles(processed)
-            except Exception:
-                pass
+                    try:
+                        gdelt_res = future_gdelt.result(timeout=2.5)
+                        if gdelt_res:
+                            fetched.extend(gdelt_res)
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning("Maritime news fetch failed: %s", e)
 
-        return MaritimeNewsClient._GLOBAL_CACHE or processed
+            processed = self._process_and_filter(fetched)
+            if not processed:
+                if MaritimeNewsClient._GLOBAL_CACHE:
+                    return MaritimeNewsClient._GLOBAL_CACHE
+                fallback = self._generate_realistic_news_stream()
+                processed = self._process_and_filter(fallback)
+
+            if processed:
+                MaritimeNewsClient._GLOBAL_CACHE = processed
+                MaritimeNewsClient._GLOBAL_LAST_FETCH = time.time()
+                try:
+                    self.db.save_news_articles(processed)
+                except Exception:
+                    pass
+
+            return MaritimeNewsClient._GLOBAL_CACHE or processed
 
     def _fetch_gdelt_maritime_news(self) -> List[Dict[str, Any]]:
         """Queries the live GDELT 2.0 Doc API for real-time global maritime incidents and disruptions."""

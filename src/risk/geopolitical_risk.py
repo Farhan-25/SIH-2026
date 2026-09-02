@@ -49,8 +49,16 @@ class GeopoliticalRiskEngine:
         now = time.time()
         if self._articles_cache is not None and (now - self._articles_cache_ts) < self._CACHE_TTL:
             return self._articles_cache
-        raw_articles = self.news_client.get_articles()
-        processed = [self.nlp_engine.process_article(art) for art in raw_articles]
+        try:
+            raw_articles = self.news_client.get_articles()
+        except Exception as e:
+            logger.warning("News fetch failed in risk engine: %s", e)
+            raw_articles = []
+        try:
+            processed = [self.nlp_engine.process_article(art) for art in raw_articles]
+        except Exception as e:
+            logger.warning("NLP processing failed: %s", e)
+            processed = raw_articles or []
         self._articles_cache = processed
         self._articles_cache_ts = now
         return processed
