@@ -5,10 +5,11 @@ import {
   MdDashboard, MdShowChart, MdDirectionsBoat,
   MdMap, MdSecurity, MdTrendingUp, MdNotifications,
   MdSettings, MdHome, MdMenu, MdMenuOpen, MdChevronLeft, MdChevronRight,
-  MdSmartToy, MdDarkMode, MdLightMode, MdAttachMoney
+  MdSmartToy, MdDarkMode, MdLightMode, MdAttachMoney, MdLogout
 } from 'react-icons/md'
 
 import LandingPage from './pages/LandingPage'
+import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ForecastPage from './pages/ForecastPage'
 import VesselPage from './pages/VesselPage'
@@ -51,6 +52,11 @@ function AppShell() {
   const location = useLocation()
   const [alertCount] = useState(3)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem('freightiq_token')
+  })
   const {
     currency,
     currencySymbol,
@@ -76,6 +82,21 @@ function AppShell() {
             <Route path="/" element={<LandingPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+        </motion.div>
+      </AnimatePresence>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <AnimatePresence mode="wait">
+        <motion.div key="login" {...pageTransition}>
+          <LoginPage onLogin={(data) => {
+            if (data && data.token) {
+              localStorage.setItem('freightiq_token', data.token)
+              setIsAuthenticated(true)
+            }
+          }} />
         </motion.div>
       </AnimatePresence>
     )
@@ -170,19 +191,98 @@ function AppShell() {
               <span>{currencySymbol} {currency}</span>
             </button>
           </div>
-          <button className="btn btn-ghost" style={{ position: 'relative' }}>
-            <MdNotifications size={20} />
-            {alertCount > 0 && (
-              <span style={{
-                position: 'absolute', top: 2, right: 2,
-                width: 16, height: 16, borderRadius: '50%',
-                background: 'var(--accent-rose)', fontSize: '0.6rem',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 700, color: 'white'
-              }}>{alertCount}</span>
+          <div style={{ position: 'relative' }}>
+            <button className="btn btn-ghost" onClick={() => setShowNotifications(!showNotifications)}>
+              <MdNotifications size={20} />
+              {alertCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: 2, right: 2,
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: 'var(--accent-rose)', fontSize: '0.6rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 700, color: 'white'
+                }}>{alertCount}</span>
+              )}
+            </button>
+            {showNotifications && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 'var(--space-xs)',
+                width: '300px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)', boxShadow: 'var(--glass-shadow)', padding: 'var(--space-md)',
+                zIndex: 100
+              }}>
+                <h3 style={{ margin: '0 0 var(--space-sm) 0', fontSize: 'var(--font-size-base)', fontWeight: 600, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 'var(--space-xs)' }}>Notifications</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                  <div style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--space-sm)', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--accent-rose)' }}>
+                    High congestion at Singapore Port
+                  </div>
+                  <div style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--space-sm)', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--accent-amber)' }}>
+                    Weather warning near Cape of Good Hope
+                  </div>
+                  <div style={{ fontSize: 'var(--font-size-sm)', padding: 'var(--space-sm)', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', borderLeft: '3px solid var(--accent-emerald)' }}>
+                    Forecast updated successfully
+                  </div>
+                </div>
+              </div>
             )}
+          </div>
+          <div style={{ position: 'relative' }}>
+            <button className="btn btn-ghost" onClick={() => setShowSettings(!showSettings)}>
+              <MdSettings size={20} />
+            </button>
+            {showSettings && (
+              <div style={{
+                position: 'absolute', top: '100%', right: 0, marginTop: 'var(--space-xs)',
+                width: '280px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-md)', boxShadow: 'var(--glass-shadow)', padding: 'var(--space-md)',
+                zIndex: 100
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', paddingBottom: 'var(--space-sm)', borderBottom: '1px solid var(--border-subtle)', marginBottom: 'var(--space-sm)' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent)', color: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '18px' }}>
+                    AD
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 'var(--font-size-md)', color: 'var(--text-primary)' }}>Admin User</div>
+                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>demo@freightiq.com</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', margin: 'var(--space-xs) 0 4px 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Preferences</div>
+                  
+                  <button onClick={toggleTheme} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', textAlign: 'left', cursor: 'pointer', padding: '8px', display: 'flex', gap: '12px', alignItems: 'center', borderRadius: '4px' }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-elevated)'} onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                    <div style={{ background: 'var(--bg-elevated)', padding: '6px', borderRadius: '6px', display: 'flex' }}>
+                      {isLightMode ? <MdDarkMode size={16} color="var(--accent)" /> : <MdLightMode size={16} color="var(--accent-amber)" />}
+                    </div>
+                    <span>{isLightMode ? 'Dark Mode' : 'Light Mode'}</span>
+                  </button>
+                  
+                  <button onClick={toggleCurrency} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', textAlign: 'left', cursor: 'pointer', padding: '8px', display: 'flex', gap: '12px', alignItems: 'center', borderRadius: '4px' }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-elevated)'} onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                    <div style={{ background: 'var(--bg-elevated)', padding: '6px', borderRadius: '6px', display: 'flex' }}>
+                       <MdAttachMoney size={16} color="var(--accent-emerald)" />
+                    </div>
+                    <span>Currency ({currency})</span>
+                  </button>
+
+                  <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--text-muted)', margin: 'var(--space-sm) 0 4px 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>System</div>
+                  
+                  <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', textAlign: 'left', cursor: 'pointer', padding: '8px', display: 'flex', gap: '12px', alignItems: 'center', borderRadius: '4px' }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-elevated)'} onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                    <div style={{ background: 'var(--bg-elevated)', padding: '6px', borderRadius: '6px', display: 'flex' }}>
+                       <MdSecurity size={16} color="var(--accent-rose)" />
+                    </div>
+                    <span>API Integrations</span>
+                  </button>
+                  
+                </div>
+              </div>
+            )}
+          </div>
+          <button className="btn btn-ghost" onClick={() => {
+            localStorage.removeItem('freightiq_token')
+            setIsAuthenticated(false)
+          }} title="Logout">
+            <MdLogout size={20} />
           </button>
-          <button className="btn btn-ghost"><MdSettings size={20} /></button>
         </div>
       </header>
 

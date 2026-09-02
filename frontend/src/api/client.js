@@ -6,6 +6,21 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Add interceptor for auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('freightiq_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// ─── Authentication ────────────────────────────────────────
+export const loginUser = (credentials) => api.post('/auth/login', credentials).then(r => r.data)
+
 // ─── Health ───────────────────────────────────────────────
 export const getHealth = () => api.get('/health')
 
