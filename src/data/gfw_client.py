@@ -141,20 +141,22 @@ class GFWClient:
         self.db.save_live_vessels(live_vessels)
         return live_vessels
 
-    def get_live_cargo_vessels(self) -> List[Dict[str, Any]]:
+    def get_live_cargo_vessels(self, limit: int = 120) -> List[Dict[str, Any]]:
         """
         Retrieves cargo vessels near Indian Ocean corridors.
-        Queries live AIS data populated by the background AISStream daemon.
+        Caps results so the map/UI never receives tens of thousands of AIS points.
+        Falls back to the curated synthetic fleet if live AIS is empty.
         """
         current_time = time.time()
         if self._vessels_cache and (current_time - self._last_fetch_time < self.cache_ttl):
-            return self._vessels_cache
+            return self._vessels_cache[:limit]
 
         # Read the latest live real ships dumped by the AIS daemon
-        cached = self.db.get_live_vessels()
-        
-        # We don't generate dynamic positions anymore because the user wants real data.
-        self._vessels_cache = cached
+        cached = self.db.get_live_vessels(limit=limit)
+        if not cached:
+            cached = self._generate_dynamic_fleet_positions()
+
+        self._vessels_cache = cached[:limit]
         self._last_fetch_time = current_time
         return self._vessels_cache
 

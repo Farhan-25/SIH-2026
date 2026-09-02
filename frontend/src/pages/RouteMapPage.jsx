@@ -8,19 +8,12 @@ import {
   MdEco, MdSpeed, MdLocationOn, MdCheckCircle, MdScience,
   MdArrowForward, MdSearch, MdStraighten, MdPause, MdPlayArrow
 } from 'react-icons/md'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import mapboxgl from '../lib/maplibre'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Tube } from '@react-three/drei'
 import * as THREE from 'three'
 import { getMapIntelligence } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
-
-/* ────────────────────────────────────────────────────────────
-   Mapbox token
-   ──────────────────────────────────────────────────────────── */
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
-
 
 /* ────────────────────────────────────────────────────────────
    Helper utilities
@@ -158,6 +151,12 @@ function MapboxMap({
   const portMarkersRef = useRef([])
   const weatherMarkersRef = useRef([])
   const animationFrameRef = useRef(null)
+
+  // Use refs so marker rebuilds aren't triggered by callback identity churn
+  const onVesselClickRef = useRef(onVesselClick)
+  const onPortClickRef = useRef(onPortClick)
+  useEffect(() => { onVesselClickRef.current = onVesselClick }, [onVesselClick])
+  useEffect(() => { onPortClickRef.current = onPortClick }, [onPortClick])
 
   const activeVesselObj = useMemo(() => {
     return vessels.find(v => v.id === selectedVessel)
@@ -442,7 +441,7 @@ function MapboxMap({
 
         el.addEventListener('click', (e) => {
           e.stopPropagation()
-          if (onPortClick) onPortClick(port)
+          if (onPortClickRef.current) onPortClickRef.current(port)
           map.current?.flyTo({ center: [port.lon, port.lat], zoom: 6.5, pitch: 25, duration: 1000 })
         })
 
@@ -456,7 +455,7 @@ function MapboxMap({
 
     if (map.current.isStyleLoaded()) ready()
     else map.current.once('load', ready)
-  }, [indianPorts, globalPorts, onPortClick])
+  }, [indianPorts, globalPorts])
 
   // Render FlightRadar24 Interactive Vessel Markers (with Time Scrubbing Interpolation)
   useEffect(() => {
@@ -507,7 +506,7 @@ function MapboxMap({
 
         el.addEventListener('click', (e) => {
           e.stopPropagation()
-          onVesselClick(vessel.id)
+          onVesselClickRef.current?.(vessel.id)
         })
 
         const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
@@ -520,7 +519,7 @@ function MapboxMap({
 
     if (map.current.isStyleLoaded()) ready()
     else map.current.once('load', ready)
-  }, [vessels, selectedVessel, filterStatus, timeOffsetHours, onVesselClick])
+  }, [vessels, selectedVessel, filterStatus, timeOffsetHours])
 
   // Marine Weather Layer
   useEffect(() => {
@@ -995,9 +994,9 @@ export default function RouteMapPage() {
   const [weatherData, setWeatherData] = useState([])
   const [apiStatus, setApiStatus] = useState({})
 
-  const fetchMapIntelligence = useCallback(async () => {
+  const fetchMapIntelligence = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true)
+      if (isInitial) setLoading(true)
       const data = await getMapIntelligence()
       if (data?.vessels?.length) setVessels(data.vessels)
       if (data?.ports?.indian?.length) setIndianPorts(data.ports.indian)
@@ -1010,13 +1009,13 @@ export default function RouteMapPage() {
       console.error('Map intelligence fetch error:', err)
       setLastUpdated(new Date().toLocaleTimeString() + ' (cached)')
     } finally {
-      setLoading(false)
+      if (isInitial) setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    fetchMapIntelligence()
-    const id = setInterval(fetchMapIntelligence, 45000)
+    fetchMapIntelligence(true)
+    const id = setInterval(() => fetchMapIntelligence(false), 90000)
     return () => clearInterval(id)
   }, [fetchMapIntelligence])
 
@@ -1032,13 +1031,18 @@ export default function RouteMapPage() {
   }, [isPlayingScrubber])
 
   // Handle Ruler Point Click
-  const handleRulerClick = (coord) => {
-    if (rulerPoints.length >= 2) {
-      setRulerPoints([coord])
-    } else {
-      setRulerPoints(prev => [...prev, coord])
-    }
-  }
+  const handleRulerClick = useCallback((coord) => {
+    setRulerPoints(prev => (prev.length >= 2 ? [coord] : [...prev, coord]))
+  }, [])
+
+  const handleVesselClick = useCallback((id) => {
+    setSelectedVessel(prev => (prev === id ? null : id))
+    setSelectedPort(null)
+  }, [])
+
+  const handlePortClick = useCallback((port) => {
+    setSelectedPort(port)
+  }, [])
 
   // Ruler Distance Calculation
   const rulerDistanceNM = useMemo(() => {
@@ -1073,13 +1077,8 @@ export default function RouteMapPage() {
             vessels={vessels}
             weatherData={weatherData}
             selectedVessel={selectedVessel}
-            onVesselClick={(id) => {
-              setSelectedVessel(prev => prev === id ? null : id)
-              setSelectedPort(null)
-            }}
-            onPortClick={(port) => {
-              setSelectedPort(port)
-            }}
+            onVesselClick={handleVesselClick}
+            onPortClick={handlePortClick}
             filterStatus={filterStatus}
             showWeather={showWeather}
             showAnchorageZones={showAnchorageZones}
@@ -1197,7 +1196,7 @@ export default function RouteMapPage() {
             </button>
 
             <button
-              onClick={fetchMapIntelligence}
+              onClick={() => fetchMapIntelligence(false)}
               disabled={loading}
               className="hud-btn"
               title={`Last Updated: ${lastUpdated || 'Loading...'}`}

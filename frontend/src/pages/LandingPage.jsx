@@ -97,7 +97,7 @@ export default function LandingPage() {
       {/* ──── Top Landing Navbar ──── */}
       <header className="landing-nav glass-nav">
         <div className="landing-nav-brand">
-          <span className="brand-logo">🚢</span>
+          <img src="/frieght_iq_logo.jpg" alt="FreightIQ Logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover' }} />
           <div className="brand-title-group">
             <span className="brand-name">FreightIQ</span>
           </div>
@@ -555,7 +555,7 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <div className="footer-content">
           <div className="footer-brand">
-            <div className="brand-logo">🚢</div>
+            <img src="/frieght_iq_logo.jpg" alt="FreightIQ Logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover' }} />
             <h3>FreightIQ</h3>
             <p>Intelligent Freight Forecasting & Vessel Chartering Optimization Platform.</p>
           </div>

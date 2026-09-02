@@ -1,76 +1,57 @@
-// sw.js - Service Worker for offline caching of static assets, map tiles, and 3D models
-
-const CACHE_NAME = 'freightiq-cache-v1';
-// List of core assets to pre-cache during install (adjust paths if needed)
-const CORE_ASSETS = [
-  '/',
-  '/index.html',
-  '/src/main.jsx',
-  '/src/index.css',
-  // Add any other static assets like fonts, icons, etc.
-];
+// Dev-safe service worker: never cache app shells / JS / API in a way that
+// fights Vite HMR. Only cache map tiles and static media.
+const CACHE_NAME = 'freightiq-cache-v2'
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(CORE_ASSETS);
-    })
-  );
-  self.skipWaiting();
-});
+  self.skipWaiting()
+})
 
 self.addEventListener('activate', (event) => {
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (!cacheWhitelist.includes(cacheName)) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
-  self.clients.claim();
-});
+    caches.keys().then((names) =>
+      Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)))
+    ).then(() => self.clients.claim())
+  )
+})
 
-function isCacheableAsset(request) {
-  const url = request.url;
-  return /\/(tiles|tile)\/.+\.(png|jpg|jpeg|pbf|json)$/i.test(url) || /\.(glb|gltf|json|png|jpg|jpeg)$/i.test(url);
+function isTileOrMedia(url) {
+  return (
+    /\/(tiles?|styles?)\//i.test(url) ||
+    /\.(pbf|glb|gltf|woff2?)$/i.test(url) ||
+    /basemaps\.cartocdn\.com|tile\.openstreetmap|demotiles\.maplibre/i.test(url)
+  )
 }
 
 self.addEventListener('fetch', (event) => {
-  const request = event.request;
-  if (request.method !== 'GET') {
-    return;
+  const request = event.request
+  if (request.method !== 'GET') return
+
+  // Never intercept Vite / app / API traffic — that causes freezes & stale bundles
+  const url = request.url
+  if (
+    url.includes('/api/') ||
+    url.includes('/@vite') ||
+    url.includes('/node_modules/') ||
+    url.includes('/src/') ||
+    url.includes('localhost:517') ||
+    url.includes('127.0.0.1:517')
+  ) {
+    return
   }
-  if (isCacheableAsset(request)) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) {
-          return cached;
-        }
-        return fetch(request).then((networkResponse) => {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseClone);
-          });
-          return networkResponse;
-        }).catch(() => new Response(''));
-      })
-    );
-    return;
-  }
+
+  if (!isTileOrMedia(url)) return
+
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const fetchPromise = fetch(request).then((networkResponse) => {
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, networkResponse.clone());
-        });
-        return networkResponse;
-      }).catch(() => cached || new Response(''));
-      return cached || fetchPromise;
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(request)
+      if (cached) return cached
+      try {
+        const networkResponse = await fetch(request)
+        if (networkResponse.ok) cache.put(request, networkResponse.clone())
+        return networkResponse
+      } catch {
+        return cached || new Response('', { status: 504 })
+      }
     })
-  );
-});
+  )
+})

@@ -5,8 +5,7 @@ import {
   MdLocalGasStation, MdAttachMoney, MdMap, MdRefresh,
   MdShield, MdShowChart
 } from 'react-icons/md'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import mapboxgl from '../lib/maplibre'
 import {
   getDashboard,
   getMapIntelligence,
@@ -17,8 +16,6 @@ import {
   getCopilotOverview
 } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
-
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
 function formatNumber(val, decimals = 2) {
   if (val === undefined || val === null || isNaN(val)) return '—'
@@ -44,27 +41,39 @@ export default function DashboardPage() {
   const mapInstance = useRef(null)
   const markersRef = useRef([])
 
-  // Ingest data streams
+  // Ingest data streams — show UI as soon as dashboard KPIs arrive; fill the rest in parallel
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
+
+    getDashboard()
+      .then((dash) => {
+        if (cancelled) return
+        setData(dash)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
+
     Promise.allSettled([
-      getDashboard(),
       getMapIntelligence(),
       getMarketSentiment(),
       getChokepointRisks(),
       getGeopoliticalAlerts(),
       getMaritimeNews(5),
       getCopilotOverview()
-    ]).then(([dashRes, mapRes, sentRes, chkRes, alertRes, newsRes, copilotRes]) => {
-      if (dashRes.status === 'fulfilled') setData(dashRes.value)
+    ]).then(([mapRes, sentRes, chkRes, alertRes, newsRes, copilotRes]) => {
+      if (cancelled) return
       if (mapRes.status === 'fulfilled') setMapIntel(mapRes.value)
       if (sentRes.status === 'fulfilled') setSentiment(sentRes.value)
       if (chkRes.status === 'fulfilled') setChokepoints(chkRes.value)
       if (alertRes.status === 'fulfilled') setGeoAlerts(alertRes.value?.alerts || [])
       if (newsRes.status === 'fulfilled') setNewsArticles(newsRes.value?.articles || [])
       if (copilotRes.status === 'fulfilled') setCopilotBriefing(copilotRes.value)
-      setLoading(false)
     })
+
+    return () => { cancelled = true }
   }, [])
 
   // Initialize Mapbox 

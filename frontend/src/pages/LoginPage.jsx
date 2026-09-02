@@ -52,7 +52,7 @@ export default function LoginPage({ onLogin }) {
         alignItems: 'center', 
         gap: 'var(--space-sm)' 
       }}>
-        <div style={{ fontSize: '28px' }}>🚢</div>
+        <img src="/frieght_iq_logo.jpg" alt="FreightIQ Logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover' }} />
         <h2 style={{ margin: 0, fontSize: 'var(--font-size-xl)', fontWeight: '700', color: 'var(--text-primary)' }}>FreightIQ</h2>
       </div>
       <motion.div

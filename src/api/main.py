@@ -71,6 +71,12 @@ commodity_tracker = CommodityPriceTracker()
 import asyncio
 @app.on_event("startup")
 async def startup_event():
+    # One-shot prune of any historically ballooned AIS table (was ~20k+)
+    try:
+        kept = ais_tracker.db.prune_live_vessels(max_keep=120)
+        logger.info("Pruned vessels_live_tracking → %s rows", kept)
+    except Exception as e:
+        logger.warning("Could not prune live vessels on startup: %s", e)
     logger.info("Starting background AIS vessel tracker...")
     asyncio.create_task(ais_tracker.start_background_vessel_tracker())
 
@@ -747,7 +753,10 @@ def get_dashboard_data():
         "ml_model": f"Ensemble (XGB+LGB+ElasticNet) — MAPE {ensemble_mape}",
         "deep_model": f"BiLSTM+Attention — {deep_status}",
         "data_pipeline": f"Live — {len(fred_data)} FRED series",
-        "ais_stream": "Configured" if os.getenv("AISSTREAM_API_KEY") else "Not Configured",
+        "ais_stream": (
+            "Connected" if ais_tracker.connected
+            else ("Not Configured" if not os.getenv("AISSTREAM_API_KEY") else f"Reconnecting — {ais_tracker.last_error or 'waiting'}")
+        ),
         "fred_api": "Connected" if fred_data else "Offline",
         "dataset_date": latest_date or "N/A",
     }
@@ -767,7 +776,7 @@ def get_dashboard_data():
     return result
 
 _MAP_INTEL_CACHE = {}
-_MAP_INTEL_CACHE_TTL = 3600  # 1 hour cache
+_MAP_INTEL_CACHE_TTL = 300  # 5 minutes — was 1h and could serve stale 20k vessel payloads
 
 @app.get("/api/v1/map-intelligence")
 def get_map_intelligence():
@@ -806,7 +815,7 @@ def get_map_intelligence():
     # ── 1. GFW Vessel Positions ──
     gfw_status = "offline"
     try:
-        vessels = gfw_client.get_live_cargo_vessels()
+        vessels = gfw_client.get_live_cargo_vessels(limit=120)
         result["vessels"] = vessels
         gfw_status = "connected"
     except Exception as e:
@@ -814,7 +823,13 @@ def get_map_intelligence():
         gfw_status = f"error: {str(e)[:60]}"
 
     # ── 2. Port Congestion (blended GFW + AIS) for each Indian port ──
-    ais_status = "offline"
+    # Reflect real WebSocket health, not just whether the loop threw
+    if ais_tracker.connected:
+        ais_status = "connected"
+    elif not os.getenv("AISSTREAM_API_KEY"):
+        ais_status = "offline"
+    else:
+        ais_status = f"reconnecting: {(ais_tracker.last_error or 'waiting')[:60]}"
     try:
         for port_id, port_data in indian_ports_data.items():
             coords = port_data.get("coordinates", {})
@@ -836,7 +851,10 @@ def get_map_intelligence():
                 "lighterage_required": port_data.get("lighterage_required", False),
                 "data_sources": blended.get("data_sources", {}),
             })
-        ais_status = "connected"
+        # Congestion math can succeed from cache even while the socket is down —
+        # keep websocket-derived ais_status above; only override on hard failure
+        if ais_tracker.connected:
+            ais_status = "connected"
     except Exception as e:
         print(f"Map Intel — AIS/port congestion error: {e}")
         ais_status = f"error: {str(e)[:60]}"

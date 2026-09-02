@@ -869,13 +869,20 @@ class FreightDBManager:
             return []
 
     # ── Live Vessel Tracking CRUD ──
-    def save_live_vessels(self, vessels: List[Dict[str, Any]]):
-        """Upserts live tracked vessels into SQLite."""
-        if not vessels:
+    def save_live_vessels(self, vessels: List[Dict[str, Any]], *, replace: bool = False, max_keep: int = 150):
+        """Upserts live tracked vessels into SQLite.
+
+        When replace=True, clears the table first so AIS snapshots don't grow forever.
+        Always trims to max_keep most-recently-updated rows after write.
+        """
+        if not vessels and not replace:
             return
         conn = self.get_connection()
         cursor = conn.cursor()
         now_iso = datetime.now(timezone.utc).isoformat()
+
+        if replace:
+            cursor.execute("DELETE FROM vessels_live_tracking")
 
         for v in vessels:
             cursor.execute("""
@@ -916,14 +923,50 @@ class FreightDBManager:
                 now_iso
             ))
 
+        # Hard cap — drop oldest rows if table ballooned
+        if max_keep and max_keep > 0:
+            cursor.execute(
+                "SELECT vessel_id FROM vessels_live_tracking ORDER BY updated_at DESC LIMIT -1 OFFSET ?",
+                (max_keep,),
+            )
+            stale = [row[0] for row in cursor.fetchall()]
+            if stale:
+                cursor.executemany(
+                    "DELETE FROM vessels_live_tracking WHERE vessel_id = ?",
+                    [(vid,) for vid in stale],
+                )
+
         conn.commit()
         conn.close()
 
-    def get_live_vessels(self) -> List[Dict[str, Any]]:
-        """Retrieves currently tracked live vessels from SQLite."""
+    def prune_live_vessels(self, max_keep: int = 150) -> int:
+        """Trim vessels_live_tracking to the newest max_keep rows. Returns remaining count."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT vessel_id FROM vessels_live_tracking ORDER BY updated_at DESC LIMIT -1 OFFSET ?",
+            (max_keep,),
+        )
+        stale = [row[0] for row in cursor.fetchall()]
+        if stale:
+            cursor.executemany(
+                "DELETE FROM vessels_live_tracking WHERE vessel_id = ?",
+                [(vid,) for vid in stale],
+            )
+        conn.commit()
+        remaining = cursor.execute("SELECT COUNT(*) FROM vessels_live_tracking").fetchone()[0]
+        conn.close()
+        return int(remaining)
+
+    def get_live_vessels(self, limit: int = 150) -> List[Dict[str, Any]]:
+        """Retrieves currently tracked live vessels from SQLite (newest first, capped)."""
         conn = self.get_connection()
         try:
-            df = pd.read_sql_query("SELECT * FROM vessels_live_tracking ORDER BY name ASC", conn)
+            lim = max(1, int(limit or 150))
+            df = pd.read_sql_query(
+                f"SELECT * FROM vessels_live_tracking ORDER BY updated_at DESC LIMIT {lim}",
+                conn,
+            )
             conn.close()
             res = []
             for _, row in df.iterrows():

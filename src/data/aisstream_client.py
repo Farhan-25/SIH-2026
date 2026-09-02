@@ -18,6 +18,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 AISSTREAM_WS_URL = "wss://stream.aisstream.io/v0/stream"
+# Hard cap for UI / DB — AIS near busy ports still floods without this
+MAX_TRACKED_VESSELS = 120
 
 
 class AISPortCongestionTracker:
@@ -26,6 +28,9 @@ class AISPortCongestionTracker:
     def __init__(self, api_key: Optional[str] = None, db_manager: Optional[FreightDBManager] = None):
         self.api_key = api_key or os.getenv("AISSTREAM_API_KEY", "")
         self.db = db_manager or FreightDBManager()
+        self.connected = False
+        self.last_error: Optional[str] = None
+        self.last_message_at: Optional[float] = None
 
     def get_port_bounding_box(self, lat: float, lon: float, radius_deg: float = 0.3) -> List[List[float]]:
         """Creates bounding box [[lat_min, lon_min], [lat_max, lon_max]] around port coordinates."""
@@ -33,6 +38,20 @@ class AISPortCongestionTracker:
             [lat - radius_deg, lon - radius_deg],
             [lat + radius_deg, lon + radius_deg]
         ]
+
+    def build_corridor_bounding_boxes(self, radius_deg: float = 0.45) -> List[List[List[float]]]:
+        """Build tight AIS boxes around Indian discharge + global load ports only."""
+        ports_master = self.db.load_ports_master()
+        boxes: List[List[List[float]]] = []
+        for section in ("indian_east_coast_ports", "global_load_ports"):
+            for port in (ports_master.get(section) or {}).values():
+                coords = port.get("coordinates") or {}
+                lat, lon = coords.get("lat"), coords.get("lon")
+                if lat is None or lon is None:
+                    continue
+                boxes.append(self.get_port_bounding_box(float(lat), float(lon), radius_deg))
+        # Fallback: Bay of Bengal / East Coast India if ports file is empty
+        return boxes or [[[5.0, 75.0], [25.0, 95.0]]]
 
     async def sample_live_vessels(self, bounding_box: List[List[float]], duration_seconds: int = 5) -> List[Dict[str, Any]]:
         """Connect to AISStream WebSocket for N seconds and capture active vessels within bounding box."""
@@ -47,7 +66,7 @@ class AISPortCongestionTracker:
 
         vessels_seen = []
         try:
-            async with websockets.connect(AISSTREAM_WS_URL, open_timeout=5) as ws:
+            async with websockets.connect(AISSTREAM_WS_URL, open_timeout=5, max_queue=64) as ws:
                 await ws.send(json.dumps(subscription_message))
                 end_time = asyncio.get_event_loop().time() + duration_seconds
 
@@ -67,11 +86,14 @@ class AISPortCongestionTracker:
         """Continuously streams live AIS data and updates the live_vessels table."""
         if not self.api_key:
             logger.warning("No AISSTREAM_API_KEY, background tracker disabled.")
+            self.connected = False
+            self.last_error = "missing_api_key"
             return
 
         if not bounding_boxes:
-            # Huge bounding box covering global oceans roughly (we use multiple boxes to cover standard trade lanes if needed, but world is easy)
-            bounding_boxes = [[[-90, -180], [90, 180]]]
+            # Full-world boxes overwhelm AISStream (esp. post Sept 2026 bandwidth limits)
+            # and trip disconnects. Scope to freight-relevant port corridors only.
+            bounding_boxes = self.build_corridor_bounding_boxes()
 
         subscription_message = {
             "APIKey": self.api_key,
@@ -79,26 +101,47 @@ class AISPortCongestionTracker:
             "FilterMessageTypes": ["PositionReport"]
         }
 
-        # Keep a buffer of latest vessels to avoid spamming the DB
+        # Keep a rolling buffer of latest vessels (hard-capped)
         vessel_buffer = {}
         last_save = time.time()
 
         while True:
             try:
-                async with websockets.connect(AISSTREAM_WS_URL, open_timeout=10, ping_timeout=60) as ws:
+                async with websockets.connect(
+                    AISSTREAM_WS_URL,
+                    open_timeout=10,
+                    ping_interval=20,
+                    ping_timeout=60,
+                    max_queue=256,
+                ) as ws:
                     await ws.send(json.dumps(subscription_message))
-                    logger.info("AISStream WebSocket Connected. Listening for live vessels...")
+                    self.connected = True
+                    self.last_error = None
+                    logger.info(
+                        "AISStream WebSocket connected (%s corridor boxes, max %s vessels).",
+                        len(bounding_boxes),
+                        MAX_TRACKED_VESSELS,
+                    )
 
                     while True:
                         try:
-                            message = await asyncio.wait_for(ws.recv(), timeout=10.0)
+                            message = await asyncio.wait_for(ws.recv(), timeout=30.0)
                             data = json.loads(message)
-                            
+                            self.last_message_at = time.time()
+
+                            if data.get("MessageType") == "SubscriptionConfirmation":
+                                continue
+
                             if "Message" in data and "PositionReport" in data["Message"]:
                                 report = data["Message"]["PositionReport"]
                                 mmsi = str(report.get("UserID"))
-                                
-                                # Convert to standard format
+                                sog = float(report.get("Sog", 0) or 0)
+
+                                # Prefer ships that look like cargo traffic (moving or near-anchor)
+                                # Skip ultra-fast outliers (likely passenger / erroneous)
+                                if sog > 22:
+                                    continue
+
                                 vessel_buffer[mmsi] = {
                                     "id": f"live_{mmsi}",
                                     "name": f"MV LIVE {mmsi}",
@@ -106,31 +149,40 @@ class AISPortCongestionTracker:
                                     "mmsi": mmsi,
                                     "lat": report.get("Latitude", 0),
                                     "lon": report.get("Longitude", 0),
-                                    "speed": report.get("Sog", 0),
+                                    "speed": sog,
                                     "heading": report.get("TrueHeading", 0) if report.get("TrueHeading") != 511 else report.get("Cog", 0),
                                     "origin": "Unknown (Live)",
                                     "dest": "Unknown (Live)",
                                     "cargo": "Unknown",
-                                    "status": "Underway" if report.get("Sog", 0) > 0.5 else "At Anchor",
+                                    "status": "Underway" if sog > 0.5 else "At Anchor",
                                     "progress_pct": 50,
                                     "wait_time_hours": 0.0,
                                     "last_update": datetime.now(timezone.utc).isoformat()
                                 }
 
-                            # Bulk flush to DB every 10 seconds
-                            if time.time() - last_save > 10.0 and vessel_buffer:
-                                # We limit to 500 ships to avoid UI lag
-                                ships = list(vessel_buffer.values())
-                                if len(ships) > 500:
-                                    ships = ships[-500:]
-                                self.db.save_live_vessels(ships)
+                                # Evict oldest keys if buffer exceeds cap
+                                if len(vessel_buffer) > MAX_TRACKED_VESSELS:
+                                    overflow = len(vessel_buffer) - MAX_TRACKED_VESSELS
+                                    for old_key in list(vessel_buffer.keys())[:overflow]:
+                                        vessel_buffer.pop(old_key, None)
+
+                            # Replace DB snapshot every 15s so table never accumulates history
+                            if time.time() - last_save > 15.0 and vessel_buffer:
+                                ships = list(vessel_buffer.values())[-MAX_TRACKED_VESSELS:]
+                                self.db.save_live_vessels(
+                                    ships,
+                                    replace=True,
+                                    max_keep=MAX_TRACKED_VESSELS,
+                                )
                                 last_save = time.time()
 
                         except asyncio.TimeoutError:
-                            # Keep alive
+                            # Keep alive — no traffic for 30s is fine on regional boxes
                             continue
 
             except Exception as e:
+                self.connected = False
+                self.last_error = str(e)[:160]
                 logger.error(f"AISStream disconnected ({e}). Reconnecting in 5s...")
                 await asyncio.sleep(5)
 
