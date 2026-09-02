@@ -1,5 +1,6 @@
 import os
 import math
+import time
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
@@ -21,6 +22,15 @@ class GeopoliticalRiskEngine:
         self.news_client = MaritimeNewsClient()
         self.nlp_engine = MaritimeNLPEngine()
 
+        # In-memory TTL caches
+        self._articles_cache: Optional[List[Dict[str, Any]]] = None
+        self._articles_cache_ts: float = 0
+        self._sentiment_cache: Optional[Dict[str, Any]] = None
+        self._sentiment_cache_ts: float = 0
+        self._chokepoint_risks_cache: Optional[Dict[str, Any]] = None
+        self._chokepoint_risks_cache_ts: float = 0
+        self._CACHE_TTL = 600  # 10 minutes
+
     def get_chokepoints(self) -> Dict[str, Any]:
         """Loads active monitored chokepoints from SQLite."""
         try:
@@ -35,16 +45,24 @@ class GeopoliticalRiskEngine:
             }
 
     def get_processed_articles(self) -> List[Dict[str, Any]]:
-        """Fetch and analyze latest maritime articles through the NLP engine."""
+        """Fetch and analyze latest maritime articles through the NLP engine with TTL caching."""
+        now = time.time()
+        if self._articles_cache is not None and (now - self._articles_cache_ts) < self._CACHE_TTL:
+            return self._articles_cache
         raw_articles = self.news_client.get_articles()
         processed = [self.nlp_engine.process_article(art) for art in raw_articles]
+        self._articles_cache = processed
+        self._articles_cache_ts = now
         return processed
 
     def get_market_sentiment_summary(self) -> Dict[str, Any]:
         """
-        Aggregates overall maritime market sentiment complying with PRD Section 20.A:
-        Returns average sentiment, trend, positive/neutral/negative breakdown, and historical series.
+        Aggregates overall maritime market sentiment with TTL caching.
         """
+        now = time.time()
+        if self._sentiment_cache is not None and (now - self._sentiment_cache_ts) < self._CACHE_TTL:
+            return self._sentiment_cache
+
         articles = self.get_processed_articles()
         if not articles:
             return {
@@ -97,7 +115,7 @@ class GeopoliticalRiskEngine:
                 "news_volume": vol
             })
 
-        return {
+        result = {
             "current_score": round(avg_score, 2),
             "sentiment_label": "Negative" if avg_score < -0.15 else ("Positive" if avg_score > 0.15 else "Neutral"),
             "trend": "down" if avg_score < 0 else "up",
@@ -107,12 +125,14 @@ class GeopoliticalRiskEngine:
             "total_articles_analyzed": total,
             "historical_timeline": history
         }
+        self._sentiment_cache = result
+        self._sentiment_cache_ts = time.time()
+        return result
 
-    def compute_chokepoint_risk(self, chokepoint_key: str) -> Dict[str, Any]:
+    def compute_chokepoint_risk(self, chokepoint_key: str, articles: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
-        Calculates the Maritime Disruption Risk Index for a specific chokepoint
-        using dynamic component weights configured in the database:
-        Risk = w_event * Event_Severity + w_volume * Volume_Anomaly + w_sentiment * Negative_Sentiment + w_recency * Recency
+        Calculates the Maritime Disruption Risk Index for a specific chokepoint.
+        Accepts pre-fetched articles to avoid redundant re-processing.
         """
         chokepoints = self.get_chokepoints()
         chk_info = chokepoints.get(chokepoint_key, {
@@ -121,7 +141,8 @@ class GeopoliticalRiskEngine:
             "baseline_volume_per_day": 10.0
         })
 
-        articles = self.get_processed_articles()
+        if articles is None:
+            articles = self.get_processed_articles()
         terms = [t.lower() for t in chk_info.get("terms", [])]
 
         # Filter articles matching this chokepoint
@@ -224,11 +245,20 @@ class GeopoliticalRiskEngine:
         }
 
     def get_all_chokepoint_risks(self) -> Dict[str, Any]:
-        """Calculates risk across all dynamically monitored chokepoints."""
+        """Calculates risk across all chokepoints with single-pass article processing and TTL caching."""
+        now = time.time()
+        if self._chokepoint_risks_cache is not None and (now - self._chokepoint_risks_cache_ts) < self._CACHE_TTL:
+            return self._chokepoint_risks_cache
+
+        # Fetch articles once and pass to all chokepoint computations
+        articles = self.get_processed_articles()
         results = {}
         chokepoints = self.get_chokepoints()
         for key in chokepoints.keys():
-            results[key] = self.compute_chokepoint_risk(key)
+            results[key] = self.compute_chokepoint_risk(key, articles=articles)
+
+        self._chokepoint_risks_cache = results
+        self._chokepoint_risks_cache_ts = now
         return results
 
     def detect_geopolitical_shocks_and_alerts(self) -> List[Dict[str, Any]]:

@@ -144,65 +144,16 @@ class GFWClient:
     def get_live_cargo_vessels(self) -> List[Dict[str, Any]]:
         """
         Retrieves cargo vessels near Indian Ocean corridors.
-        Queries GFW API if token is valid, with automated SQLite state persistence and dynamic trajectory synchronization.
+        Queries live AIS data populated by the background AISStream daemon.
         """
         current_time = time.time()
         if self._vessels_cache and (current_time - self._last_fetch_time < self.cache_ttl):
             return self._vessels_cache
 
-        # 1. Try Live GFW Search API if configured
-        if self.token:
-            try:
-                query_params = {
-                    "datasets[0]": "public-global-vessel-identity:latest",
-                    "query": "bulk carrier",
-                    "limit": 30
-                }
-                res = requests.get(
-                    f"{self.base_url}/vessels/search",
-                    headers=self.headers,
-                    params=query_params,
-                    timeout=5
-                )
-                if res.status_code == 200:
-                    entries = res.json().get("entries", [])
-                    if entries:
-                        parsed = []
-                        for i, entry in enumerate(entries):
-                            info = (entry.get("selfReportedInfo") or [{}])[0]
-                            name = info.get("shipname", f"MV GFW VESSEL {i+1}")
-                            parsed.append({
-                                "id": str(entry.get("id", f"gfw_{i}")),
-                                "name": name,
-                                "class": "Panamax",
-                                "mmsi": info.get("mmsi", f"412{i:06d}"),
-                                "lat": 15.0 + (i % 7),
-                                "lon": 85.0 + (i % 6),
-                                "speed": 12.5,
-                                "heading": 340,
-                                "origin": "Newcastle (Australia)",
-                                "dest": "Paradip (India)",
-                                "cargo": "Thermal Coal",
-                                "status": "En Route",
-                                "progress_pct": 65,
-                                "wait_time_hours": 0,
-                                "last_update": datetime.now(timezone.utc).isoformat()
-                            })
-                        self.db.save_live_vessels(parsed)
-                        self._vessels_cache = parsed
-                        self._last_fetch_time = current_time
-                        return parsed
-            except Exception as e:
-                logger.info(f"GFW live request note: {e}. Utilizing dynamic trajectory database.")
-
-        # 2. Dynamic Trajectory Database Persistence
+        # Read the latest live real ships dumped by the AIS daemon
         cached = self.db.get_live_vessels()
-        if not cached:
-            cached = self._generate_dynamic_fleet_positions()
-        else:
-            # Refresh positions dynamically
-            cached = self._generate_dynamic_fleet_positions()
-
+        
+        # We don't generate dynamic positions anymore because the user wants real data.
         self._vessels_cache = cached
         self._last_fetch_time = current_time
         return self._vessels_cache

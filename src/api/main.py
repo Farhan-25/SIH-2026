@@ -5,6 +5,8 @@ Serves React frontend in production mode.
 """
 
 import os
+import time
+import logging
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +16,8 @@ from pydantic import BaseModel, Field
 import pandas as pd
 import json
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from src.data.db_manager import FreightDBManager
 from src.data.gfw_client import GFWClient
@@ -42,6 +46,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/v1/auth/login")
+def login(request: LoginRequest):
+    if request.email == "demo@freightiq.com" and request.password == "password123":
+        return {"token": "mock-jwt-token-73892749823", "user": {"email": request.email, "name": "Admin User"}}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
 # Global instances
 db_manager = FreightDBManager()
 gfw_client = GFWClient()
@@ -53,6 +67,12 @@ risk_engine = RiskAndDisruptionEngine()
 geopolitical_engine = GeopoliticalRiskEngine()
 copilot_engine = MaritimeCopilotEngine()
 commodity_tracker = CommodityPriceTracker()
+
+import asyncio
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting background AIS vessel tracker...")
+    asyncio.create_task(ais_tracker.start_background_vessel_tracker())
 
 # Initialize and load models
 ml_forecaster = FreightMLForecaster()
@@ -67,6 +87,81 @@ if os.path.exists(deep_path):
         deep_forecaster.load_checkpoint(deep_path)
     except Exception as e:
         print(f"Notice loading deep model: {e}")
+
+# ── In-Memory Dataset Caches ──
+_TS_CACHE: Optional[pd.DataFrame] = None
+_TS_CACHE_TS: float = 0
+_TS_CACHE_TTL = 600  # 10 minutes
+
+_OGD_CACHE: Optional[pd.DataFrame] = None
+_OGD_CACHE_TS: float = 0
+
+
+def get_cached_timeseries_df() -> Optional[pd.DataFrame]:
+    """Returns the unified freight timeseries DataFrame from memory cache."""
+    global _TS_CACHE, _TS_CACHE_TS
+    now = time.time()
+    data_path = "data/processed/unified_freight_timeseries.csv"
+    if _TS_CACHE is not None and (now - _TS_CACHE_TS) < _TS_CACHE_TTL:
+        return _TS_CACHE
+    if os.path.exists(data_path):
+        _TS_CACHE = pd.read_csv(data_path)
+        _TS_CACHE_TS = now
+        return _TS_CACHE
+    return None
+
+
+def get_cached_ogd_df() -> Optional[pd.DataFrame]:
+    """Returns OGD port turnaround CSV from memory cache."""
+    global _OGD_CACHE, _OGD_CACHE_TS
+    now = time.time()
+    ogd_path = "data/raw/ogd_port_average_turnaround_time.csv"
+    if _OGD_CACHE is not None and (now - _OGD_CACHE_TS) < _TS_CACHE_TTL:
+        return _OGD_CACHE
+    if os.path.exists(ogd_path):
+        _OGD_CACHE = pd.read_csv(ogd_path)
+        _OGD_CACHE_TS = now
+        return _OGD_CACHE
+    return None
+
+
+# ── Pre-built Route Normalizer Map ──
+_ROUTE_NORM_MAP: Optional[Dict[str, str]] = None
+
+
+def _build_route_norm_map() -> Dict[str, str]:
+    """Pre-builds a case-insensitive route lookup map for O(1) resolution."""
+    global _ROUTE_NORM_MAP
+    if _ROUTE_NORM_MAP is not None:
+        return _ROUTE_NORM_MAP
+
+    norm = {}
+    routes_data = db_manager.load_routes_master()
+    routes_list = routes_data.get("trade_routes", []) if isinstance(routes_data, dict) else routes_data
+    for r in routes_list:
+        rid = r.get("route_id", "")
+        norm[rid.lower()] = rid
+        norm[rid.upper()] = rid
+        orig = r.get("origin_port", "").lower().split("_")[-1]
+        dest = r.get("destination_port", "").lower().split("_")[-1]
+        orig_country = r.get("origin_port", "").lower().split("_")[0]
+        for alias in [f"{orig}_{dest}", f"{orig_country}_{dest[:3]}", f"{orig_country}_{dest}"]:
+            norm[alias] = rid
+
+    # Known shorthand aliases
+    shorthands = {
+        "au_par": "AU_NEW_TO_IN_PRT",
+        "au_viz": "AU_HAY_TO_IN_VTZ",
+        "id_gan": "ID_KLT_TO_IN_DHM",
+        "id_dhm": "ID_KLT_TO_IN_DHM",
+        "us_viz": "US_BAL_TO_IN_GNV",
+        "mz_hal": "MZ_BEI_TO_IN_GPL",
+        "ru_par": "RU_VOS_TO_IN_PRT",
+        "us_nor": "US_NOR_TO_IN_PRT",
+    }
+    norm.update(shorthands)
+    _ROUTE_NORM_MAP = norm
+    return _ROUTE_NORM_MAP
 
 # --- Request Schemas ---
 class ForecastRequest(BaseModel):
@@ -134,49 +229,24 @@ def get_all_routes():
 
 
 def normalize_route_id(route_input: str) -> str:
-    """Dynamically resolves route input into standard route_id (e.g. AU_NEW_TO_IN_PRT, au_par, or port pairs)."""
+    """Resolves route input into standard route_id using pre-built O(1) lookup map."""
     r_clean = route_input.strip()
     r_lower = r_clean.lower()
-    
-    # 1. Check direct match or case-insensitive match from database
-    routes_data = db_manager.load_routes_master()
-    routes_list = routes_data.get("trade_routes", []) if isinstance(routes_data, dict) else routes_data
-
-    for r in routes_list:
-        rid = r.get("route_id", "")
-        if rid.lower() == r_lower or rid.upper() == r_clean.upper():
-            return rid
-        orig = r.get("origin_port", "").lower().split("_")[-1]
-        dest = r.get("destination_port", "").lower().split("_")[-1]
-        orig_country = r.get("origin_port", "").lower().split("_")[0]
-        if r_lower in [f"{orig}_{dest}", f"{orig_country}_{dest[:3]}", f"{orig_country}_{dest}"]:
-            return rid
-
-    # 2. Known shorthand aliases
-    shorthands = {
-        "au_par": "AU_NEW_TO_IN_PRT",
-        "au_viz": "AU_HAY_TO_IN_VTZ",
-        "id_gan": "ID_KLT_TO_IN_DHM",
-        "id_dhm": "ID_KLT_TO_IN_DHM",
-        "us_viz": "US_BAL_TO_IN_GNV",
-        "mz_hal": "MZ_BEI_TO_IN_GPL",
-        "ru_par": "RU_VOS_TO_IN_PRT",
-        "us_nor": "US_NOR_TO_IN_PRT",
-    }
-    return shorthands.get(r_lower, route_input.upper())
+    norm_map = _build_route_norm_map()
+    if r_lower in norm_map:
+        return norm_map[r_lower]
+    return route_input.upper()
 
 
 @app.post("/api/v1/forecast")
 def get_freight_forecast(req: ForecastRequest):
     normalized_route_id = normalize_route_id(req.route_id)
-    data_path = "data/processed/unified_freight_timeseries.csv"
-    if not os.path.exists(data_path):
+    df_raw = get_cached_timeseries_df()
+    if df_raw is None:
         raise HTTPException(
             status_code=503,
             detail="Unified freight timeseries dataset not found. Please train models or run pipeline."
         )
-
-    df_raw = pd.read_csv(data_path)
     route_sub = df_raw[(df_raw["route_id"] == normalized_route_id) & (df_raw["vessel_class"] == req.vessel_class)]
 
     if route_sub.empty:
@@ -289,8 +359,8 @@ def evaluate_market_timing(req: MarketTimingRequest):
         lower = []
         upper = []
 
-        if os.path.exists(data_path):
-            df_raw = pd.read_csv(data_path)
+        df_raw = get_cached_timeseries_df()
+        if df_raw is not None:
             v_sub = df_raw[df_raw["vessel_class"] == req.vessel_class]
             if not v_sub.empty:
                 fc = ml_forecaster.predict_future(v_sub, horizon_weeks=12)
@@ -362,12 +432,11 @@ def run_full_scenario_analysis(req: ScenarioPlanRequest):
     rec_class = vessel_eval.get("recommended_vessel_class", "Panamax")
 
     # 2. Freight Forecast using actual model on matched corridor
-    data_path = "data/processed/unified_freight_timeseries.csv"
     forecast_res = None
     latest_spot = 16.50
 
-    if os.path.exists(data_path):
-        df_raw = pd.read_csv(data_path)
+    df_raw = get_cached_timeseries_df()
+    if df_raw is not None:
         norm_orig = vessel_optimizer.PORT_ALIASES.get(req.origin_port_id.lower(), req.origin_port_id)
         norm_dest = vessel_optimizer.PORT_ALIASES.get(req.dest_port_id.lower(), req.dest_port_id)
 
@@ -508,37 +577,38 @@ def get_dashboard_data():
     latest_date = None
     rate_trend_pct = 0
     try:
-        df_raw = pd.read_csv("data/processed/unified_freight_timeseries.csv")
-        latest_date = df_raw["date"].max()
-        latest_week = df_raw[df_raw["date"] == latest_date]
-        avg_freight_rate = round(latest_week["freight_rate_usd_per_mt"].mean(), 2)
-        all_dates = sorted(df_raw["date"].unique())
-        if len(all_dates) > 4:
-            prev_date = all_dates[-5]
-            prev_week = df_raw[df_raw["date"] == prev_date]
-            prev_avg = prev_week["freight_rate_usd_per_mt"].mean()
-            if prev_avg > 0:
-                rate_trend_pct = round(((avg_freight_rate - prev_avg) / prev_avg) * 100, 1)
+        df_raw = get_cached_timeseries_df()
+        if df_raw is not None:
+            latest_date = df_raw["date"].max()
+            latest_week = df_raw[df_raw["date"] == latest_date]
+            avg_freight_rate = round(latest_week["freight_rate_usd_per_mt"].mean(), 2)
+            all_dates = sorted(df_raw["date"].unique())
+            if len(all_dates) > 4:
+                prev_date = all_dates[-5]
+                prev_week = df_raw[df_raw["date"] == prev_date]
+                prev_avg = prev_week["freight_rate_usd_per_mt"].mean()
+                if prev_avg > 0:
+                    rate_trend_pct = round(((avg_freight_rate - prev_avg) / prev_avg) * 100, 1)
 
-        top_routes = [
-            ("AU_NEW_TO_IN_PRT", "Newcastle → Paradip", "Thermal Coal"),
-            ("AU_HAY_TO_IN_VTZ", "Hay Point → Vizag", "Coking Coal"),
-            ("ID_KLT_TO_IN_DHM", "Kalimantan → Dhamra", "Thermal Coal"),
-            ("MZ_BEI_TO_IN_GPL", "Beira → Gopalpur", "Coking Coal"),
-            ("US_NOR_TO_IN_PRT", "Norfolk → Paradip", "Thermal Coal"),
-            ("RU_VOS_TO_IN_PRT", "Vostochny → Paradip", "Thermal Coal"),
-        ]
-        for route_id, route_label, cargo in top_routes:
-            route_data = latest_week[latest_week["route_id"] == route_id]
-            if not route_data.empty:
-                row = route_data.iloc[0]
-                result["recent_forecasts"].append({
-                    "route": route_label,
-                    "cargo": cargo,
-                    "vessel": row.get("vessel_class", "Panamax"),
-                    "rate": f"${row['freight_rate_usd_per_mt']:.2f}/MT",
-                    "congestion": round(float(row.get("congestion_index", 0)), 1),
-                })
+            top_routes = [
+                ("AU_NEW_TO_IN_PRT", "Newcastle → Paradip", "Thermal Coal"),
+                ("AU_HAY_TO_IN_VTZ", "Hay Point → Vizag", "Coking Coal"),
+                ("ID_KLT_TO_IN_DHM", "Kalimantan → Dhamra", "Thermal Coal"),
+                ("MZ_BEI_TO_IN_GPL", "Beira → Gopalpur", "Coking Coal"),
+                ("US_NOR_TO_IN_PRT", "Norfolk → Paradip", "Thermal Coal"),
+                ("RU_VOS_TO_IN_PRT", "Vostochny → Paradip", "Thermal Coal"),
+            ]
+            for route_id, route_label, cargo in top_routes:
+                route_data = latest_week[latest_week["route_id"] == route_id]
+                if not route_data.empty:
+                    row = route_data.iloc[0]
+                    result["recent_forecasts"].append({
+                        "route": route_label,
+                        "cargo": cargo,
+                        "vessel": row.get("vessel_class", "Panamax"),
+                        "rate": f"${row['freight_rate_usd_per_mt']:.2f}/MT",
+                        "congestion": round(float(row.get("congestion_index", 0)), 1),
+                    })
     except Exception:
         pass
 
@@ -547,8 +617,8 @@ def get_dashboard_data():
     avg_port_wait = round(random.uniform(3.2, 4.5), 1)
     port_wait_trend = ""
     try:
-        port_df = pd.read_csv("data/raw/ogd_port_average_turnaround_time.csv")
-        if not port_df.empty:
+        port_df = get_cached_ogd_df()
+        if port_df is not None and not port_df.empty:
             latest_row = port_df.iloc[-1]
             east_coast_ports = ["Paradip", "Vishakhapatnam", "Haldia D.C"]
             vals = [float(latest_row[p]) for p in east_coast_ports if p in latest_row.index and pd.notna(latest_row[p])]
@@ -601,32 +671,32 @@ def get_dashboard_data():
 
     # --- 5. Dynamic Alerts ---
     try:
-        marine_weather = weather_client.get_marine_weather_summary(lat=20.26, lon=86.67)
-        wind_speed_kn = marine_weather.get("wind_speed_knots", 12.0)
-        wave_height_m = marine_weather.get("wave_height_meters", 1.4)
-        advisory = marine_weather.get("advisory", "")
+        sea_state = weather_client.get_sea_state(lat=20.26, lon=86.67)
+        wave_height_m = sea_state.get("wave_height_m", 1.4)
+        risk_score = sea_state.get("sea_condition_risk_score", 0.2)
+        alert_text = sea_state.get("weather_alert", "")
         
-        if wind_speed_kn >= 34 or wave_height_m >= 3.5:
+        if wave_height_m >= 4.5:
             result["alerts"].append({
                 "severity": "critical",
                 "title": "Severe Marine Depression / Cyclone Warning",
-                "message": f"Active storm alert in Bay of Bengal corridor: {wave_height_m}m swell & {wind_speed_kn} kn winds. {advisory}",
+                "message": f"Active storm alert in Bay of Bengal corridor: {wave_height_m}m swell. {alert_text}",
                 "time": "Live Weather",
                 "category": "Weather"
             })
-        elif wind_speed_kn >= 22 or wave_height_m >= 2.0:
+        elif wave_height_m >= 2.0:
             result["alerts"].append({
                 "severity": "warning",
                 "title": "Active Monsoon / Rough Sea State",
-                "message": f"Elevated wave heights ({wave_height_m}m) & {wind_speed_kn} kn winds along East Coast corridor. Navigation caution advised.",
+                "message": f"Elevated wave heights ({wave_height_m}m) along East Coast corridor. {alert_text}",
                 "time": "Live Weather",
                 "category": "Weather"
             })
         else:
             result["alerts"].append({
                 "severity": "success",
-                "title": "Calm Sea State — Favorable Sailing",
-                "message": f"Favorable maritime conditions across Bay of Bengal ({wave_height_m}m swell, {wind_speed_kn} kn winds).",
+                "title": "Calm Sea State \u2014 Favorable Sailing",
+                "message": f"Favorable maritime conditions across Bay of Bengal ({wave_height_m}m swell).",
                 "time": "Live Weather",
                 "category": "Weather"
             })

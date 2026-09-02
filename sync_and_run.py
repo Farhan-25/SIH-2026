@@ -21,8 +21,8 @@ import argparse
 import time
 from pathlib import Path
 
-# Enforce no bytecode generation in this process and all child processes
-os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+# Allow Python bytecode caching for faster startup
+# (Previously disabled, causing full recompilation of all libraries on every restart)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
@@ -117,11 +117,11 @@ def run_servers(run_backend=True, run_frontend=True):
             print("🔹 Backend starting on:  http://localhost:8000")
             print("🔹 API Documentation at: http://localhost:8000/docs")
             backend_cmd = [
-                sys.executable, "-B", "-m", "uvicorn",
+                sys.executable, "-m", "uvicorn",
                 "src.api.main:app",
                 "--host", "0.0.0.0",
                 "--port", "8000",
-                "--reload"
+                "--reload-dir", "src",
             ]
             p_back = subprocess.Popen(backend_cmd, cwd=PROJECT_ROOT, env=os.environ)
             processes.append(("Backend", p_back))

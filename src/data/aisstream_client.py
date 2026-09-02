@@ -7,6 +7,7 @@ import os
 import json
 import asyncio
 import logging
+import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 import websockets
@@ -61,6 +62,77 @@ class AISPortCongestionTracker:
             logger.info(f"AISStream live connection notice: {e}")
 
         return vessels_seen
+
+    async def start_background_vessel_tracker(self, bounding_boxes=None):
+        """Continuously streams live AIS data and updates the live_vessels table."""
+        if not self.api_key:
+            logger.warning("No AISSTREAM_API_KEY, background tracker disabled.")
+            return
+
+        if not bounding_boxes:
+            # Huge bounding box covering global oceans roughly (we use multiple boxes to cover standard trade lanes if needed, but world is easy)
+            bounding_boxes = [[[-90, -180], [90, 180]]]
+
+        subscription_message = {
+            "APIKey": self.api_key,
+            "BoundingBoxes": bounding_boxes,
+            "FilterMessageTypes": ["PositionReport"]
+        }
+
+        # Keep a buffer of latest vessels to avoid spamming the DB
+        vessel_buffer = {}
+        last_save = time.time()
+
+        while True:
+            try:
+                async with websockets.connect(AISSTREAM_WS_URL, open_timeout=10, ping_timeout=60) as ws:
+                    await ws.send(json.dumps(subscription_message))
+                    logger.info("AISStream WebSocket Connected. Listening for live vessels...")
+
+                    while True:
+                        try:
+                            message = await asyncio.wait_for(ws.recv(), timeout=10.0)
+                            data = json.loads(message)
+                            
+                            if "Message" in data and "PositionReport" in data["Message"]:
+                                report = data["Message"]["PositionReport"]
+                                mmsi = str(report.get("UserID"))
+                                
+                                # Convert to standard format
+                                vessel_buffer[mmsi] = {
+                                    "id": f"live_{mmsi}",
+                                    "name": f"MV LIVE {mmsi}",
+                                    "class": "Cargo / Live AIS",
+                                    "mmsi": mmsi,
+                                    "lat": report.get("Latitude", 0),
+                                    "lon": report.get("Longitude", 0),
+                                    "speed": report.get("Sog", 0),
+                                    "heading": report.get("TrueHeading", 0) if report.get("TrueHeading") != 511 else report.get("Cog", 0),
+                                    "origin": "Unknown (Live)",
+                                    "dest": "Unknown (Live)",
+                                    "cargo": "Unknown",
+                                    "status": "Underway" if report.get("Sog", 0) > 0.5 else "At Anchor",
+                                    "progress_pct": 50,
+                                    "wait_time_hours": 0.0,
+                                    "last_update": datetime.now(timezone.utc).isoformat()
+                                }
+
+                            # Bulk flush to DB every 10 seconds
+                            if time.time() - last_save > 10.0 and vessel_buffer:
+                                # We limit to 500 ships to avoid UI lag
+                                ships = list(vessel_buffer.values())
+                                if len(ships) > 500:
+                                    ships = ships[-500:]
+                                self.db.save_live_vessels(ships)
+                                last_save = time.time()
+
+                        except asyncio.TimeoutError:
+                            # Keep alive
+                            continue
+
+            except Exception as e:
+                logger.error(f"AISStream disconnected ({e}). Reconnecting in 5s...")
+                await asyncio.sleep(5)
 
     def get_port_congestion_estimate(self, port_id: str, historical_avg_waiting: float = 2.5) -> Dict[str, Any]:
         """

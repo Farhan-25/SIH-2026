@@ -16,6 +16,15 @@ import pandas as pd
 class FreightDBManager:
     """Manages relational SQLite storage and querying for ports, vessels, routes, and historical rates."""
 
+    # Class-level singleton caches shared across all instances
+    _cache_ports: Optional[Dict[str, Any]] = None
+    _cache_routes: Optional[Dict[str, Any]] = None
+    _cache_vessels: Optional[Dict[str, Any]] = None
+    _cache_chokepoints: Optional[Dict[str, Dict[str, Any]]] = None
+    _cache_risk_weights: Optional[Dict[str, float]] = None
+    _cache_ts: Dict[str, float] = {}
+    _CACHE_TTL = 600  # 10 minutes
+
     def __init__(self, db_path: str = "data/processed/freight_data.db"):
         self.db_path = db_path
         self._init_db()
@@ -367,8 +376,29 @@ class FreightDBManager:
         conn.close()
 
     # ── Relational Master Data Loaders ──
+    def _invalidate_cache(self, key: str):
+        """Invalidates a specific in-memory cache."""
+        cache_map = {
+            "ports": "_cache_ports",
+            "routes": "_cache_routes",
+            "vessels": "_cache_vessels",
+            "chokepoints": "_cache_chokepoints",
+            "risk_weights": "_cache_risk_weights",
+        }
+        attr = cache_map.get(key)
+        if attr:
+            setattr(FreightDBManager, attr, None)
+            FreightDBManager._cache_ts.pop(key, None)
+
+    def _is_cache_valid(self, key: str) -> bool:
+        ts = FreightDBManager._cache_ts.get(key, 0)
+        return (time.time() - ts) < FreightDBManager._CACHE_TTL
+
     def load_ports_master(self, path: Optional[str] = None) -> Dict[str, Any]:
-        """Loads ports dynamically from relational SQLite table."""
+        """Loads ports dynamically from relational SQLite table with in-memory caching."""
+        if FreightDBManager._cache_ports is not None and self._is_cache_valid("ports"):
+            return FreightDBManager._cache_ports
+
         conn = self.get_connection()
         df = pd.read_sql_query("SELECT * FROM ports_master", conn)
         conn.close()
@@ -417,13 +447,19 @@ class FreightDBManager:
                 })
                 global_ports[row["port_id"]] = p_dict
 
-        return {
+        result = {
             "indian_east_coast_ports": indian_ports,
             "global_load_ports": global_ports
         }
+        FreightDBManager._cache_ports = result
+        FreightDBManager._cache_ts["ports"] = time.time()
+        return result
 
     def load_vessels_master(self, path: Optional[str] = None) -> Dict[str, Any]:
-        """Loads vessel classes and active fleet dynamically from relational SQLite tables."""
+        """Loads vessel classes and active fleet dynamically from relational SQLite tables with caching."""
+        if FreightDBManager._cache_vessels is not None and self._is_cache_valid("vessels"):
+            return FreightDBManager._cache_vessels
+
         conn = self.get_connection()
         classes_df = pd.read_sql_query("SELECT * FROM vessel_classes", conn)
         fleet_df = pd.read_sql_query("SELECT * FROM active_fleet", conn)
@@ -458,13 +494,19 @@ class FreightDBManager:
                 "status": row["current_status"]
             })
 
-        return {
+        result = {
             "vessel_classes": vessel_classes,
             "active_fleet": active_fleet
         }
+        FreightDBManager._cache_vessels = result
+        FreightDBManager._cache_ts["vessels"] = time.time()
+        return result
 
     def load_routes_master(self, path: Optional[str] = None) -> Dict[str, Any]:
-        """Loads trade routes dynamically from relational SQLite table."""
+        """Loads trade routes dynamically from relational SQLite table with caching."""
+        if FreightDBManager._cache_routes is not None and self._is_cache_valid("routes"):
+            return FreightDBManager._cache_routes
+
         conn = self.get_connection()
         df = pd.read_sql_query("SELECT * FROM routes_master", conn)
         conn.close()
@@ -486,7 +528,10 @@ class FreightDBManager:
                 "waypoints": json.loads(row["waypoints_json"] or "[]")
             })
 
-        return {"trade_routes": routes}
+        result = {"trade_routes": routes}
+        FreightDBManager._cache_routes = result
+        FreightDBManager._cache_ts["routes"] = time.time()
+        return result
 
     # ── Admin CRUD Endpoints Support ──
     def save_port(self, p: Dict[str, Any]):
@@ -544,6 +589,7 @@ class FreightDBManager:
         ))
         conn.commit()
         conn.close()
+        self._invalidate_cache("ports")
 
     def delete_port(self, port_id: str) -> bool:
         """Deletes a port from ports_master."""
@@ -553,6 +599,7 @@ class FreightDBManager:
         deleted = cursor.rowcount > 0
         conn.commit()
         conn.close()
+        self._invalidate_cache("ports")
         return deleted
 
     def save_route(self, r: Dict[str, Any]):
@@ -588,6 +635,7 @@ class FreightDBManager:
         ))
         conn.commit()
         conn.close()
+        self._invalidate_cache("routes")
 
     def delete_route(self, route_id: str) -> bool:
         """Deletes a trade route from routes_master."""
@@ -597,6 +645,7 @@ class FreightDBManager:
         deleted = cursor.rowcount > 0
         conn.commit()
         conn.close()
+        self._invalidate_cache("routes")
         return deleted
 
     def save_vessel_class(self, v: Dict[str, Any]):
@@ -629,6 +678,7 @@ class FreightDBManager:
         ))
         conn.commit()
         conn.close()
+        self._invalidate_cache("vessels")
 
     def save_fleet_vessel(self, f: Dict[str, Any]):
         """Upserts an active fleet ship into active_fleet."""
@@ -653,6 +703,7 @@ class FreightDBManager:
         ))
         conn.commit()
         conn.close()
+        self._invalidate_cache("vessels")
 
     def delete_fleet_vessel(self, vessel_id: str) -> bool:
         conn = self.get_connection()
@@ -661,11 +712,15 @@ class FreightDBManager:
         deleted = cursor.rowcount > 0
         conn.commit()
         conn.close()
+        self._invalidate_cache("vessels")
         return deleted
 
     # ── Chokepoints Master CRUD ──
     def load_chokepoints_master(self, active_only: bool = True) -> Dict[str, Dict[str, Any]]:
-        """Loads chokepoints configuration dynamically from relational SQLite table."""
+        """Loads chokepoints configuration dynamically from relational SQLite table with caching."""
+        if active_only and FreightDBManager._cache_chokepoints is not None and self._is_cache_valid("chokepoints"):
+            return FreightDBManager._cache_chokepoints
+
         conn = self.get_connection()
         query = "SELECT * FROM chokepoints_master"
         if active_only:
@@ -682,6 +737,9 @@ class FreightDBManager:
                 "is_active": bool(row["is_active"]),
                 "updated_at": row["updated_at"]
             }
+        if active_only:
+            FreightDBManager._cache_chokepoints = chokepoints
+            FreightDBManager._cache_ts["chokepoints"] = time.time()
         return chokepoints
 
     def save_chokepoint(self, chk: Dict[str, Any]):
@@ -709,6 +767,7 @@ class FreightDBManager:
         ))
         conn.commit()
         conn.close()
+        self._invalidate_cache("chokepoints")
 
     def delete_chokepoint(self, chokepoint_key: str) -> bool:
         """Deletes a chokepoint from chokepoints_master."""
@@ -718,11 +777,15 @@ class FreightDBManager:
         deleted = cursor.rowcount > 0
         conn.commit()
         conn.close()
+        self._invalidate_cache("chokepoints")
         return deleted
 
     # ── Risk Scoring Weights Config ──
     def get_risk_scoring_weights(self) -> Dict[str, float]:
-        """Retrieves configured risk scoring component weights, normalized to 1.0."""
+        """Retrieves configured risk scoring component weights, normalized to 1.0, with caching."""
+        if FreightDBManager._cache_risk_weights is not None and self._is_cache_valid("risk_weights"):
+            return FreightDBManager._cache_risk_weights
+
         conn = self.get_connection()
         try:
             df = pd.read_sql_query("SELECT component_key, weight FROM risk_scoring_weights", conn)
@@ -737,8 +800,12 @@ class FreightDBManager:
                 }
             tot = sum(weights.values())
             if tot > 0:
-                return {k: round(v / tot, 3) for k, v in weights.items()}
-            return weights
+                result = {k: round(v / tot, 3) for k, v in weights.items()}
+            else:
+                result = weights
+            FreightDBManager._cache_risk_weights = result
+            FreightDBManager._cache_ts["risk_weights"] = time.time()
+            return result
         except Exception:
             conn.close()
             return {
@@ -769,6 +836,7 @@ class FreightDBManager:
             """, (k, float(w), labels.get(k, k.replace("_", " ").title()), now_iso))
         conn.commit()
         conn.close()
+        self._invalidate_cache("risk_weights")
 
     def query_historical_rates(
         self,

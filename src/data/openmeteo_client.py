@@ -4,6 +4,7 @@ Retrieves real-time and forecasted wave height, swell, and wind speed for shippi
 Free, requires no API key.
 """
 
+import time
 import logging
 from typing import Dict, Any, Optional
 import requests
@@ -14,15 +15,28 @@ OPEN_METEO_MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
 
 
 class OpenMeteoMarineClient:
-    """Client for fetching marine weather and sea state conditions."""
+    """Client for fetching marine weather and sea state conditions with coordinate-rounded caching."""
 
-    def __init__(self, timeout: int = 10):
+    # Class-level cache shared across all instances: key = (rounded_lat, rounded_lon)
+    _CACHE: Dict[tuple, Dict[str, Any]] = {}
+    _CACHE_TS: Dict[tuple, float] = {}
+    _CACHE_TTL = 900  # 15 minutes
+
+    def __init__(self, timeout: int = 5):
         self.timeout = timeout
 
     def get_sea_state(self, lat: float, lon: float) -> Dict[str, Any]:
         """
         Fetch current and 7-day forecast wave and sea conditions for given lat/lon coordinates.
+        Uses coordinate-rounded in-memory cache to avoid redundant network calls.
         """
+        # Coordinate-rounded cache key (2 decimal places = ~1km resolution)
+        cache_key = (round(lat, 2), round(lon, 2))
+        now = time.time()
+        if cache_key in OpenMeteoMarineClient._CACHE_TS:
+            if (now - OpenMeteoMarineClient._CACHE_TS[cache_key]) < OpenMeteoMarineClient._CACHE_TTL:
+                return OpenMeteoMarineClient._CACHE[cache_key]
+
         params = {
             "latitude": lat,
             "longitude": lon,
@@ -34,11 +48,6 @@ class OpenMeteoMarineClient:
                 "swell_wave_height",
                 "swell_wave_direction",
                 "swell_wave_period"
-            ],
-            "hourly": [
-                "wave_height",
-                "wind_wave_height",
-                "swell_wave_height"
             ],
             "timezone": "auto"
         }
@@ -57,7 +66,7 @@ class OpenMeteoMarineClient:
             # Waves > 3.0m cause minor delays; > 5.0m severe sea state delay
             risk_score = min(1.0, max(0.0, (wave_height - 1.0) / 4.0)) if wave_height > 1.0 else 0.0
 
-            return {
+            result = {
                 "status": "success",
                 "coordinates": {"lat": lat, "lon": lon},
                 "wave_height_m": wave_height,
@@ -67,9 +76,15 @@ class OpenMeteoMarineClient:
                 "weather_alert": self._categorize_risk(wave_height),
                 "raw": current
             }
+            OpenMeteoMarineClient._CACHE[cache_key] = result
+            OpenMeteoMarineClient._CACHE_TS[cache_key] = now
+            return result
         except Exception as e:
             logger.warning(f"Failed to fetch live marine weather for ({lat}, {lon}): {e}. Using seasonal baseline.")
-            return self._fallback_seasonal_estimate(lat, lon)
+            fallback = self._fallback_seasonal_estimate(lat, lon)
+            OpenMeteoMarineClient._CACHE[cache_key] = fallback
+            OpenMeteoMarineClient._CACHE_TS[cache_key] = now
+            return fallback
 
     def _categorize_risk(self, wave_height_m: float) -> str:
         if wave_height_m < 1.5:
