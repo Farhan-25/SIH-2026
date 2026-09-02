@@ -11,6 +11,7 @@ import {
 
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import OnboardingPage from './pages/OnboardingPage'
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext'
 import { UserProfileProvider, useUserProfile } from './context/UserProfileContext'
 
