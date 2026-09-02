@@ -8,7 +8,7 @@ import {
   MdEco, MdSpeed, MdLocationOn, MdCheckCircle, MdScience,
   MdArrowForward, MdSearch, MdStraighten, MdPause, MdPlayArrow, MdLayers
 } from 'react-icons/md'
-import mapboxgl, { getMapStyle, MAP_STYLE_ORDER, MAP_STYLES } from '../lib/maplibre'
+import mapboxgl, { getMapStyle, MAP_STYLE_ORDER, MAP_STYLES, vesselPopupHTML, vesselMarkerColor } from '../lib/maplibre'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Tube } from '@react-three/drei'
 import * as THREE from 'three'
@@ -262,7 +262,12 @@ function MapboxMap({
           id: vessel.id,
           name: vessel.name || vessel.mmsi || 'Vessel',
           status: vessel.status || 'Underway',
-          color: vessel.status === 'At Anchor' ? '#f59e0b' : '#38bdf8',
+          class: vessel.class || '',
+          speed: vessel.speed ?? 0,
+          dest: vessel.dest || vessel.destination || '',
+          mmsi: vessel.mmsi || '',
+          color: vesselMarkerColor(vessel),
+          source: vessel.source_label || vessel.source || 'Live AIS',
         },
         geometry: { type: 'Point', coordinates: [projectedLon, projectedLat] },
       })
@@ -403,19 +408,56 @@ function MapboxMap({
         type: 'circle',
         source: 'vessels-live-src',
         paint: {
-          'circle-radius': 5,
+          'circle-radius': 5.5,
           'circle-color': ['get', 'color'],
           'circle-stroke-width': 1.5,
           'circle-stroke-color': '#0b1220',
           'circle-opacity': 0.95,
         },
       })
-      m.on('click', 'vessels-live-core', (e) => {
-        const id = e.features?.[0]?.properties?.id
-        if (id) onVesselClickRef.current?.(id)
+      m.addLayer({
+        id: 'vessels-live-hit',
+        type: 'circle',
+        source: 'vessels-live-src',
+        paint: {
+          'circle-radius': 16,
+          'circle-opacity': 0,
+          'circle-color': '#000',
+        },
       })
-      m.on('mouseenter', 'vessels-live-core', () => { m.getCanvas().style.cursor = 'pointer' })
-      m.on('mouseleave', 'vessels-live-core', () => { m.getCanvas().style.cursor = '' })
+      if (!m._vesselPopup) {
+        m._vesselPopup = new mapboxgl.Popup({
+          closeButton: true,
+          closeOnClick: true,
+          offset: 16,
+          className: 'mapbox-dark-popup',
+          maxWidth: '280px',
+        })
+      }
+      const openVessel = (e) => {
+        const f = e.features?.[0]
+        if (!f) return
+        e.originalEvent?.stopPropagation?.()
+        const props = f.properties || {}
+        const id = props.id
+        if (id) onVesselClickRef.current?.(id)
+        const vessel = (vesselsRef.current || []).find((v) => String(v.id) === String(id)) || {
+          name: props.name,
+          status: props.status,
+          class: props.class,
+          speed: props.speed,
+          dest: props.dest,
+          mmsi: props.mmsi,
+        }
+        m._vesselPopup
+          .setLngLat(f.geometry.coordinates)
+          .setHTML(vesselPopupHTML(vessel))
+          .addTo(m)
+      }
+      m.on('click', 'vessels-live-hit', openVessel)
+      m.on('click', 'vessels-live-core', openVessel)
+      m.on('mouseenter', 'vessels-live-hit', () => { m.getCanvas().style.cursor = 'pointer' })
+      m.on('mouseleave', 'vessels-live-hit', () => { m.getCanvas().style.cursor = '' })
     } else {
       m.getSource('vessels-live-src').setData(vesselFc)
     }
@@ -440,6 +482,12 @@ function MapboxMap({
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right')
     map.current.addControl(new mapboxgl.ScaleControl({ unit: 'nautical' }), 'bottom-left')
 
+    const bump = () => {
+      try { map.current?.resize() } catch { /* ignore */ }
+    }
+    const ro = mapContainer.current ? new ResizeObserver(bump) : null
+    if (mapContainer.current && ro) ro.observe(mapContainer.current)
+
     map.current.on('click', (e) => {
       if (rulerActive) {
         onRulerClick([e.lngLat.lng, e.lngLat.lat])
@@ -447,11 +495,14 @@ function MapboxMap({
     })
 
     map.current.on('load', () => {
+      bump()
       installOverlayLayers()
     })
 
     return () => {
+      ro?.disconnect()
       if (map.current) {
+        map.current._vesselPopup?.remove()
         map.current.remove()
         map.current = null
       }
@@ -1305,6 +1356,11 @@ export default function RouteMapPage() {
             <div className="hud-pill text-rose">
               <MdWarning /> <span><strong>{indianPorts.filter(p => p.congestion_index >= 60).length}</strong> Congested Ports</span>
             </div>
+          </div>
+          <div className="fr24-ais-legend glass-panel" title="Live AIS from AISStream/Open Waters; violet dots are modeled fill for demo density">
+            <span className="leg-item"><i className="leg-dot live" /> Live AIS</span>
+            <span className="leg-item"><i className="leg-dot modeled" /> Modeled</span>
+            <span className="leg-item"><i className="leg-dot anchor" /> At anchor</span>
           </div>
         </div>
 
