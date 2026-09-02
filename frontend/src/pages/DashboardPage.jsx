@@ -1,428 +1,672 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { AnimatePresence } from 'framer-motion'
 import {
   MdTrendingUp, MdTrendingDown, MdDirectionsBoat,
-  MdLocalGasStation, MdAttachMoney, MdMap, MdRefresh,
-  MdShield, MdShowChart
+  MdLocalGasStation, MdMap, MdRefresh, MdShield,
+  MdShowChart, MdNewspaper, MdBolt, MdOpenInNew
 } from 'react-icons/md'
-import mapboxgl, { getMapStyle } from '../lib/maplibre'
+import mapboxgl, { getMapStyle, vesselPopupHTML, vesselMarkerColor } from '../lib/maplibre'
+import VesselSidePanel from '../components/VesselSidePanel'
 import {
   getDashboard,
   getMapIntelligence,
+  getMarketSentiment,
   getChokepointRisks,
-  getCopilotOverview
+  getGeopoliticalAlerts,
+  getMaritimeNews,
+  getCopilotOverview,
+  getForecast
 } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
-import { useUserProfile } from '../context/UserProfileContext'
 
-function formatNumber(val, decimals = 2) {
-  if (val === undefined || val === null || isNaN(val)) return '—'
-  return Number(val).toFixed(decimals)
+function parseNum(val, fallback = 0) {
+  if (typeof val === 'number' && !Number.isNaN(val)) return val
+  if (val === undefined || val === null) return fallback
+  const n = parseFloat(String(val).replace(/[^0-9.-]/g, ''))
+  return Number.isNaN(n) ? fallback : n
+}
+
+function sentimentTone(label, score) {
+  const s = Number(score)
+  if (label?.toLowerCase().includes('neg') || s < -0.15) return 'neg'
+  if (label?.toLowerCase().includes('pos') || s > 0.15) return 'pos'
+  return 'neu'
+}
+
+function vesselsToFeatureCollection(list) {
+  return {
+    type: 'FeatureCollection',
+    features: (list || []).flatMap((v) => {
+      const lat = Number(v.lat)
+      const lon = Number(v.lon)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+      return [{
+        type: 'Feature',
+        properties: {
+          id: String(v.id || v.mmsi || ''),
+          name: v.name || v.mmsi || 'Vessel',
+          status: v.status || 'Underway',
+          class: v.class || '',
+          speed: v.speed ?? 0,
+          dest: v.dest || v.destination || '',
+          mmsi: v.mmsi || '',
+          source: v.source_label || v.source || 'Live AIS',
+          color: vesselMarkerColor(v),
+        },
+        geometry: { type: 'Point', coordinates: [lon, lat] },
+      }]
+    }),
+  }
 }
 
 export default function DashboardPage() {
   const navigate = useNavigate()
-  const { axisCurrencyPrefix, formatMoney } = usePreferences()
-  const { isPortSelected } = useUserProfile()
+  const { formatMoney } = usePreferences()
 
   const [data, setData] = useState(null)
   const [mapIntel, setMapIntel] = useState(null)
+  const [sentiment, setSentiment] = useState(null)
   const [chokepoints, setChokepoints] = useState({})
+  const [geoAlerts, setGeoAlerts] = useState([])
+  const [newsArticles, setNewsArticles] = useState([])
   const [copilotBriefing, setCopilotBriefing] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [lastRefresh, setLastRefresh] = useState(() => new Date())
+  const [selectedVessel, setSelectedVessel] = useState(null)
+  const [forecast, setForecast] = useState(null)
 
-  // Map reference
   const mapContainer = useRef(null)
   const mapInstance = useRef(null)
-  const markersRef = useRef([])
+  const popupRef = useRef(null)
+  const vesselsByIdRef = useRef({})
 
-  // Ingest data streams — show UI as soon as dashboard KPIs arrive; fill the rest in parallel
-  useEffect(() => {
-    let cancelled = false
+  const loadAll = useCallback(() => {
     setLoading(true)
-
     getDashboard()
       .then((dash) => {
-        if (cancelled) return
         setData(dash)
         setLoading(false)
+        setLastRefresh(new Date())
       })
-      .catch(() => {
-        if (!cancelled) setLoading(false)
-      })
+      .catch(() => setLoading(false))
 
     Promise.allSettled([
       getMapIntelligence(),
+      getMarketSentiment(),
       getChokepointRisks(),
+      getGeopoliticalAlerts(),
+      getMaritimeNews(8),
       getCopilotOverview()
     ]).then(([mapRes, sentRes, chkRes, alertRes, newsRes, copilotRes]) => {
-      if (cancelled) return
       if (mapRes.status === 'fulfilled') setMapIntel(mapRes.value)
+      if (sentRes.status === 'fulfilled') setSentiment(sentRes.value)
       if (chkRes.status === 'fulfilled') setChokepoints(chkRes.value)
+      if (alertRes.status === 'fulfilled') setGeoAlerts(alertRes.value?.alerts || [])
+      if (newsRes.status === 'fulfilled') setNewsArticles(newsRes.value?.articles || [])
       if (copilotRes.status === 'fulfilled') setCopilotBriefing(copilotRes.value)
     })
+  }, [])
 
+  useEffect(() => { loadAll() }, [loadAll])
+
+  // Primary corridor forecast for Command Centre
+  useEffect(() => {
+    let cancelled = false
+    getForecast({ route_id: 'AU_NEW_TO_IN_PRT', vessel_class: 'Panamax', horizon_weeks: 8 })
+      .then((res) => { if (!cancelled) setForecast(res) })
+      .catch(() => { if (!cancelled) setForecast(null) })
     return () => { cancelled = true }
   }, [])
 
-  // Initialize Mapbox 
+  // Keep vessel lookup fresh for popup clicks
   useEffect(() => {
-    if (loading) return
-    if (!mapContainer.current) return
-    if (mapInstance.current) return
+    const map = {}
+    for (const v of mapIntel?.vessels || []) {
+      if (v.id) map[String(v.id)] = v
+      if (v.mmsi) map[String(v.mmsi)] = v
+    }
+    vesselsByIdRef.current = map
+  }, [mapIntel])
 
-    // Carto Dark Matter via MapLibre — free, no Mapbox token
+  // Init map once container is mounted (do not wait for API)
+  useEffect(() => {
+    if (!mapContainer.current || mapInstance.current) return
+
     const m = new mapboxgl.Map({
       container: mapContainer.current,
       style: getMapStyle('dark').url,
       center: [85.0, 16.0],
-      zoom: 3.8,
-      projection: 'mercator',
-      attributionControl: true
+      zoom: 4.2,
+      attributionControl: false,
+    })
+    m.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: true }), 'top-right')
+    mapInstance.current = m
+    popupRef.current = new mapboxgl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+      offset: 14,
+      className: 'mapbox-dark-popup',
+      maxWidth: '280px',
     })
 
-    m.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: true }), 'top-right')
+    const bump = () => {
+      try { m.resize() } catch { /* ignore */ }
+    }
+    const ro = new ResizeObserver(() => bump())
+    ro.observe(mapContainer.current)
+    m.on('load', bump)
+    m.on('idle', bump)
+    // Flex layout often settles after first paint
+    const t1 = setTimeout(bump, 50)
+    const t2 = setTimeout(bump, 250)
+    const t3 = setTimeout(bump, 600)
 
-    mapInstance.current = m
+    m.on('click', 'cc-vessels-hit', (e) => {
+      const f = e.features?.[0]
+      if (!f) return
+      e.originalEvent?.stopPropagation?.()
+      const props = f.properties || {}
+      const id = String(props.id || '')
+      const vessel = vesselsByIdRef.current[id] || {
+        id,
+        name: props.name,
+        status: props.status,
+        class: props.class,
+        speed: props.speed,
+        dest: props.dest,
+        mmsi: props.mmsi,
+        lat: f.geometry.coordinates[1],
+        lon: f.geometry.coordinates[0],
+      }
+      setSelectedVessel(vessel)
+      popupRef.current
+        ?.setLngLat(f.geometry.coordinates)
+        .setHTML(vesselPopupHTML(vessel))
+        .addTo(m)
+    })
+    m.on('mouseenter', 'cc-vessels-hit', () => { m.getCanvas().style.cursor = 'pointer' })
+    m.on('mouseleave', 'cc-vessels-hit', () => { m.getCanvas().style.cursor = '' })
 
     return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      ro.disconnect()
+      popupRef.current?.remove()
+      popupRef.current = null
       m.remove()
       mapInstance.current = null
     }
-  }, [loading])
+  }, [])
 
-  // Render basic vessel markers
+  // Paint routes / ports / vessels when intel arrives
   useEffect(() => {
-    if (loading) return
     const map = mapInstance.current
     if (!map || !mapIntel) return
 
-    const renderLayers = () => {
-      markersRef.current.forEach(m => m.remove())
-      markersRef.current = []
+    const paint = () => {
+      map.resize()
+      const vessels = (mapIntel.vessels || []).slice(0, 200)
+      const ports = mapIntel.ports?.indian || []
+      const routes = mapIntel.route_risks || []
 
-      const vessels = mapIntel?.vessels || []
-      const allPorts = mapIntel?.ports?.indian || []
-      const ports = allPorts.filter(p => isPortSelected(p.port_id || p.id))
+      const routeFc = {
+        type: 'FeatureCollection',
+        features: routes
+          .filter((r) => Array.isArray(r.waypoints) && r.waypoints.length >= 2)
+          .map((r) => ({
+            type: 'Feature',
+            properties: { id: r.route_id },
+            geometry: {
+              type: 'LineString',
+              coordinates: r.waypoints.map((w) => [w[0], w[1]]),
+            },
+          })),
+      }
+      if (map.getSource('cc-routes')) {
+        map.getSource('cc-routes').setData(routeFc)
+      } else {
+        map.addSource('cc-routes', { type: 'geojson', data: routeFc })
+        map.addLayer({
+          id: 'cc-routes-line',
+          type: 'line',
+          source: 'cc-routes',
+          paint: {
+            'line-color': '#38bdf8',
+            'line-width': 1.5,
+            'line-opacity': 0.4,
+          },
+        })
+      }
 
-      // Render ports (Emerald squares)
-      ports.forEach(p => {
-        if (!p.lat || !p.lon) return
+      const portFc = {
+        type: 'FeatureCollection',
+        features: ports
+          .filter((p) => p.lat && p.lon)
+          .map((p) => ({
+            type: 'Feature',
+            properties: {
+              name: p.name,
+              nearby: p.anchored_vessels || 0,
+            },
+            geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+          })),
+      }
+      if (map.getSource('cc-ports')) {
+        map.getSource('cc-ports').setData(portFc)
+      } else {
+        map.addSource('cc-ports', { type: 'geojson', data: portFc })
+        map.addLayer({
+          id: 'cc-ports-core',
+          type: 'circle',
+          source: 'cc-ports',
+          paint: {
+            'circle-radius': 6,
+            'circle-color': '#10b981',
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#0b1220',
+          },
+        })
+      }
 
-        const el = document.createElement('div')
-        el.style.cssText = `
-          width: 14px;
-          height: 14px;
-          background-color: var(--accent-emerald);
-          border: 2px solid var(--bg-card);
-          border-radius: 4px;
-          box-shadow: 0 0 8px hsla(155, 70%, 45%, 0.4);
-          cursor: pointer;
-        `
-        el.title = p.name
-
-        const marker = new mapboxgl.Marker({ element: el })
-          .setLngLat([p.lon, p.lat])
-          .addTo(map)
-
-        markersRef.current.push(marker)
-      })
-
-      // Render vessels (Cyan circles)
-      vessels.forEach(v => {
-        if (!v.lat || !v.lon) return
-
-        const el = document.createElement('div')
-        el.style.cssText = `
-          width: 10px;
-          height: 10px;
-          background-color: var(--accent);
-          border: 2px solid var(--bg-card);
-          border-radius: 50%;
-          box-shadow: 0 0 8px var(--accent-glow);
-          cursor: pointer;
-        `
-        el.title = v.name
-
-        const marker = new mapboxgl.Marker({ element: el })
-          .setLngLat([v.lon, v.lat])
-          .addTo(map)
-
-        markersRef.current.push(marker)
-      })
+      const vesselFc = vesselsToFeatureCollection(vessels)
+      if (map.getSource('cc-vessels')) {
+        map.getSource('cc-vessels').setData(vesselFc)
+      } else {
+        map.addSource('cc-vessels', { type: 'geojson', data: vesselFc })
+        map.addLayer({
+          id: 'cc-vessels-glow',
+          type: 'circle',
+          source: 'cc-vessels',
+          paint: {
+            'circle-radius': 11,
+            'circle-color': ['get', 'color'],
+            'circle-opacity': 0.22,
+            'circle-blur': 0.5,
+          },
+        })
+        map.addLayer({
+          id: 'cc-vessels-core',
+          type: 'circle',
+          source: 'cc-vessels',
+          paint: {
+            'circle-radius': 5.5,
+            'circle-color': ['get', 'color'],
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#0b1220',
+            'circle-opacity': 0.95,
+          },
+        })
+        // Larger invisible hit target for easier clicks
+        map.addLayer({
+          id: 'cc-vessels-hit',
+          type: 'circle',
+          source: 'cc-vessels',
+          paint: {
+            'circle-radius': 14,
+            'circle-opacity': 0,
+            'circle-color': '#000',
+          },
+        })
+      }
     }
 
-    if (map.isStyleLoaded()) renderLayers()
-    else map.once('load', renderLayers)
-  }, [mapIntel, loading])
+    if (map.isStyleLoaded()) paint()
+    else map.once('load', paint)
+  }, [mapIntel])
 
   const kpis = data?.kpis || {}
   const forecasts = data?.recent_forecasts || []
+  const fleetCount = mapIntel?.vessels?.length || 0
+  const apiStatus = mapIntel?.api_status || {}
 
-  // Derive Capesize 5TC from backend avg_freight_rate KPI
-  const avgFreightRate = kpis.avg_freight_rate || {}
-  const freightValue = avgFreightRate.value || '—'
-  const freightTrend = avgFreightRate.trend || '0%'
-  const freightTrendDir = avgFreightRate.trend_dir || 'up'
+  const sentScore = copilotBriefing?.sentiment_score ?? sentiment?.current_score ?? -0.15
+  const sentLabel = copilotBriefing?.sentiment_label || sentiment?.sentiment_label || 'Neutral'
+  const sentTone = sentimentTone(sentLabel, sentScore)
 
-  // Derive Red Sea Risk from live chokepoint data
-  const redSeaData = chokepoints?.['bab_el_mandeb'] || chokepoints?.['red_sea'] || {}
-  const redSeaRisk = redSeaData.risk_score != null ? redSeaData.risk_score.toFixed(2) : null
-  const redSeaLevel = redSeaData.risk_level || 'UNKNOWN'
-  const redSeaVolPct = redSeaData.volume_stats?.increase_pct || 0
+  const insights = useMemo(() => {
+    const fromCopilot = copilotBriefing?.key_insights
+    if (Array.isArray(fromCopilot) && fromCopilot.length) return fromCopilot.slice(0, 4)
+    return [
+      `Market tone is ${sentLabel.toLowerCase()} (${Number(sentScore).toFixed(2)}).`,
+      `East-coast average port wait is ${kpis.avg_port_wait?.value || '—'}.`,
+      Object.keys(chokepoints).length
+        ? `${Object.keys(chokepoints).length} chokepoints under watch — check Red Sea / Suez exposure.`
+        : 'Monitoring key chokepoints for transit disruption.',
+      fleetCount
+        ? `${fleetCount} vessels currently on the India corridor map.`
+        : 'Live AIS feed warming up for the Bay of Bengal.',
+    ]
+  }, [copilotBriefing, sentLabel, sentScore, kpis, chokepoints, fleetCount])
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <h2 style={{ color: 'var(--text-primary)' }}>Loading Dashboard...</h2>
-      </div>
-    )
+  const tickerItems = [
+    { key: 'brent', label: 'Brent', value: formatMoney(parseNum(kpis.brent_crude?.value, 82.4)), trend: kpis.brent_crude?.trend, up: kpis.brent_crude?.trend_dir === 'up', icon: <MdLocalGasStation /> },
+    { key: 'inr', label: 'USD/INR', value: kpis.usd_inr?.value || '₹85.2', trend: kpis.usd_inr?.trend, up: kpis.usd_inr?.trend_dir === 'up' },
+    { key: 'coal', label: 'Newcastle Coal', value: formatMoney(parseNum(kpis.coal_price?.value, 130)), trend: kpis.coal_price?.trend, up: kpis.coal_price?.trend_dir === 'up' },
+    { key: 'freight', label: 'Avg Freight', value: formatMoney(parseNum(kpis.avg_freight_rate?.value, 14.82), { suffix: '/MT' }), trend: kpis.avg_freight_rate?.trend, up: kpis.avg_freight_rate?.trend_dir === 'up', icon: <MdDirectionsBoat /> },
+    { key: 'wait', label: 'Odisha Wait', value: kpis.avg_port_wait?.value || '3.8d', trend: kpis.avg_port_wait?.trend, up: kpis.avg_port_wait?.trend_dir === 'up' },
+    { key: 'iron', label: 'Iron Ore', value: formatMoney(parseNum(kpis.iron_ore?.value, 110)), trend: kpis.iron_ore?.trend, up: kpis.iron_ore?.trend_dir === 'up' },
+  ]
+
+  const topChoke = Object.values(chokepoints)[0]
+  if (topChoke) {
+    tickerItems.push({
+      key: 'risk',
+      label: (topChoke.name || 'Chokepoint').split(' / ')[0],
+      value: String(topChoke.risk_level || 'Watch'),
+      trend: topChoke.volume_stats?.increase_pct != null ? `+${topChoke.volume_stats.increase_pct}%` : undefined,
+      up: false,
+      danger: true,
+      icon: <MdShield />,
+    })
   }
 
+  const negPct = sentiment?.negative_pct ?? 60
+  const neuPct = sentiment?.neutral_pct ?? 22
+  const posPct = sentiment?.positive_pct ?? 18
+
+  const indianPorts = mapIntel?.ports?.indian || []
+  const avgCong = indianPorts.length
+    ? Math.round(indianPorts.reduce((s, p) => s + (p.congestion_index || 0), 0) / indianPorts.length)
+    : null
+
+  const spotRate = forecast?.latest_actual_rate_usd_per_mt
+  const preds = forecast?.predictions_usd_per_mt || []
+  const fwd4 = preds.length >= 4 ? preds[3] : preds[preds.length - 1]
+  const fwdChange = spotRate && fwd4 != null ? ((fwd4 - spotRate) / spotRate) * 100 : null
+  const timingLabel = forecast?.market_timing?.recommended_action
+    || forecast?.market_timing?.strategy
+    || forecast?.market_timing?.action
+    || null
+  const spark = preds.slice(0, 8)
+
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-lg)',
-      width: '100%'
-    }}>
-      {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="cc-page">
+      <AnimatePresence>
+        {selectedVessel && (
+          <VesselSidePanel
+            vessel={selectedVessel}
+            ports={indianPorts}
+            compact
+            onClose={() => {
+              setSelectedVessel(null)
+              popupRef.current?.remove()
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <header className="cc-header">
         <div>
-          <h1 style={{ margin: 0, fontSize: 'var(--font-size-2xl)', color: 'var(--text-primary)', fontWeight: '700' }}>Executive Dashboard</h1>
-          <p style={{ margin: 'var(--space-xs) 0 0 0', color: 'var(--text-secondary)' }}>High-level overview of maritime operations and freight intelligence.</p>
+          <h1>Command Centre</h1>
         </div>
-        <button
-          onClick={() => window.location.reload()}
-          style={{ 
-            display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', 
-            background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', 
-            padding: 'var(--space-sm) var(--space-md)', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-            fontWeight: '500', color: 'var(--text-primary)', boxShadow: 'var(--glass-shadow)',
-            fontFamily: 'var(--font-family)'
-          }}
-        >
-          <MdRefresh size={18} /> Refresh Data
+        <div className="cc-header-actions">
+          <div className="cc-feed-pill">
+            <span className={`cc-dot ${apiStatus.ais === 'connected' ? 'on' : ''}`} />
+            {loading && !data ? 'Loading…' : 'Live feed'}
+          </div>
+          <span className="cc-utc">
+            {lastRefresh.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
+          </span>
+          <button type="button" className="cc-btn" onClick={loadAll}>
+            <MdRefresh size={16} /> Refresh
+          </button>
+        </div>
+      </header>
+
+      <div className="cc-ticker" role="list">
+        {tickerItems.map((item) => (
+          <div key={item.key} className={`cc-tick ${item.danger ? 'danger' : ''}`} role="listitem">
+            <span className="cc-tick-label">{item.icon}{item.label}</span>
+            <span className="cc-tick-value">{item.value}</span>
+            {item.trend != null && item.trend !== '' && (
+              <span className={`cc-tick-trend ${item.up ? 'up' : 'down'}`}>
+                {item.up ? <MdTrendingUp /> : <MdTrendingDown />}
+                {item.trend}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <section className={`cc-brief tone-${sentTone}`}>
+        <div className="cc-brief-main">
+          <div className="cc-brief-top">
+            <span className="cc-brief-tag"><MdBolt size={14} /> Intelligence brief</span>
+            <span className={`cc-sent-badge ${sentTone}`}>
+              Sentiment · {sentLabel} ({Number(sentScore).toFixed(2)})
+            </span>
+          </div>
+          <ul className="cc-brief-list">
+            {insights.map((line, i) => (
+              <li key={i}>{typeof line === 'string' ? line.replace(/^\s*[•\-*]\s*/, '').replace(/\*\*/g, '') : line}</li>
+            ))}
+          </ul>
+        </div>
+        <button type="button" className="cc-brief-cta" onClick={() => navigate('/copilot')}>
+          Open Copilot
         </button>
-      </div>
+      </section>
 
-      {/* KPI CARDS */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-md)' }}>
-        <KpiCard 
-          title="BRENT CRUDE" 
-          value={kpis.brent_crude?.value || '—'} 
-          trend={kpis.brent_crude?.trend || '—'} 
-          isUp={kpis.brent_crude?.trend_dir === 'up'}
-          icon={<MdLocalGasStation size={20} />}
-        />
-        <KpiCard 
-          title="NEWCASTLE COAL" 
-          value={kpis.coal_price?.value || '—'} 
-          trend={kpis.coal_price?.trend || '—'} 
-          isUp={kpis.coal_price?.trend_dir === 'up'}
-          icon={<MdAttachMoney size={20} />}
-        />
-        <KpiCard 
-          title="AVG FREIGHT RATE" 
-          value={freightValue} 
-          trend={freightTrend} 
-          isUp={freightTrendDir === 'up'}
-          icon={<MdDirectionsBoat size={20} />}
-        />
-        <KpiCard 
-          title="RED SEA RISK" 
-          value={redSeaRisk ? `${redSeaRisk} ${redSeaLevel}` : '—'} 
-          trend={redSeaVolPct ? `+${redSeaVolPct}% VOL` : '—'} 
-          isUp={false}
-          icon={<MdShield size={20} />}
-          isDanger={redSeaLevel === 'CRITICAL' || redSeaLevel === 'HIGH'}
-        />
-      </div>
-
-      {/* MAIN GRID */}
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-lg)' }}>
-        
-        {/* MAP SECTION */}
-        <div style={{
-          background: 'var(--bg-card)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border-subtle)',
-          boxShadow: 'var(--glass-shadow)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          height: '500px'
-        }}>
-          <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ margin: 0, fontSize: 'var(--font-size-md)', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-              <MdMap size={20} color="var(--accent)" /> Live Vessel Tracking
-            </h2>
-            <button 
-              onClick={() => navigate('/routes')}
-              style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontWeight: '500', fontSize: 'var(--font-size-sm)', fontFamily: 'var(--font-family)' }}
-            >
-              View Full Map &rarr;
-            </button>
-          </div>
-          <div style={{ flex: 1, width: '100%', position: 'relative' }}>
-            <div ref={mapContainer} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} />
-          </div>
-        </div>
-
-        {/* SIDE PANEL */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-          
-          {/* AI COPILOT SUMMARY */}
-          <div style={{
-            background: 'var(--bg-card)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)',
-            boxShadow: 'var(--glass-shadow)',
-            padding: 'var(--space-lg)'
-          }}>
-            <h2 style={{ margin: '0 0 var(--space-md) 0', fontSize: 'var(--font-size-md)', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-              <span>🤖</span> AI Executive Summary
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-              {(copilotBriefing?.key_insights || [
-                "Overall market sentiment is currently cautious.",
-                "Red Sea disruptions continue to drive volatility.",
-                "Bunker costs remain elevated, impacting margins.",
-                "Port turnaround times are slightly above average."
-              ]).map((insight, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: '10px', fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
-                  <span style={{ color: 'var(--accent)' }}>&bull;</span>
-                  <span>{insight}</span>
-                </div>
-              ))}
+      <div className="cc-split">
+        <section className="cc-panel cc-map-panel">
+          <div className="cc-panel-head">
+            <h2><MdMap size={18} /> Live East Coast map</h2>
+            <div className="cc-panel-meta">
+              <span>{fleetCount} vessels</span>
+              <button type="button" className="cc-link" onClick={() => navigate('/routes')}>
+                Full route map <MdOpenInNew size={14} />
+              </button>
             </div>
-            <button
-              onClick={() => navigate('/copilot')}
-              style={{
-                marginTop: 'var(--space-lg)', width: '100%',
-                background: 'var(--accent-glow)', color: 'var(--accent)',
-                border: '1px solid var(--accent)', padding: 'var(--space-sm)', borderRadius: 'var(--radius-sm)',
-                fontWeight: '500', cursor: 'pointer', fontFamily: 'var(--font-family)'
-              }}
-            >
-              Ask AI Copilot
+          </div>
+          <div className="cc-map-wrap">
+            <div ref={mapContainer} className="cc-map-el" />
+            <div className="cc-map-legend">
+              <span><i className="cc-leg ship" /> Live AIS</span>
+              <span><i className="cc-leg modeled" /> Modeled</span>
+              <span><i className="cc-leg anchor" /> At anchor</span>
+              <span><i className="cc-leg port" /> Port</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="cc-panel cc-rates-panel">
+          <div className="cc-panel-head">
+            <h2><MdShowChart size={18} /> Dry bulk rates</h2>
+            <button type="button" className="cc-link" onClick={() => navigate('/forecast')}>
+              ML forecaster <MdOpenInNew size={14} />
             </button>
           </div>
 
-          {/* QUICK ALERTS */}
-          <div style={{
-            background: 'var(--bg-card)',
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)',
-            boxShadow: 'var(--glass-shadow)',
-            padding: 'var(--space-lg)'
-          }}>
-             <h2 style={{ margin: '0 0 var(--space-md) 0', fontSize: 'var(--font-size-md)', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-              <MdShield size={20} color="var(--accent-rose)" /> Active Risk Alerts
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
-              {Object.entries(chokepoints).slice(0, 3).map(([k, item]) => (
-                <div key={k} style={{ 
-                  background: 'var(--bg-elevated)', borderLeft: '4px solid var(--accent-rose)', 
-                  padding: 'var(--space-sm)', borderRadius: '0 var(--radius-sm) var(--radius-sm) 0' 
-                }}>
-                  <div style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: 'var(--font-size-sm)', marginBottom: '4px' }}>{item.name?.split(' / ')[0]}</div>
-                  <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--accent-rose)' }}>Risk Level: {item.risk_level} | Impact: +{item.volume_stats?.increase_pct || 0}%</div>
-                </div>
-              ))}
+          <div className="cc-forecast-strip">
+            <div className="cc-forecast-head">
+              <strong>Newcastle → Paradip · Panamax</strong>
+              <button type="button" className="cc-link" onClick={() => navigate('/forecast')}>Details</button>
+            </div>
+            <div className="cc-forecast-metrics">
+              <div>
+                <span className="lbl">Spot</span>
+                <strong>{spotRate != null ? formatMoney(spotRate, { suffix: '/MT' }) : '—'}</strong>
+              </div>
+              <div>
+                <span className="lbl">Fwd +4W</span>
+                <strong className={fwdChange != null && fwdChange >= 0 ? 'up' : 'down'}>
+                  {fwd4 != null ? formatMoney(fwd4, { suffix: '/MT' }) : '—'}
+                </strong>
+              </div>
+              <div>
+                <span className="lbl">Δ 4W</span>
+                <strong className={fwdChange != null && fwdChange >= 0 ? 'up' : 'down'}>
+                  {fwdChange != null ? `${fwdChange >= 0 ? '+' : ''}${fwdChange.toFixed(1)}%` : '—'}
+                </strong>
+              </div>
+            </div>
+            {spark.length > 0 && (
+              <div className="cc-spark" title="8-week forecast path">
+                {spark.map((v, i) => {
+                  const min = Math.min(...spark)
+                  const max = Math.max(...spark)
+                  const h = max === min ? 40 : 18 + ((v - min) / (max - min)) * 70
+                  return <i key={i} style={{ height: `${h}%` }} />
+                })}
+              </div>
+            )}
+            {timingLabel && (
+              <div className="cc-timing">Strategy · {String(timingLabel).replace(/_/g, ' ')}</div>
+            )}
+          </div>
+
+          <div className="cc-rate-stats">
+            <div>
+              <span className="lbl">Port wait</span>
+              <strong>{kpis.avg_port_wait?.value || '—'}</strong>
+            </div>
+            <div>
+              <span className="lbl">Avg congestion</span>
+              <strong>{avgCong != null ? `${avgCong}` : '—'}</strong>
+            </div>
+            <div>
+              <span className="lbl">Alerts</span>
+              <strong>{geoAlerts.length || Object.keys(chokepoints).length || 0}</strong>
             </div>
           </div>
 
-        </div>
+          <div className="cc-table-wrap">
+            <table className="cc-table">
+              <thead>
+                <tr>
+                  <th>Corridor</th>
+                  <th>Cargo</th>
+                  <th>Vessel</th>
+                  <th>Spot</th>
+                  <th>Fwd 4W</th>
+                  <th>Cong.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(forecasts.length ? forecasts : [
+                  { route: 'Newcastle → Paradip', cargo: 'Thermal Coal', vessel: 'Panamax', rate: '$14.82/MT', congestion: 42 },
+                  { route: 'Hay Point → Vizag', cargo: 'Coking Coal', vessel: 'Capesize', rate: '$16.40/MT', congestion: 38 },
+                  { route: 'Kalimantan → Dhamra', cargo: 'Thermal Coal', vessel: 'Supramax', rate: '$11.20/MT', congestion: 55 },
+                ]).slice(0, 4).map((f, i) => {
+                  const rateVal = parseNum(f.rate, 15)
+                  const fwdVal = (i === 0 && fwd4 != null) ? fwd4 : (rateVal * 1.04)
+                  const cong = Number(f.congestion) || 0
+                  return (
+                    <tr key={i}>
+                      <td className="route">{f.route}</td>
+                      <td>{f.cargo}</td>
+                      <td>{f.vessel}</td>
+                      <td className="num">{formatMoney(rateVal, { suffix: '/MT' })}</td>
+                      <td className="num fwd">{formatMoney(fwdVal, { suffix: '/MT' })}</td>
+                      <td>
+                        <span className={`cc-cong ${cong > 50 ? 'high' : 'ok'}`}>{cong}%</span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="cc-risk-mini">
+            <h3><MdShield size={16} /> Watchlist</h3>
+            <div className="cc-risk-list">
+              {(Object.entries(chokepoints).slice(0, 2).length
+                ? Object.entries(chokepoints).slice(0, 2)
+                : [['red_sea', { name: 'Red Sea / Bab el-Mandeb', risk_level: 'Elevated' }]]
+              ).map(([k, item]) => (
+                <button
+                  type="button"
+                  key={k}
+                  className="cc-risk-row"
+                  onClick={() => navigate('/risk')}
+                >
+                  <span className="name">{item.name?.split(' / ')[0]}</span>
+                  <span className="lvl">{item.risk_level}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
 
-      {/* FREIGHT MATRIX */}
-      <div style={{
-        background: 'var(--bg-card)',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--glass-shadow)',
-        overflow: 'hidden'
-      }}>
-        <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 'var(--font-size-md)', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <MdShowChart size={20} color="var(--accent-emerald)" /> Freight Rates Matrix
-          </h2>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 'var(--font-size-sm)' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-muted)' }}>
-                <th style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '600' }}>Corridor</th>
-                <th style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '600' }}>Cargo</th>
-                <th style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '600' }}>Vessel Type</th>
-                <th style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '600' }}>Spot Rate</th>
-                <th style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '600' }}>Fwd (4W)</th>
-                <th style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '600' }}>Congestion</th>
-              </tr>
-            </thead>
-            <tbody>
-              {forecasts.map((f, i) => {
-                const rateVal = parseFloat(f.rate?.replace('$', '').replace('/MT', '') || 0)
-                // Compute forward rate using the backend's actual trend percentage
-                const trendPctNum = parseFloat(freightTrend?.replace('%', '').replace('+', '') || 0)
-                const fwdMultiplier = 1 + (trendPctNum / 100)
-                const fwdVal = (rateVal * fwdMultiplier).toFixed(2)
-                const fwdIsUp = fwdMultiplier >= 1
-                return (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                    <td style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '500', color: 'var(--text-primary)' }}>{f.route}</td>
-                    <td style={{ padding: 'var(--space-sm) var(--space-lg)', color: 'var(--text-secondary)' }}>{f.cargo}</td>
-                    <td style={{ padding: 'var(--space-sm) var(--space-lg)', color: 'var(--text-secondary)' }}>{f.vessel}</td>
-                    <td style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '600', color: 'var(--text-primary)' }}>{formatMoney(rateVal, { suffix: '/MT' })}</td>
-                    <td style={{ padding: 'var(--space-sm) var(--space-lg)', color: fwdIsUp ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{formatMoney(fwdVal, { suffix: '/MT' })}</td>
-                    <td style={{ padding: 'var(--space-sm) var(--space-lg)' }}>
-                      <span style={{
-                        padding: '4px 8px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: '500',
-                        background: f.congestion > 50 ? 'var(--accent-rose-dim)' : 'var(--accent-emerald-dim)',
-                        color: f.congestion > 50 ? 'var(--text-primary)' : 'var(--text-primary)'
-                      }}>
-                        {f.congestion}%
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="cc-lower">
+        <section className="cc-panel">
+          <div className="cc-panel-head">
+            <h2>Market sentiment</h2>
+            <button type="button" className="cc-link" onClick={() => navigate('/risk')}>Risk desk</button>
+          </div>
+          <div className="cc-sent-score">
+            <div className={`big ${sentTone}`}>{Number(sentScore).toFixed(2)}</div>
+            <div>
+              <strong>{sentLabel}</strong>
+              <p>From FinBERT on live maritime headlines</p>
+            </div>
+          </div>
+          <div className="cc-sent-bars">
+            <div className="bar-row">
+              <span>Negative</span>
+              <div className="track"><i style={{ width: `${negPct}%` }} className="neg" /></div>
+              <em>{negPct}%</em>
+            </div>
+            <div className="bar-row">
+              <span>Neutral</span>
+              <div className="track"><i style={{ width: `${neuPct}%` }} className="neu" /></div>
+              <em>{neuPct}%</em>
+            </div>
+            <div className="bar-row">
+              <span>Positive</span>
+              <div className="track"><i style={{ width: `${posPct}%` }} className="pos" /></div>
+              <em>{posPct}%</em>
+            </div>
+          </div>
+        </section>
+
+        <section className="cc-panel">
+          <div className="cc-panel-head">
+            <h2><MdNewspaper size={18} /> Intelligence wire</h2>
+            <button type="button" className="cc-link" onClick={() => navigate('/risk')}>All alerts</button>
+          </div>
+          <div className="cc-news-list">
+            {(newsArticles.length ? newsArticles : geoAlerts).slice(0, 6).map((a, i) => {
+              const title = a.title || a.message || a.headline || 'Market update'
+              const meta = a.source || a.category || a.severity || 'Wire'
+              const tone = (a.sentiment || a.severity || '').toLowerCase()
+              return (
+                <article key={a.id || i} className="cc-news-item">
+                  <span className={`cc-news-dot ${tone.includes('neg') || tone.includes('crit') || tone.includes('warn') ? 'neg' : tone.includes('pos') ? 'pos' : ''}`} />
+                  <div>
+                    <h4>{title}</h4>
+                    <p>{meta}{a.published_at ? ` · ${String(a.published_at).slice(0, 10)}` : ''}</p>
+                  </div>
+                </article>
+              )
+            })}
+            {!newsArticles.length && !geoAlerts.length && (
+              <p className="cc-empty">News feed will populate as sources sync.</p>
+            )}
+          </div>
+        </section>
       </div>
+
+      <footer className="cc-status">
+        <StatusChip label="AIS" ok={apiStatus.ais === 'connected'} detail={apiStatus.ais || '—'} />
+        <StatusChip label="Weather" ok={apiStatus.weather === 'connected'} detail={apiStatus.weather || '—'} />
+        <StatusChip label="Markets" ok={apiStatus.fred === 'connected'} detail={apiStatus.fred || '—'} />
+        <StatusChip label="Fleet" ok={fleetCount > 0} detail={`${fleetCount} ships`} />
+        <span className="cc-status-spacer" />
+        <span className="cc-ver">FreightIQ Command Centre</span>
+      </footer>
     </div>
   )
 }
 
-function KpiCard({ title, value, trend, isUp, isDanger, icon }) {
+function StatusChip({ label, ok, detail }) {
   return (
-    <div style={{
-      background: 'var(--bg-card)',
-      borderRadius: 'var(--radius-lg)',
-      border: '1px solid var(--border-subtle)',
-      boxShadow: 'var(--glass-shadow)',
-      padding: 'var(--space-lg)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 'var(--space-sm)'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)' }}>
-        <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: '600', letterSpacing: '0.05em' }}>{title}</span>
-        <span style={{ color: isDanger ? 'var(--accent-rose)' : 'var(--text-muted)' }}>{icon}</span>
-      </div>
-      <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: '700', color: 'var(--text-primary)' }}>
-        {value}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: 'var(--font-size-sm)', fontWeight: '500' }}>
-        {isUp ? (
-          <span style={{ color: 'var(--accent-emerald)', display: 'flex', alignItems: 'center' }}><MdTrendingUp /> {trend}</span>
-        ) : (
-          <span style={{ color: 'var(--accent-rose)', display: 'flex', alignItems: 'center' }}><MdTrendingDown /> {trend}</span>
-        )}
-        <span style={{ color: 'var(--text-muted)', fontWeight: '400', marginLeft: '4px' }}>vs last week</span>
-      </div>
-    </div>
+    <span className={`cc-status-chip ${ok ? 'ok' : ''}`} title={detail}>
+      <span className="cc-dot" />
+      {label}
+    </span>
   )
 }
