@@ -10,13 +10,11 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import {
   getDashboard,
   getMapIntelligence,
-  getMarketSentiment,
   getChokepointRisks,
-  getGeopoliticalAlerts,
-  getMaritimeNews,
   getCopilotOverview
 } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
+import { useUserProfile } from '../context/UserProfileContext'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
@@ -28,14 +26,11 @@ function formatNumber(val, decimals = 2) {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { axisCurrencyPrefix, formatMoney } = usePreferences()
+  const { isPortSelected } = useUserProfile()
 
-  // State
   const [data, setData] = useState(null)
   const [mapIntel, setMapIntel] = useState(null)
-  const [sentiment, setSentiment] = useState(null)
   const [chokepoints, setChokepoints] = useState({})
-  const [geoAlerts, setGeoAlerts] = useState([])
-  const [newsArticles, setNewsArticles] = useState([])
   const [copilotBriefing, setCopilotBriefing] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -50,18 +45,12 @@ export default function DashboardPage() {
     Promise.allSettled([
       getDashboard(),
       getMapIntelligence(),
-      getMarketSentiment(),
       getChokepointRisks(),
-      getGeopoliticalAlerts(),
-      getMaritimeNews(5),
       getCopilotOverview()
-    ]).then(([dashRes, mapRes, sentRes, chkRes, alertRes, newsRes, copilotRes]) => {
+    ]).then(([dashRes, mapRes, chkRes, copilotRes]) => {
       if (dashRes.status === 'fulfilled') setData(dashRes.value)
       if (mapRes.status === 'fulfilled') setMapIntel(mapRes.value)
-      if (sentRes.status === 'fulfilled') setSentiment(sentRes.value)
       if (chkRes.status === 'fulfilled') setChokepoints(chkRes.value)
-      if (alertRes.status === 'fulfilled') setGeoAlerts(alertRes.value?.alerts || [])
-      if (newsRes.status === 'fulfilled') setNewsArticles(newsRes.value?.articles || [])
       if (copilotRes.status === 'fulfilled') setCopilotBriefing(copilotRes.value)
       setLoading(false)
     })
@@ -105,7 +94,8 @@ export default function DashboardPage() {
       markersRef.current = []
 
       const vessels = mapIntel?.vessels || []
-      const ports = mapIntel?.ports?.indian || []
+      const allPorts = mapIntel?.ports?.indian || []
+      const ports = allPorts.filter(p => isPortSelected(p.port_id || p.id))
 
       // Render ports (Emerald squares)
       ports.forEach(p => {
@@ -161,6 +151,18 @@ export default function DashboardPage() {
   const kpis = data?.kpis || {}
   const forecasts = data?.recent_forecasts || []
 
+  // Derive Capesize 5TC from backend avg_freight_rate KPI
+  const avgFreightRate = kpis.avg_freight_rate || {}
+  const freightValue = avgFreightRate.value || '—'
+  const freightTrend = avgFreightRate.trend || '0%'
+  const freightTrendDir = avgFreightRate.trend_dir || 'up'
+
+  // Derive Red Sea Risk from live chokepoint data
+  const redSeaData = chokepoints?.['bab_el_mandeb'] || chokepoints?.['red_sea'] || {}
+  const redSeaRisk = redSeaData.risk_score != null ? redSeaData.risk_score.toFixed(2) : null
+  const redSeaLevel = redSeaData.risk_level || 'UNKNOWN'
+  const redSeaVolPct = redSeaData.volume_stats?.increase_pct || 0
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -200,32 +202,32 @@ export default function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--space-md)' }}>
         <KpiCard 
           title="BRENT CRUDE" 
-          value={formatMoney(kpis.brent_crude?.value || 82.40)} 
-          trend={kpis.brent_crude?.trend || '+1.2%'} 
+          value={kpis.brent_crude?.value || '—'} 
+          trend={kpis.brent_crude?.trend || '—'} 
           isUp={kpis.brent_crude?.trend_dir === 'up'}
           icon={<MdLocalGasStation size={20} />}
         />
         <KpiCard 
           title="NEWCASTLE COAL" 
-          value={formatMoney(kpis.coal_price?.value || 130.00)} 
-          trend="+2.4%" 
-          isUp={true}
+          value={kpis.coal_price?.value || '—'} 
+          trend={kpis.coal_price?.trend || '—'} 
+          isUp={kpis.coal_price?.trend_dir === 'up'}
           icon={<MdAttachMoney size={20} />}
         />
         <KpiCard 
-          title="CAPESIZE 5TC" 
-          value={formatMoney(24150, { decimals: 0, suffix: '/d' })} 
-          trend="+5.6%" 
-          isUp={true}
+          title="AVG FREIGHT RATE" 
+          value={freightValue} 
+          trend={freightTrend} 
+          isUp={freightTrendDir === 'up'}
           icon={<MdDirectionsBoat size={20} />}
         />
         <KpiCard 
           title="RED SEA RISK" 
-          value="0.88 CRIT" 
-          trend="+285% VOL" 
+          value={redSeaRisk ? `${redSeaRisk} ${redSeaLevel}` : '—'} 
+          trend={redSeaVolPct ? `+${redSeaVolPct}% VOL` : '—'} 
           isUp={false}
           icon={<MdShield size={20} />}
-          isDanger
+          isDanger={redSeaLevel === 'CRITICAL' || redSeaLevel === 'HIGH'}
         />
       </div>
 
@@ -353,15 +355,19 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {forecasts.map((f, i) => {
-                const rateVal = parseFloat(f.rate?.replace('$', '').replace('/MT', '') || 15.0)
-                const fwdVal = (rateVal * 1.04).toFixed(2)
+                const rateVal = parseFloat(f.rate?.replace('$', '').replace('/MT', '') || 0)
+                // Compute forward rate using the backend's actual trend percentage
+                const trendPctNum = parseFloat(freightTrend?.replace('%', '').replace('+', '') || 0)
+                const fwdMultiplier = 1 + (trendPctNum / 100)
+                const fwdVal = (rateVal * fwdMultiplier).toFixed(2)
+                const fwdIsUp = fwdMultiplier >= 1
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <td style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '500', color: 'var(--text-primary)' }}>{f.route}</td>
                     <td style={{ padding: 'var(--space-sm) var(--space-lg)', color: 'var(--text-secondary)' }}>{f.cargo}</td>
                     <td style={{ padding: 'var(--space-sm) var(--space-lg)', color: 'var(--text-secondary)' }}>{f.vessel}</td>
                     <td style={{ padding: 'var(--space-sm) var(--space-lg)', fontWeight: '600', color: 'var(--text-primary)' }}>{formatMoney(rateVal, { suffix: '/MT' })}</td>
-                    <td style={{ padding: 'var(--space-sm) var(--space-lg)', color: 'var(--accent-emerald)' }}>{formatMoney(fwdVal, { suffix: '/MT' })}</td>
+                    <td style={{ padding: 'var(--space-sm) var(--space-lg)', color: fwdIsUp ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>{formatMoney(fwdVal, { suffix: '/MT' })}</td>
                     <td style={{ padding: 'var(--space-sm) var(--space-lg)' }}>
                       <span style={{
                         padding: '4px 8px', borderRadius: 'var(--radius-full)', fontSize: 'var(--font-size-xs)', fontWeight: '500',
