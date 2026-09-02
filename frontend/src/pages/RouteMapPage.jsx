@@ -6,9 +6,9 @@ import {
   MdWaves, MdTrendingUp, MdAnchor, MdSignalWifi4Bar, MdSignalWifiOff,
   MdLocalShipping, MdCloud, MdClose, MdNavigation, MdAttachMoney,
   MdEco, MdSpeed, MdLocationOn, MdCheckCircle, MdScience,
-  MdArrowForward, MdSearch, MdStraighten, MdPause, MdPlayArrow
+  MdArrowForward, MdSearch, MdStraighten, MdPause, MdPlayArrow, MdLayers
 } from 'react-icons/md'
-import mapboxgl from '../lib/maplibre'
+import mapboxgl, { getMapStyle, MAP_STYLE_ORDER, MAP_STYLES } from '../lib/maplibre'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Tube } from '@react-three/drei'
 import * as THREE from 'three'
@@ -143,7 +143,8 @@ function MapboxMap({
   timeOffsetHours,
   rulerActive,
   rulerPoints,
-  onRulerClick
+  onRulerClick,
+  basemapStyleId = 'dark',
 }) {
   const mapContainer = useRef(null)
   const map = useRef(null)
@@ -221,18 +222,217 @@ function MapboxMap({
     }
   }, [rulerPoints])
 
-  // Initialize Mapbox
+  // Keep latest overlay data for style reloads
+  const routesRef = useRef(routes)
+  const trackRef = useRef(activeVesselTrackGeoJSON)
+  const rulerRef = useRef(rulerGeoJSON)
+  const portsRef = useRef(indianPorts)
+  const vesselsRef = useRef(vessels)
+  const showAnchorageRef = useRef(showAnchorageZones)
+  useEffect(() => { routesRef.current = routes }, [routes])
+  useEffect(() => { trackRef.current = activeVesselTrackGeoJSON }, [activeVesselTrackGeoJSON])
+  useEffect(() => { rulerRef.current = rulerGeoJSON }, [rulerGeoJSON])
+  useEffect(() => { portsRef.current = indianPorts }, [indianPorts])
+  useEffect(() => { vesselsRef.current = vessels }, [vessels])
+  useEffect(() => { showAnchorageRef.current = showAnchorageZones }, [showAnchorageZones])
+
+  const vesselsToGeoJSON = useCallback((list, filter = 'all', offsetH = 0) => {
+    const features = []
+    for (const vessel of list || []) {
+      if (filter === 'underway' && vessel.status === 'At Anchor') continue
+      if (filter === 'anchor' && vessel.status !== 'At Anchor') continue
+      const lat = Number(vessel.lat)
+      const lon = Number(vessel.lon)
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
+
+      let projectedLat = lat
+      let projectedLon = lon
+      if (vessel.status !== 'At Anchor' && offsetH) {
+        const speedKnots = vessel.speed || 12.0
+        const distanceNMTravelled = speedKnots * offsetH
+        const headingRad = (vessel.heading || 315) * Math.PI / 180
+        projectedLat = lat + (distanceNMTravelled * Math.cos(headingRad)) / 60
+        projectedLon = lon + (distanceNMTravelled * Math.sin(headingRad)) / (60 * Math.cos(lat * Math.PI / 180))
+      }
+
+      features.push({
+        type: 'Feature',
+        properties: {
+          id: vessel.id,
+          name: vessel.name || vessel.mmsi || 'Vessel',
+          status: vessel.status || 'Underway',
+          color: vessel.status === 'At Anchor' ? '#f59e0b' : '#38bdf8',
+        },
+        geometry: { type: 'Point', coordinates: [projectedLon, projectedLat] },
+      })
+    }
+    return { type: 'FeatureCollection', features }
+  }, [])
+
+  const installOverlayLayers = useCallback(() => {
+    const m = map.current
+    if (!m) return
+
+    const routeFeatures = (routesRef.current || [])
+      .filter(r => r.waypoints && r.waypoints.length > 0)
+      .map(r => ({
+        type: 'Feature',
+        properties: { color: rgbToHex(routeColorFromOrigin(r.origin || '')) },
+        geometry: { type: 'LineString', coordinates: r.waypoints },
+      }))
+
+    if (!m.getSource('trade-routes')) {
+      m.addSource('trade-routes', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: routeFeatures },
+      })
+      m.addLayer({
+        id: 'route-core',
+        type: 'line',
+        source: 'trade-routes',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 1.5,
+          'line-opacity': 0.35,
+          'line-dasharray': [3, 4],
+        },
+      })
+    } else {
+      m.getSource('trade-routes').setData({ type: 'FeatureCollection', features: routeFeatures })
+    }
+
+    if (!m.getSource('vessel-active-track')) {
+      m.addSource('vessel-active-track', { type: 'geojson', data: trackRef.current })
+      m.addLayer({
+        id: 'vessel-track-glow',
+        type: 'line',
+        source: 'vessel-active-track',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 8,
+          'line-opacity': 0.35,
+          'line-blur': 4,
+        },
+      })
+      m.addLayer({
+        id: 'vessel-track-core',
+        type: 'line',
+        source: 'vessel-active-track',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 3,
+          'line-opacity': 0.95,
+          'line-dasharray': ['case', ['==', ['get', 'type'], 'projected'], ['literal', [2, 2]], ['literal', [1, 0]]],
+        },
+      })
+    } else {
+      m.getSource('vessel-active-track').setData(trackRef.current)
+    }
+
+    if (!m.getSource('ruler-line-src')) {
+      m.addSource('ruler-line-src', { type: 'geojson', data: rulerRef.current })
+      m.addLayer({
+        id: 'ruler-line-layer',
+        type: 'line',
+        source: 'ruler-line-src',
+        paint: {
+          'line-color': '#ec4899',
+          'line-width': 3,
+          'line-dasharray': [2, 2],
+        },
+      })
+    } else {
+      m.getSource('ruler-line-src').setData(rulerRef.current)
+    }
+
+    const anchorageFeatures = (portsRef.current || []).map(p => ({
+      type: 'Feature',
+      properties: {
+        congestion: p.congestion_index || 0,
+        color: congestionColor(p.congestion_index || 0),
+      },
+      geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+    }))
+
+    if (!m.getSource('anchorage-zones-src')) {
+      m.addSource('anchorage-zones-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: anchorageFeatures },
+      })
+      m.addLayer({
+        id: 'anchorage-zones-layer',
+        type: 'circle',
+        source: 'anchorage-zones-src',
+        layout: { visibility: showAnchorageRef.current ? 'visible' : 'none' },
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['get', 'congestion'], 0, 20, 100, 65],
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.12,
+          'circle-blur': 0.8,
+        },
+      })
+    } else {
+      m.getSource('anchorage-zones-src').setData({ type: 'FeatureCollection', features: anchorageFeatures })
+      if (m.getLayer('anchorage-zones-layer')) {
+        m.setLayoutProperty(
+          'anchorage-zones-layer',
+          'visibility',
+          showAnchorageRef.current ? 'visible' : 'none',
+        )
+      }
+    }
+
+    // Fast GPU vessel dots — DOM markers alone were dropping most ships
+    const vesselFc = vesselsToGeoJSON(vesselsRef.current)
+    if (!m.getSource('vessels-live-src')) {
+      m.addSource('vessels-live-src', { type: 'geojson', data: vesselFc })
+      m.addLayer({
+        id: 'vessels-live-glow',
+        type: 'circle',
+        source: 'vessels-live-src',
+        paint: {
+          'circle-radius': 10,
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.25,
+          'circle-blur': 0.6,
+        },
+      })
+      m.addLayer({
+        id: 'vessels-live-core',
+        type: 'circle',
+        source: 'vessels-live-src',
+        paint: {
+          'circle-radius': 5,
+          'circle-color': ['get', 'color'],
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#0b1220',
+          'circle-opacity': 0.95,
+        },
+      })
+      m.on('click', 'vessels-live-core', (e) => {
+        const id = e.features?.[0]?.properties?.id
+        if (id) onVesselClickRef.current?.(id)
+      })
+      m.on('mouseenter', 'vessels-live-core', () => { m.getCanvas().style.cursor = 'pointer' })
+      m.on('mouseleave', 'vessels-live-core', () => { m.getCanvas().style.cursor = '' })
+    } else {
+      m.getSource('vessels-live-src').setData(vesselFc)
+    }
+  }, [vesselsToGeoJSON])
+
+  // Initialize MapLibre + Carto basemap
   useEffect(() => {
     if (map.current) return
 
+    const styleUrl = getMapStyle(basemapStyleId).url
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: styleUrl,
       center: [83, 16],
       zoom: 4.2,
       pitch: 20,
       bearing: 0,
-      antialias: true
+      antialias: true,
     })
 
     map.current.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
@@ -246,85 +446,7 @@ function MapboxMap({
     })
 
     map.current.on('load', () => {
-      // 1. Ambient trade routes
-      map.current.addSource('trade-routes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
-      map.current.addLayer({
-        id: 'route-core',
-        type: 'line',
-        source: 'trade-routes',
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 1.5,
-          'line-opacity': 0.35,
-          'line-dasharray': [3, 4]
-        }
-      })
-
-      // 2. Active Vessel Track Sources & Layers
-      map.current.addSource('vessel-active-track', { type: 'geojson', data: activeVesselTrackGeoJSON })
-      map.current.addLayer({
-        id: 'vessel-track-glow',
-        type: 'line',
-        source: 'vessel-active-track',
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 8,
-          'line-opacity': 0.35,
-          'line-blur': 4
-        }
-      })
-      map.current.addLayer({
-        id: 'vessel-track-core',
-        type: 'line',
-        source: 'vessel-active-track',
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 3,
-          'line-opacity': 0.95,
-          'line-dasharray': ['case', ['==', ['get', 'type'], 'projected'], ['literal', [2, 2]], ['literal', [1, 0]]]
-        }
-      })
-
-      // 3. Ruler Measure Layer
-      map.current.addSource('ruler-line-src', { type: 'geojson', data: rulerGeoJSON })
-      map.current.addLayer({
-        id: 'ruler-line-layer',
-        type: 'line',
-        source: 'ruler-line-src',
-        paint: {
-          'line-color': '#ec4899',
-          'line-width': 3,
-          'line-dasharray': [2, 2]
-        }
-      })
-
-      // 4. Port Anchorage Zones (Heatmap Halos)
-      map.current.addSource('anchorage-zones-src', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: indianPorts.map(p => ({
-            type: 'Feature',
-            properties: {
-              congestion: p.congestion_index || 0,
-              color: congestionColor(p.congestion_index || 0)
-            },
-            geometry: { type: 'Point', coordinates: [p.lon, p.lat] }
-          }))
-        }
-      })
-
-      map.current.addLayer({
-        id: 'anchorage-zones-layer',
-        type: 'circle',
-        source: 'anchorage-zones-src',
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['get', 'congestion'], 0, 20, 100, 65],
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.12,
-          'circle-blur': 0.8
-        }
-      })
+      installOverlayLayers()
     })
 
     return () => {
@@ -334,6 +456,20 @@ function MapboxMap({
       }
     }
   }, [])
+
+  // Switch Carto / MapLibre basemap style
+  const basemapReadyRef = useRef(false)
+  useEffect(() => {
+    if (!map.current) return
+    if (!basemapReadyRef.current) {
+      basemapReadyRef.current = true
+      return
+    }
+    const next = getMapStyle(basemapStyleId).url
+    const apply = () => installOverlayLayers()
+    map.current.once('style.load', apply)
+    map.current.setStyle(next)
+  }, [basemapStyleId, installOverlayLayers])
 
   // Update ambient trade routes
   useEffect(() => {
@@ -362,15 +498,29 @@ function MapboxMap({
     map.current.getSource('ruler-line-src').setData(rulerGeoJSON)
   }, [rulerGeoJSON])
 
-  // Update anchorage zones visibility
+  // Update anchorage zones visibility + data
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded() || !map.current.getLayer('anchorage-zones-layer')) return
+    const src = map.current.getSource('anchorage-zones-src')
+    if (src) {
+      src.setData({
+        type: 'FeatureCollection',
+        features: indianPorts.map(p => ({
+          type: 'Feature',
+          properties: {
+            congestion: p.congestion_index || 0,
+            color: congestionColor(p.congestion_index || 0),
+          },
+          geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
+        })),
+      })
+    }
     map.current.setLayoutProperty(
       'anchorage-zones-layer',
       'visibility',
       showAnchorageZones ? 'visible' : 'none'
     )
-  }, [showAnchorageZones])
+  }, [showAnchorageZones, indianPorts])
 
   // Update Active Vessel Track & flyTo camera
   useEffect(() => {
@@ -432,7 +582,7 @@ function MapboxMap({
               <span class="port-flag">${flag}</span>
               <span class="port-name">${displayName}</span>
               ${port.isTargetIndia
-                ? `<span class="port-wait" style="color:${color}">${port.anchored_vessels || 0} Ships</span>`
+                ? `<span class="port-wait" style="color:${color}">${port.anchored_vessels || 0} live nearby</span>`
                 : `<span class="port-wait text-ocean">${port.waiting_days || port.avg_queue_days || 3}d Queue</span>`
               }
             </div>
@@ -457,69 +607,49 @@ function MapboxMap({
     else map.current.once('load', ready)
   }, [indianPorts, globalPorts])
 
-  // Render FlightRadar24 Interactive Vessel Markers (with Time Scrubbing Interpolation)
+  // Render vessels as GeoJSON circles (all ships) + DOM chevron for selected only
   useEffect(() => {
     if (!map.current) return
     const ready = () => {
+      const src = map.current.getSource('vessels-live-src')
+      if (src) {
+        src.setData(vesselsToGeoJSON(vessels, filterStatus, timeOffsetHours))
+      }
+
       vesselMarkersRef.current.forEach(m => m.remove())
       vesselMarkersRef.current = []
 
-      const visibleVessels = vessels.filter(v => {
-        if (filterStatus === 'underway') return v.status !== 'At Anchor'
-        if (filterStatus === 'anchor') return v.status === 'At Anchor'
-        return true
-      })
+      const selected = vessels.find(v => v.id === selectedVessel)
+      if (!selected || !selected.lat || !selected.lon) return
 
-      visibleVessels.forEach(vessel => {
-        if (!vessel.lat || !vessel.lon) return
-
-        // Compute scrubbed future position based on speed and heading
-        const speedKnots = vessel.speed || 12.0
-        const distanceNMTravelled = (speedKnots * timeOffsetHours)
-        const headingRad = (vessel.heading || 315) * Math.PI / 180
-
-        // Approximate 1 deg lat = 60 NM
-        const latOffset = (distanceNMTravelled * Math.cos(headingRad)) / 60
-        const lonOffset = (distanceNMTravelled * Math.sin(headingRad)) / (60 * Math.cos(vessel.lat * Math.PI / 180))
-
-        const projectedLat = vessel.status === 'At Anchor' ? vessel.lat : vessel.lat + latOffset
-        const projectedLon = vessel.status === 'At Anchor' ? vessel.lon : vessel.lon + lonOffset
-
-        const isAnchor = vessel.status === 'At Anchor'
-        const color = isAnchor ? '#f59e0b' : '#38bdf8'
-        const isSelected = selectedVessel === vessel.id
-
-        const el = document.createElement('div')
-        el.className = `fr24-vessel-marker ${isSelected ? 'selected' : ''}`
-
-        el.innerHTML = `
-          <div class="fr24-vessel-container">
-            ${isSelected ? `<div class="fr24-pulse-ring" style="border-color:${color};"></div>` : ''}
-            <div class="fr24-ship-icon" style="transform: rotate(${vessel.heading || 0}deg); filter: drop-shadow(0 0 ${isSelected ? '12px' : '4px'} ${color});">
-              <svg viewBox="0 0 24 24" width="${isSelected ? '30' : '22'}" height="${isSelected ? '30' : '22'}" fill="${color}">
-                <path d="M12 2L4 19L12 16L20 19L12 2Z" />
-              </svg>
-            </div>
-            <div class="fr24-vessel-label ${isSelected ? 'show' : ''}">${vessel.name.split(' ')[0]}</div>
+      const el = document.createElement('div')
+      el.className = 'fr24-vessel-marker selected'
+      const color = selected.status === 'At Anchor' ? '#f59e0b' : '#38bdf8'
+      const label = String(selected.name || selected.mmsi || 'Ship').split(' ')[0]
+      el.innerHTML = `
+        <div class="fr24-vessel-container">
+          <div class="fr24-pulse-ring" style="border-color:${color};"></div>
+          <div class="fr24-ship-icon" style="transform: rotate(${selected.heading || 0}deg); filter: drop-shadow(0 0 12px ${color});">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="${color}">
+              <path d="M12 2L4 19L12 16L20 19L12 2Z" />
+            </svg>
           </div>
-        `
-
-        el.addEventListener('click', (e) => {
-          e.stopPropagation()
-          onVesselClickRef.current?.(vessel.id)
-        })
-
-        const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([projectedLon, projectedLat])
-          .addTo(map.current)
-
-        vesselMarkersRef.current.push(marker)
+          <div class="fr24-vessel-label show">${label}</div>
+        </div>
+      `
+      el.addEventListener('click', (e) => {
+        e.stopPropagation()
+        onVesselClickRef.current?.(selected.id)
       })
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat([selected.lon, selected.lat])
+        .addTo(map.current)
+      vesselMarkersRef.current.push(marker)
     }
 
     if (map.current.isStyleLoaded()) ready()
     else map.current.once('load', ready)
-  }, [vessels, selectedVessel, filterStatus, timeOffsetHours])
+  }, [vessels, selectedVessel, filterStatus, timeOffsetHours, vesselsToGeoJSON])
 
   // Marine Weather Layer
   useEffect(() => {
@@ -977,7 +1107,7 @@ export default function RouteMapPage() {
   const [selectedPort, setSelectedPort] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
-  const [showWeather, setShowWeather] = useState(true)
+  const [showWeather, setShowWeather] = useState(false)
   const [showAnchorageZones, setShowAnchorageZones] = useState(true)
   const [timeOffsetHours, setTimeOffsetHours] = useState(0) // Time Scrubbing Slider (+0h, +24h, +48h, +72h)
   const [isPlayingScrubber, setIsPlayingScrubber] = useState(false)
@@ -985,6 +1115,7 @@ export default function RouteMapPage() {
   const [rulerPoints, setRulerPoints] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [basemapStyleId, setBasemapStyleId] = useState('dark')
 
   // API State
   const [vessels, setVessels] = useState([])
@@ -1086,6 +1217,7 @@ export default function RouteMapPage() {
             rulerActive={rulerActive}
             rulerPoints={rulerPoints}
             onRulerClick={handleRulerClick}
+            basemapStyleId={basemapStyleId}
           />
         ) : (
           <div style={{ width: '100%', height: '100%', background: '#030a18' }}>
@@ -1163,6 +1295,19 @@ export default function RouteMapPage() {
             >
               {viewMode === 'map' ? <MdPublic size={18} /> : <MdMap size={18} />}
               <span>{viewMode === 'map' ? '3D Globe' : '2D Map'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const idx = MAP_STYLE_ORDER.indexOf(basemapStyleId)
+                const next = MAP_STYLE_ORDER[(idx + 1) % MAP_STYLE_ORDER.length]
+                setBasemapStyleId(next)
+              }}
+              className="hud-btn active"
+              title="Cycle basemap styles: Dark Matter → Positron → Voyager"
+            >
+              <MdLayers size={18} />
+              <span>{MAP_STYLES[basemapStyleId]?.label || 'Dark Matter'}</span>
             </button>
 
             <button

@@ -5,7 +5,7 @@ import {
   MdLocalGasStation, MdAttachMoney, MdMap, MdRefresh,
   MdShield, MdShowChart
 } from 'react-icons/md'
-import mapboxgl from '../lib/maplibre'
+import mapboxgl, { getMapStyle } from '../lib/maplibre'
 import {
   getDashboard,
   getMapIntelligence,
@@ -82,15 +82,14 @@ export default function DashboardPage() {
     if (!mapContainer.current) return
     if (mapInstance.current) return
 
-    // Using dark-matter carto style as it does not require a mapbox token
-    // and looks good in both dark and light mode as a map panel
+    // Carto Dark Matter via MapLibre — free, no Mapbox token
     const m = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: getMapStyle('dark').url,
       center: [85.0, 16.0],
       zoom: 3.8,
       projection: 'mercator',
-      attributionControl: false
+      attributionControl: true
     })
 
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: true }), 'top-right')

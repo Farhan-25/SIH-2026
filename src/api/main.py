@@ -71,13 +71,22 @@ commodity_tracker = CommodityPriceTracker()
 import asyncio
 @app.on_event("startup")
 async def startup_event():
-    # One-shot prune of any historically ballooned AIS table (was ~20k+)
+    # Clear ballooned AIS history, then stream only ROI port regions
     try:
-        kept = ais_tracker.db.prune_live_vessels(max_keep=120)
-        logger.info("Pruned vessels_live_tracking → %s rows", kept)
+        kept = ais_tracker.db.prune_live_vessels(max_keep=700)
+        logger.info("Pruned vessels_live_tracking → %s rows (India-heavy ROI cap)", kept)
     except Exception as e:
         logger.warning("Could not prune live vessels on startup: %s", e)
-    logger.info("Starting background AIS vessel tracker...")
+    # Drop stale congestion cache (old logic invented ship counts)
+    try:
+        conn = db_manager.get_connection()
+        conn.execute("DELETE FROM port_congestion_cache")
+        conn.commit()
+        conn.close()
+        logger.info("Cleared port_congestion_cache for live-AIS recount")
+    except Exception as e:
+        logger.warning("Could not clear congestion cache: %s", e)
+    logger.info("Starting multi-source AIS tracker (AISStream + Open Waters)...")
     asyncio.create_task(ais_tracker.start_background_vessel_tracker())
 
 # Initialize and load models
@@ -776,7 +785,7 @@ def get_dashboard_data():
     return result
 
 _MAP_INTEL_CACHE = {}
-_MAP_INTEL_CACHE_TTL = 300  # 5 minutes — was 1h and could serve stale 20k vessel payloads
+_MAP_INTEL_CACHE_TTL = 120  # short cache; fleet positions update over time
 
 @app.get("/api/v1/map-intelligence")
 def get_map_intelligence():
@@ -815,7 +824,7 @@ def get_map_intelligence():
     # ── 1. GFW Vessel Positions ──
     gfw_status = "offline"
     try:
-        vessels = gfw_client.get_live_cargo_vessels(limit=120)
+        vessels = gfw_client.get_live_cargo_vessels(limit=700)
         result["vessels"] = vessels
         gfw_status = "connected"
     except Exception as e:

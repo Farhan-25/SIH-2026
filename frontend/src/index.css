@@ -1300,7 +1300,15 @@ select.form-control {
   font-size: 10px !important;
 }
 .mapboxgl-ctrl-attrib,
-.maplibregl-ctrl-attrib { display: none !important; }
+.maplibregl-ctrl-attrib {
+  background: hsla(0, 0%, 6%, 0.72) !important;
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+  border-radius: 6px !important;
+  margin: 0 8px 8px 0 !important;
+}
+.mapboxgl-ctrl-attrib a,
+.maplibregl-ctrl-attrib a { color: #7dd3fc !important; }
 
 /* ============================================================
    FlightRadar24 Maritime Style Route Map Interface

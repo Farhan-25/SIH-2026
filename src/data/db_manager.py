@@ -9,7 +9,7 @@ import json
 import sqlite3
 import time
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 
@@ -939,6 +939,17 @@ class FreightDBManager:
         conn.commit()
         conn.close()
 
+    def prune_stale_live_vessels(self, max_age_minutes: int = 60) -> int:
+        """Delete vessels not updated recently. Returns remaining count."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cutoff = (datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)).isoformat()
+        cursor.execute("DELETE FROM vessels_live_tracking WHERE updated_at < ? OR updated_at IS NULL", (cutoff,))
+        conn.commit()
+        remaining = cursor.execute("SELECT COUNT(*) FROM vessels_live_tracking").fetchone()[0]
+        conn.close()
+        return int(remaining)
+
     def prune_live_vessels(self, max_keep: int = 150) -> int:
         """Trim vessels_live_tracking to the newest max_keep rows. Returns remaining count."""
         conn = self.get_connection()
@@ -988,6 +999,74 @@ class FreightDBManager:
                     "updated_at": row["updated_at"]
                 })
             return res
+        except Exception:
+            conn.close()
+            return []
+
+    # ── News Articles Cache ──
+    def save_news_articles(self, articles: List[Dict[str, Any]]):
+        """Upserts raw/processed maritime news headlines for cold-start cache."""
+        if not articles:
+            return
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for art in articles[:80]:
+            cursor.execute("""
+                INSERT INTO news_articles (
+                    article_id, title, source, description, published_at,
+                    sentiment, sentiment_score, primary_chokepoint, processed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(article_id) DO UPDATE SET
+                    title=excluded.title,
+                    source=excluded.source,
+                    description=excluded.description,
+                    published_at=excluded.published_at,
+                    sentiment=excluded.sentiment,
+                    sentiment_score=excluded.sentiment_score,
+                    primary_chokepoint=excluded.primary_chokepoint,
+                    processed_at=excluded.processed_at
+            """, (
+                art.get("id") or art.get("article_id"),
+                art.get("title"),
+                art.get("source"),
+                art.get("description"),
+                art.get("published_at"),
+                art.get("sentiment"),
+                art.get("sentiment_score"),
+                art.get("primary_chokepoint"),
+                art.get("processed_at") or now_iso,
+            ))
+        conn.commit()
+        conn.close()
+
+    def get_latest_news_articles(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Returns recently cached news articles (newest first)."""
+        conn = self.get_connection()
+        try:
+            lim = max(1, int(limit or 50))
+            df = pd.read_sql_query(
+                f"SELECT * FROM news_articles ORDER BY processed_at DESC LIMIT {lim}",
+                conn,
+            )
+            conn.close()
+            out = []
+            for _, row in df.iterrows():
+                out.append({
+                    "id": row["article_id"],
+                    "title": row["title"],
+                    "source": row["source"],
+                    "description": row["description"] or "",
+                    "raw_text": f"{row['title']}. {row['description'] or ''}",
+                    "published_at": row["published_at"],
+                    "sentiment": row["sentiment"],
+                    "sentiment_score": row["sentiment_score"],
+                    "primary_chokepoint": row["primary_chokepoint"],
+                    "processed_at": row["processed_at"],
+                    "url": "https://maritime-news.internal",
+                    "relevance_score": 0.5,
+                })
+            return out
         except Exception:
             conn.close()
             return []

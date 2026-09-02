@@ -18,7 +18,7 @@ function isTileOrMedia(url) {
   return (
     /\/(tiles?|styles?)\//i.test(url) ||
     /\.(pbf|glb|gltf|woff2?)$/i.test(url) ||
-    /basemaps\.cartocdn\.com|tile\.openstreetmap|demotiles\.maplibre/i.test(url)
+    /basemaps\.cartocdn\.com|tile\.openstreetmap|demotiles\.maplibre|tiles\.openfreemap\.org/i.test(url)
   )
 }
 
