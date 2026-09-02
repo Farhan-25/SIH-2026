@@ -164,7 +164,7 @@ export default function LoginPage({ onLogin }) {
               width: '100%',
               padding: '14px',
               background: 'var(--accent)',
-              color: 'var(--bg-primary)',
+              color: 'var(--text-inverse)',
               border: 'none',
               borderRadius: 'var(--radius-md)',
               fontSize: 'var(--font-size-md)',

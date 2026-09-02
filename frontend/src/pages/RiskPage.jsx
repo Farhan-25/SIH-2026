@@ -15,6 +15,7 @@ import {
   getGeopoliticalAlerts
 } from '../api/client'
 import { useUserProfile } from '../context/UserProfileContext'
+import { usePreferences } from '../context/PreferencesContext'
 
 /* Empty defaults — all data comes from live APIs */
 const EMPTY_RISK = {
@@ -52,6 +53,7 @@ function getChokepointBadge(level) {
 
 export default function RiskPage() {
   const { selectedPorts } = useUserProfile()
+  const { chartTick, chartGrid } = usePreferences()
   const [activeTab, setActiveTab] = useState('geopolitical') // 'geopolitical' | 'operational' | 'news'
   const [risk, setRisk] = useState(EMPTY_RISK)
   const [chokepoints, setChokepoints] = useState({})
@@ -457,10 +459,10 @@ export default function RiskPage() {
               layout={{
                 paper_bgcolor: 'transparent',
                 plot_bgcolor: 'transparent',
-                font: { family: 'Inter', color: 'hsl(0, 0%, 55%)', size: 10 },
+                font: { family: 'Inter', color: chartTick, size: 10 },
                 margin: { t: 10, r: 40, b: 30, l: 40 },
                 xaxis: { gridcolor: 'transparent' },
-                yaxis: { gridcolor: 'hsla(0, 0%, 20%, 0.2)', title: 'Sentiment Score [-1.0 to +1.0]', range: [-1, 1] },
+                yaxis: { gridcolor: chartGrid, title: 'Sentiment Score [-1.0 to +1.0]', range: [-1, 1] },
                 yaxis2: { title: 'Article Volume', overlaying: 'y', side: 'right', gridcolor: 'transparent' },
                 legend: { orientation: 'h', y: -0.15 },
                 showlegend: true,

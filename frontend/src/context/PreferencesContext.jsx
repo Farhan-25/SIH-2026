@@ -53,13 +53,17 @@ export function PreferencesProvider({ children }) {
       return `${meta.symbol}${formatted}${suffix}${showCode ? ` ${meta.code}` : ''}`
     }
 
+    const isLight = theme === 'light'
+
     return {
       theme,
       currency,
       currencySymbol: meta.symbol,
       currencyCode: meta.code,
       axisCurrencyPrefix: meta.symbol,
-      isLightMode: theme === 'light',
+      isLightMode: isLight,
+      chartTick: isLight ? 'hsl(220, 10%, 36%)' : 'hsl(0, 0%, 55%)',
+      chartGrid: isLight ? 'hsla(220, 12%, 20%, 0.1)' : 'hsla(0, 0%, 20%, 0.2)',
       toggleTheme: () => setTheme(current => current === 'dark' ? 'light' : 'dark'),
       toggleCurrency: () => setCurrency(current => current === 'USD' ? 'INR' : 'USD'),
       formatMoney,

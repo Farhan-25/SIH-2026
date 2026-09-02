@@ -4,6 +4,8 @@
 
 /* ----- Default (Dark Mode) ----- */
 :root {
+  color-scheme: dark;
+
   /* Background Scale — desaturated near-black */
   --bg-primary: hsl(0, 0%, 4%);
   --bg-secondary: hsl(0, 0%, 7%);
@@ -12,6 +14,8 @@
   --bg-elevated: hsla(0, 0%, 9%, 0.85);
   --bg-input: hsla(0, 0%, 11%, 0.6);
   --bg-sidebar: hsla(0, 0%, 5%, 0.95);
+  --bg-header: hsla(0, 0%, 5%, 0.88);
+  --bg-hover: hsla(0, 0%, 14%, 0.3);
 
   /* Accent — single cool cyan */
   --accent: hsl(192, 80%, 55%);
@@ -36,10 +40,15 @@
   --text-secondary: hsl(0, 0%, 55%);
   --text-muted: hsl(0, 0%, 38%);
   --text-inverse: hsl(0, 0%, 4%);
+  --text-main: var(--text-primary);
 
   /* Borders */
   --border-subtle: hsla(0, 0%, 20%, 0.4);
   --border-active: hsla(192, 80%, 55%, 0.4);
+  --border-color: var(--border-subtle);
+
+  --chart-tick: hsl(0, 0%, 55%);
+  --chart-grid: hsla(0, 0%, 20%, 0.2);
 
   /* Glass Effect */
   --glass-blur: 12px;
@@ -86,38 +95,47 @@
 
 /* ----- Light Mode Override ----- */
 :root[data-theme='light'] {
-  --bg-primary: hsl(0, 0%, 97%);
-  --bg-secondary: hsl(0, 0%, 93%);
-  --bg-card: hsla(0, 0%, 100%, 0.85);
-  --bg-card-hover: hsla(0, 0%, 100%, 0.95);
-  --bg-elevated: hsla(0, 0%, 100%, 0.94);
-  --bg-input: hsla(0, 0%, 98%, 0.9);
-  --bg-sidebar: hsla(0, 0%, 98%, 0.96);
-  
-  --accent: hsl(192, 80%, 40%);
-  --accent-dim: hsl(192, 60%, 25%);
-  --accent-glow: hsla(192, 80%, 40%, 0.15);
-  
+  color-scheme: light;
+
+  --bg-primary: hsl(220, 16%, 96%);
+  --bg-secondary: hsl(220, 14%, 93%);
+  --bg-card: hsl(0, 0%, 100%);
+  --bg-card-hover: hsl(220, 20%, 98%);
+  --bg-elevated: hsl(0, 0%, 100%);
+  --bg-input: hsl(220, 16%, 94%);
+  --bg-sidebar: hsl(0, 0%, 100%);
+  --bg-header: hsla(0, 0%, 100%, 0.88);
+  --bg-hover: hsla(220, 16%, 20%, 0.06);
+
+  --accent: hsl(192, 90%, 32%);
+  --accent-dim: hsl(192, 70%, 24%);
+  --accent-glow: hsla(192, 90%, 32%, 0.12);
+
   --accent-ocean: var(--accent);
   --accent-ocean-dim: var(--accent-dim);
   --accent-ocean-glow: var(--accent-glow);
   --accent-violet: var(--accent);
 
-  --accent-emerald: hsl(155, 70%, 35%);
-  --accent-emerald-dim: hsl(155, 55%, 25%);
-  --accent-amber: hsl(35, 95%, 45%);
-  --accent-amber-dim: hsl(35, 80%, 30%);
-  --accent-rose: hsl(0, 80%, 50%);
-  --accent-rose-dim: hsl(0, 65%, 35%);
+  --accent-emerald: hsl(155, 72%, 32%);
+  --accent-emerald-dim: hsl(155, 55%, 24%);
+  --accent-amber: hsl(32, 95%, 42%);
+  --accent-amber-dim: hsl(32, 80%, 32%);
+  --accent-rose: hsl(0, 78%, 46%);
+  --accent-rose-dim: hsl(0, 65%, 36%);
 
-  --text-primary: hsl(0, 0%, 10%);
-  --text-secondary: hsl(0, 0%, 38%);
-  --text-muted: hsl(0, 0%, 52%);
+  --text-primary: hsl(220, 16%, 12%);
+  --text-secondary: hsl(220, 10%, 36%);
+  --text-muted: hsl(220, 8%, 48%);
   --text-inverse: hsl(0, 0%, 100%);
-  
-  --border-subtle: hsla(0, 0%, 60%, 0.3);
-  --border-active: hsla(192, 80%, 42%, 0.45);
-  
-  --glass-border: 1px solid hsla(0, 0%, 60%, 0.2);
-  --glass-shadow: 0 1px 4px hsla(0, 0%, 0%, 0.08);
+  --text-main: var(--text-primary);
+
+  --border-subtle: hsl(220, 12%, 86%);
+  --border-active: hsla(192, 80%, 32%, 0.4);
+  --border-color: var(--border-subtle);
+
+  --chart-tick: hsl(220, 10%, 36%);
+  --chart-grid: hsla(220, 12%, 20%, 0.1);
+
+  --glass-border: 1px solid hsl(220, 12%, 88%);
+  --glass-shadow: 0 1px 2px hsla(220, 20%, 12%, 0.06), 0 8px 24px hsla(220, 16%, 12%, 0.06);
 }

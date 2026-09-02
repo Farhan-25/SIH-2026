@@ -194,7 +194,7 @@ export default function CopilotPage() {
                     borderRadius: isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
                     padding: '14px 18px',
                     color: isUser ? '#ffffff' : 'var(--text-primary)',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+                    boxShadow: 'var(--glass-shadow)',
                     lineHeight: 1.6,
                     fontSize: '0.9rem',
                     whiteSpace: 'pre-line'
