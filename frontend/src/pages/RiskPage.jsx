@@ -14,95 +14,27 @@ import {
   getChokepointRisks,
   getGeopoliticalAlerts
 } from '../api/client'
+import { useUserProfile } from '../context/UserProfileContext'
 
-const DEMO_RISK = {
-  composite_risk_score: 42.5,
-  risk_level: 'Medium',
-  origin_port_congestion: {
-    port_id: 'newcastle',
-    port_name: 'Newcastle (AU)',
-    congestion_index: 28,
-    anchored_vessels_count: 6,
-    estimated_waiting_days: 1.5,
-  },
-  destination_port_congestion: {
-    port_id: 'paradip',
-    port_name: 'Paradip',
-    congestion_index: 55,
-    anchored_vessels_count: 14,
-    estimated_waiting_days: 4.8,
-  },
-  marine_weather_conditions: {
-    wave_height_m: 2.1,
-    wind_speed_kmh: 28,
-    wind_direction: 'SSW',
-    sea_condition: 'Moderate',
-    sea_condition_risk_score: 0.35,
-  },
-  active_alerts: [
-    { severity: 'WARNING', category: 'Port Congestion', message: 'Paradip: 14 vessels at anchorage, ~4.8 days waiting. Consider Dhamra as alternative.' },
-    { severity: 'CRITICAL', category: 'Marine Weather', message: 'Cyclonic depression forming in Bay of Bengal (15°N, 88°E). Expect route delays Oct 28-31.' },
-    { severity: 'INFO', category: 'Market Volatility', message: 'BDI dropped 3.2% this week. Freight rate volatility at 12.5% — above 30-day average.' },
-    { severity: 'SUCCESS', category: 'Route Status', message: 'Strait of Malacca: Normal traffic flow. No piracy or weather alerts.' },
-  ],
+/* Empty defaults — all data comes from live APIs */
+const EMPTY_RISK = {
+  composite_risk_score: null,
+  risk_level: null,
+  origin_port_congestion: {},
+  destination_port_congestion: {},
+  marine_weather_conditions: {},
+  active_alerts: [],
 }
 
-const DEMO_CHOKEPOINTS = {
-  red_sea: {
-    chokepoint_key: 'red_sea',
-    name: 'Red Sea / Bab el-Mandeb',
-    risk_score: 0.88,
-    risk_level: 'CRITICAL',
-    components: { event_severity: 0.92, news_volume_anomaly: 0.88, negative_sentiment: 0.89, recency_score: 0.95 },
-    volume_stats: { current_articles_24h: 42, baseline_articles_24h: 12.0, increase_pct: 250, z_score: 3.42 },
-    detected_events: ['SECURITY_ATTACK', 'VESSEL_DIVERSION'],
-    matched_article_count: 4
-  },
-  suez_canal: {
-    chokepoint_key: 'suez_canal',
-    name: 'Suez Canal',
-    risk_score: 0.76,
-    risk_level: 'CRITICAL',
-    components: { event_severity: 0.80, news_volume_anomaly: 0.72, negative_sentiment: 0.84, recency_score: 0.90 },
-    volume_stats: { current_articles_24h: 28, baseline_articles_24h: 8.0, increase_pct: 250, z_score: 2.85 },
-    detected_events: ['CANAL_DISRUPTION', 'INSURANCE_RISK'],
-    matched_article_count: 3
-  },
-  malacca_strait: {
-    chokepoint_key: 'malacca_strait',
-    name: 'Strait of Malacca',
-    risk_score: 0.32,
-    risk_level: 'MODERATE',
-    components: { event_severity: 0.45, news_volume_anomaly: 0.35, negative_sentiment: 0.40, recency_score: 0.75 },
-    volume_stats: { current_articles_24h: 18, baseline_articles_24h: 15.0, increase_pct: 20, z_score: 0.45 },
-    detected_events: ['WEATHER', 'PORT_CONGESTION'],
-    matched_article_count: 2
-  },
-  panama_canal: {
-    chokepoint_key: 'panama_canal',
-    name: 'Panama Canal',
-    risk_score: 0.22,
-    risk_level: 'LOW',
-    components: { event_severity: 0.15, news_volume_anomaly: 0.20, negative_sentiment: 0.15, recency_score: 0.60 },
-    volume_stats: { current_articles_24h: 8, baseline_articles_24h: 6.0, increase_pct: 33, z_score: 0.33 },
-    detected_events: ['MARKET_EXPANSION'],
-    matched_article_count: 1
-  }
-}
-
-const DEMO_SENTIMENT = {
-  current_score: -0.42,
-  sentiment_label: 'Negative',
-  trend: 'down',
-  positive_pct: 18,
-  neutral_pct: 22,
-  negative_pct: 60,
-  total_articles_analyzed: 12,
-  historical_timeline: Array.from({ length: 14 }, (_, i) => ({
-    date: `Day ${i + 1}`,
-    sentiment_score: -0.15 - (i * 0.02) + (Math.sin(i) * 0.05),
-    news_volume: 12 + Math.floor(Math.random() * 20)
-  }))
+const EMPTY_SENTIMENT = {
+  current_score: null,
+  sentiment_label: null,
+  trend: null,
+  positive_pct: null,
+  neutral_pct: null,
+  negative_pct: null,
+  total_articles_analyzed: 0,
+  historical_timeline: []
 }
 
 function riskColor(score) {
@@ -119,10 +51,11 @@ function getChokepointBadge(level) {
 }
 
 export default function RiskPage() {
+  const { selectedPorts } = useUserProfile()
   const [activeTab, setActiveTab] = useState('geopolitical') // 'geopolitical' | 'operational' | 'news'
-  const [risk, setRisk] = useState(DEMO_RISK)
-  const [chokepoints, setChokepoints] = useState(DEMO_CHOKEPOINTS)
-  const [sentiment, setSentiment] = useState(DEMO_SENTIMENT)
+  const [risk, setRisk] = useState(EMPTY_RISK)
+  const [chokepoints, setChokepoints] = useState({})
+  const [sentiment, setSentiment] = useState(EMPTY_SENTIMENT)
   const [geoAlerts, setGeoAlerts] = useState([])
   const [articles, setArticles] = useState([])
   const [newsFilter, setNewsFilter] = useState('all')
@@ -385,25 +318,25 @@ export default function RiskPage() {
               <div style={{ background: 'var(--bg-secondary)', padding: '10px', borderRadius: 8 }}>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>red_sea_risk</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-rose)' }}>
-                  {chokepoints.red_sea?.risk_score || 0.88}
+                  {chokepoints.red_sea?.risk_score ?? '—'}
                 </div>
               </div>
               <div style={{ background: 'var(--bg-secondary)', padding: '10px', borderRadius: 8 }}>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>suez_risk</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-rose)' }}>
-                  {chokepoints.suez_canal?.risk_score || 0.76}
+                  {chokepoints.suez_canal?.risk_score ?? '—'}
                 </div>
               </div>
               <div style={{ background: 'var(--bg-secondary)', padding: '10px', borderRadius: 8 }}>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>news_volume_zscore</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-amber)' }}>
-                  +{chokepoints.red_sea?.volume_stats?.z_score || 3.4}
+                  {chokepoints.red_sea?.volume_stats?.z_score != null ? `+${chokepoints.red_sea.volume_stats.z_score}` : '—'}
                 </div>
               </div>
               <div style={{ background: 'var(--bg-secondary)', padding: '10px', borderRadius: 8 }}>
                 <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>geopolitical_shock</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-rose)' }}>
-                  ACTIVE (1)
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: geoAlerts.length > 0 ? 'var(--accent-rose)' : 'var(--accent-emerald)' }}>
+                  {geoAlerts.length > 0 ? `ACTIVE (${geoAlerts.length})` : 'NONE'}
                 </div>
               </div>
             </div>
@@ -679,25 +612,25 @@ export default function RiskPage() {
 
             <div className="glass-card kpi-card amber">
               <div className="kpi-icon"><MdAnchor /></div>
-              <div className="kpi-value">{risk.destination_port_congestion?.anchored_vessels_count || 14}</div>
-              <div className="kpi-label">Vessels at Anchor ({risk.destination_port_congestion?.port_name || 'Paradip'})</div>
-              <span className="kpi-trend down">~{risk.destination_port_congestion?.estimated_waiting_days || 4.8}d wait</span>
+              <div className="kpi-value">{risk.destination_port_congestion?.anchored_vessels_count ?? '—'}</div>
+              <div className="kpi-label">Vessels at Anchor ({risk.destination_port_congestion?.port_name || '—'})</div>
+              <span className="kpi-trend down">~{risk.destination_port_congestion?.estimated_waiting_days ?? '—'}d wait</span>
             </div>
 
             <div className="glass-card kpi-card ocean">
               <div className="kpi-icon"><MdWaves /></div>
-              <div className="kpi-value">{risk.marine_weather_conditions?.wave_height_m || 2.1}m</div>
+              <div className="kpi-value">{risk.marine_weather_conditions?.wave_height_m ?? '—'}m</div>
               <div className="kpi-label">Wave Height (Bay of Bengal)</div>
               <span className={`kpi-trend ${risk.marine_weather_conditions?.sea_condition_risk_score > 0.4 ? 'down' : 'up'}`}>
-                {risk.marine_weather_conditions?.sea_condition || 'Moderate'}
+                {risk.marine_weather_conditions?.sea_condition || '—'}
               </span>
             </div>
 
             <div className="glass-card kpi-card ocean">
               <div className="kpi-icon"><MdTrendingUp /></div>
-              <div className="kpi-value">12.5%</div>
+              <div className="kpi-value">{sentiment.volatility_pct != null ? `${sentiment.volatility_pct}%` : '—'}</div>
               <div className="kpi-label">Freight Rate Volatility (30d)</div>
-              <span className="kpi-trend down">Above average</span>
+              <span className="kpi-trend down">{sentiment.volatility_pct != null && sentiment.volatility_pct > 10 ? 'Above average' : '—'}</span>
             </div>
           </div>
 

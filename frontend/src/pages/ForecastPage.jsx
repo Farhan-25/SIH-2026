@@ -17,6 +17,7 @@ import {
 } from 'react-icons/md'
 import { getForecast, getRoutes } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
+import { useUserProfile } from '../context/UserProfileContext'
 
 const FEATURE_NAME_MAP = {
   target_lag_1: { name: 'Prior Week Freight Rate', direction: '↑ Spot rate momentum & market inertia' },
@@ -70,7 +71,8 @@ const MODEL_MODES = [
 
 export default function ForecastPage() {
   const { currencyCode, axisCurrencyPrefix, formatMoney, convertMoney } = usePreferences()
-  const [routes, setRoutes] = useState(BASELINE_ROUTES)
+  const { filterRoutes, selectedRoutes: profileRoutes } = useUserProfile()
+  const [routes, setRoutes] = useState(() => filterRoutes(BASELINE_ROUTES))
   const [route, setRoute] = useState('AU_NEW_TO_IN_PRT')
   const [vesselClass, setVesselClass] = useState('Panamax')
   const [allowedVessels, setAllowedVessels] = useState(ALL_VESSEL_CLASSES)
@@ -123,8 +125,9 @@ export default function ForecastPage() {
             label: `${r.origin_name || r.origin_port} → ${r.destination_name || r.destination_port} (${r.primary_cargo || 'Bulk Coal'})`,
             typical_vessel_classes: r.typical_vessel_classes || ALL_VESSEL_CLASSES,
           }))
-          setRoutes(parsed)
-          setRoute(prev => parsed.some(p => p.id === prev) ? prev : parsed[0].id)
+          const filtered = filterRoutes(parsed)
+          setRoutes(filtered.length > 0 ? filtered : parsed)
+          setRoute(prev => (filtered.length > 0 ? filtered : parsed).some(p => p.id === prev) ? prev : (filtered.length > 0 ? filtered : parsed)[0].id)
         }
       } catch (err) {
         console.error('Failed to load trade routes:', err)
@@ -168,7 +171,7 @@ export default function ForecastPage() {
         let dates = []
         let hist = []
 
-        const baseRate = result.latest_actual_rate_usd_per_mt || payload.predictions_usd_per_mt[0] || 16.5
+        const baseRate = result.latest_actual_rate_usd_per_mt || payload.predictions_usd_per_mt[0] || 0
 
         // Use real historical timeseries from unified dataset if available
         if (result.historical_dates && result.historical_dates.length > 0) {
@@ -226,11 +229,11 @@ export default function ForecastPage() {
         // Update model evaluation metrics
         if (payload.evaluation_metrics) {
           setMetrics({
-            mape_pct: payload.evaluation_metrics.mape_pct ?? 3.90,
-            rmse_usd: payload.evaluation_metrics.rmse_usd ?? 2.85,
-            mae_usd: payload.evaluation_metrics.mae_usd ?? 1.54,
-            r2_score: payload.evaluation_metrics.r2_score ?? 0.9461,
-            mda_pct: payload.evaluation_metrics.mda_pct ?? 82.4,
+            mape_pct: payload.evaluation_metrics.mape_pct ?? null,
+            rmse_usd: payload.evaluation_metrics.rmse_usd ?? null,
+            mae_usd: payload.evaluation_metrics.mae_usd ?? null,
+            r2_score: payload.evaluation_metrics.r2_score ?? null,
+            mda_pct: payload.evaluation_metrics.mda_pct ?? null,
           })
         }
 
@@ -545,7 +548,7 @@ export default function ForecastPage() {
               Current Spot Rate
             </div>
             <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 800, color: 'var(--text-main)', marginTop: 2 }}>
-              {formatMoney(forecast.currentRate || 16.5)}
+              {forecast.currentRate ? formatMoney(forecast.currentRate) : '—'}
               <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500, color: 'var(--text-muted)' }}> / MT</span>
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--accent-emerald)', marginTop: 2 }}>
@@ -558,7 +561,7 @@ export default function ForecastPage() {
               {horizon}-Week Projected Rate
             </div>
             <div style={{ fontSize: 'var(--font-size-2xl)', fontWeight: 800, color: 'var(--accent-ocean)', marginTop: 2 }}>
-              {formatMoney(finalRate || 17.8)}
+              {finalRate ? formatMoney(finalRate) : '—'}
               <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500, color: 'var(--text-muted)' }}> / MT</span>
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: rateDiff >= 0 ? 'var(--accent-amber)' : 'var(--accent-emerald)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
@@ -584,7 +587,7 @@ export default function ForecastPage() {
               Confidence & Cost Impact
             </div>
             <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent)', marginTop: 2 }}>
-              {marketTiming.confidence_pct ? `${marketTiming.confidence_pct.toFixed(0)}%` : '85%'} Confidence
+              {marketTiming.confidence_pct ? `${marketTiming.confidence_pct.toFixed(0)}%` : '—'} Confidence
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
               {marketTiming.estimated_cost_savings_usd > 0
@@ -671,20 +674,20 @@ export default function ForecastPage() {
               </div>
 
               <div style={{ display: 'flex', height: 12, borderRadius: 'var(--radius-full)', overflow: 'hidden', marginBottom: 'var(--space-sm)' }}>
-                <div style={{ width: `${(modelWeights.xgboost || 0.45) * 100}%`, background: 'var(--accent-emerald)' }} title="XGBoost" />
-                <div style={{ width: `${(modelWeights.lightgbm || 0.45) * 100}%`, background: 'var(--accent-amber)' }} title="LightGBM" />
-                <div style={{ width: `${(modelWeights.elasticnet || 0.10) * 100}%`, background: 'var(--accent-ocean)' }} title="ElasticNet" />
+                <div style={{ width: `${(modelWeights.xgboost || 0) * 100}%`, background: 'var(--accent-emerald)' }} title="XGBoost" />
+                <div style={{ width: `${(modelWeights.lightgbm || 0) * 100}%`, background: 'var(--accent-amber)' }} title="LightGBM" />
+                <div style={{ width: `${(modelWeights.elasticnet || 0) * 100}%`, background: 'var(--accent-ocean)' }} title="ElasticNet" />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-size-xs)' }}>
                 <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>
-                  ● XGBoost: {((modelWeights.xgboost || 0.45) * 100).toFixed(1)}%
+                  ● XGBoost: {((modelWeights.xgboost || 0) * 100).toFixed(1)}%
                 </span>
                 <span style={{ color: 'var(--accent-amber)', fontWeight: 600 }}>
-                  ● LightGBM: {((modelWeights.lightgbm || 0.45) * 100).toFixed(1)}%
+                  ● LightGBM: {((modelWeights.lightgbm || 0) * 100).toFixed(1)}%
                 </span>
                 <span style={{ color: 'var(--accent-ocean)', fontWeight: 600 }}>
-                  ● ElasticNet: {((modelWeights.elasticnet || 0.10) * 100).toFixed(1)}%
+                  ● ElasticNet: {((modelWeights.elasticnet || 0) * 100).toFixed(1)}%
                 </span>
               </div>
             </div>

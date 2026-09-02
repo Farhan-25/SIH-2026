@@ -7,6 +7,7 @@ import {
 } from 'react-icons/md'
 import { getVesselRecommendation, getPorts } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
+import { useUserProfile } from '../context/UserProfileContext'
 
 const BASELINE_ORIGINS = [
   { id: 'AU_NEW', label: 'Newcastle (Australia)' },
@@ -31,8 +32,9 @@ const BASELINE_DESTINATIONS = [
 
 export default function VesselPage() {
   const { axisCurrencyPrefix, formatMoney, convertMoney } = usePreferences()
+  const { isPortSelected } = useUserProfile()
   const [origins, setOrigins] = useState(BASELINE_ORIGINS)
-  const [destinations, setDestinations] = useState(BASELINE_DESTINATIONS)
+  const [destinations, setDestinations] = useState(() => BASELINE_DESTINATIONS.filter(d => isPortSelected(d.id)))
   const [origin, setOrigin] = useState('AU_NEW')
   const [dest, setDest] = useState('IN_PRT')
   const [cargo, setCargo] = useState('75000')
@@ -69,8 +71,10 @@ export default function VesselPage() {
         }
 
         if (parsedDestinations.length > 0) {
-          setDestinations(parsedDestinations)
-          setDest(prev => parsedDestinations.some(d => d.id === prev) ? prev : parsedDestinations[0].id)
+          const filtered = parsedDestinations.filter(d => isPortSelected(d.id))
+          const finalDests = filtered.length > 0 ? filtered : parsedDestinations
+          setDestinations(finalDests)
+          setDest(prev => finalDests.some(d => d.id === prev) ? prev : finalDests[0].id)
         }
       } catch (err) {
         console.warn('Port master dynamic load notice (using verified baselines):', err)

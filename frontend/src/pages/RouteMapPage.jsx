@@ -14,6 +14,7 @@ import { OrbitControls, Tube } from '@react-three/drei'
 import * as THREE from 'three'
 import { getMapIntelligence } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
+import { useUserProfile } from '../context/UserProfileContext'
 
 /* ────────────────────────────────────────────────────────────
    Helper utilities
@@ -930,8 +931,8 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
                 {isHaldiaLighterage
                   ? '⚠️ Mandatory lighterage transfer required at Sagar Anchorage before entering Haldia dock basin.'
                   : isDraftFeasible
-                  ? `Vessel draft of ${vesselDraft}m satisfies the tidal draft clearance at ${destName}.`
-                  : `Vessel requires partial deballasting or lightering.`}
+                    ? `Vessel draft of ${vesselDraft}m satisfies the tidal draft clearance at ${destName}.`
+                    : `Vessel requires partial deballasting or lightering.`}
               </p>
             </div>
           </motion.div>
@@ -1102,6 +1103,7 @@ function GlobeScene({ indianPorts, globalPorts, routes, vessels }) {
    Main RouteMapPage Component
    ──────────────────────────────────────────────────────────── */
 export default function RouteMapPage() {
+  const { isPortSelected, isRouteSelected } = useUserProfile()
   const [viewMode, setViewMode] = useState('map')
   const [selectedVessel, setSelectedVessel] = useState(null)
   const [selectedPort, setSelectedPort] = useState(null)
@@ -1129,9 +1131,30 @@ export default function RouteMapPage() {
     try {
       if (isInitial) setLoading(true)
       const data = await getMapIntelligence()
-      if (data?.vessels?.length) setVessels(data.vessels)
-      if (data?.ports?.indian?.length) setIndianPorts(data.ports.indian)
+      
+      let selectedIndPorts = []
+      if (data?.ports?.indian?.length) {
+        selectedIndPorts = data.ports.indian.filter(p => isPortSelected(p.port_id || p.id))
+        setIndianPorts(selectedIndPorts)
+      }
       if (data?.ports?.global?.length) setGlobalPorts(data.ports.global)
+      
+      if (data?.vessels?.length) {
+        // Filter vessels based on marked Indian ports
+        let finalVessels = data.vessels
+        if (selectedIndPorts.length > 0) {
+          finalVessels = finalVessels.filter(v => 
+            selectedIndPorts.some(p => {
+              const portName = p.name?.toLowerCase() || ''
+              const vDest = v.dest?.toLowerCase()?.split(' ')[0]
+              const vOrigin = v.origin?.toLowerCase()?.split(' ')[0]
+              return (vDest && portName.includes(vDest)) || (vOrigin && portName.includes(vOrigin))
+            })
+          )
+        }
+        setVessels(finalVessels)
+      }
+      
       if (data?.route_risks?.length) setRoutes(data.route_risks)
       if (data?.marine_weather?.length) setWeatherData(data.marine_weather)
       if (data?.api_status) setApiStatus(data.api_status)
@@ -1142,7 +1165,7 @@ export default function RouteMapPage() {
     } finally {
       if (isInitial) setLoading(false)
     }
-  }, [])
+  }, [isPortSelected])
 
   useEffect(() => {
     fetchMapIntelligence(true)
