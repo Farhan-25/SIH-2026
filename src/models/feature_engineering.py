@@ -23,6 +23,33 @@ class FreightFeatureEngineer:
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values(by=["route_id", "vessel_class", "date"]).reset_index(drop=True)
 
+        # Normalize synthesizer / legacy column names
+        aliases = {
+            "vlsfo_bunker_price": ["vlsfo_bunker_price", "bunker_price_vlsfo_usd", "vlsfo_bunker_singapore_usd_per_t"],
+            "coal_benchmark_price": ["coal_benchmark_price", "coal_price_newcastle_usd", "coal_newcastle_usd_per_t"],
+            "iron_ore_price": ["iron_ore_price", "iron_ore_price_usd", "iron_ore_62pct_usd_per_t"],
+            "coking_coal_price": ["coking_coal_price", "coking_coal_usd_per_t", "coal_price_newcastle_usd"],
+            "sailing_days_one_way": ["sailing_days_one_way", "total_voyage_days"],
+        }
+        for canonical, candidates in aliases.items():
+            if canonical in df.columns:
+                continue
+            for c in candidates:
+                if c in df.columns:
+                    df[canonical] = df[c]
+                    break
+            if canonical not in df.columns:
+                df[canonical] = 0.0
+
+        if "congestion_index" not in df.columns:
+            if "port_turnaround_days" in df.columns:
+                df["congestion_index"] = (df["port_turnaround_days"] * 12.0).clip(10, 100)
+            else:
+                df["congestion_index"] = 25.0
+
+        if "monsoon_flag" not in df.columns:
+            df["monsoon_flag"] = df["date"].dt.month.isin([6, 7, 8, 9]).astype(float)
+
         feature_dfs = []
         for (route, vclass), group in df.groupby(["route_id", "vessel_class"]):
             group = group.copy().sort_values("date")
