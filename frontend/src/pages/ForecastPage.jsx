@@ -70,7 +70,7 @@ const MODEL_MODES = [
 ]
 
 export default function ForecastPage() {
-  const { currencyCode, axisCurrencyPrefix, formatMoney, convertMoney } = usePreferences()
+  const { currencyCode, axisCurrencyPrefix, formatMoney, convertMoney, chartTick, chartGrid } = usePreferences()
   const { filterRoutes, selectedRoutes: profileRoutes } = useUserProfile()
   const [routes, setRoutes] = useState(() => filterRoutes(BASELINE_ROUTES))
   const [route, setRoute] = useState('AU_NEW_TO_IN_PRT')
@@ -371,15 +371,15 @@ export default function ForecastPage() {
   const plotLayout = {
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
-    font: { family: 'Inter, sans-serif', color: 'hsl(0, 0%, 55%)', size: 11 },
+    font: { family: 'Inter, sans-serif', color: chartTick, size: 11 },
     margin: { t: 30, r: 30, b: 50, l: 60 },
     xaxis: {
-      gridcolor: 'hsla(0, 0%, 20%, 0.2)',
+      gridcolor: chartGrid,
       tickformat: '%b %Y',
       title: { text: '' },
     },
     yaxis: {
-      gridcolor: 'hsla(0, 0%, 20%, 0.2)',
+      gridcolor: chartGrid,
       title: { text: `Freight Rate (${currencyCode} / Metric Tonne)`, font: { size: 12 } },
       tickprefix: axisCurrencyPrefix,
     },
@@ -539,7 +539,7 @@ export default function ForecastPage() {
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
             gap: 'var(--space-md)',
-            background: 'hsla(0, 0%, 8%, 0.7)',
+            background: 'var(--bg-elevated)',
             borderLeft: '4px solid var(--accent-ocean)',
           }}
         >
@@ -730,7 +730,7 @@ export default function ForecastPage() {
                         <tr
                           key={i}
                           style={{
-                            borderBottom: '1px solid hsla(0, 0%, 20%, 0.15)',
+                            borderBottom: '1px solid var(--border-subtle)',
                             background: arch.isPrimary ? 'hsla(200, 85%, 55%, 0.06)' : 'transparent',
                           }}
                         >

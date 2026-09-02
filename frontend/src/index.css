@@ -48,11 +48,11 @@ body::before {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsla(0, 0%, 30%, 0.4);
+  background: var(--border-subtle);
   border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: hsla(0, 0%, 40%, 0.5);
+  background: var(--text-muted);
 }
 
 /* ----- Layout & Collapsible Sidebar ----- */
@@ -96,7 +96,7 @@ body::before {
   cursor: pointer;
   transition: all var(--transition-fast);
   margin-right: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  box-shadow: var(--glass-shadow);
 }
 
 .cascade-sidebar-toggle:hover {
@@ -304,7 +304,7 @@ body::before {
   left: var(--sidebar-width);
   right: 0;
   height: var(--header-height);
-  background: hsla(0, 0%, 5%, 0.88);
+  background: var(--bg-header);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
@@ -408,7 +408,7 @@ body::before {
 }
 .btn-ghost:hover {
   color: var(--text-primary);
-  background: hsla(0, 0%, 22%, 0.25);
+  background: var(--bg-hover);
 }
 
 /* ----- Form Controls ----- */
@@ -482,7 +482,7 @@ select.form-control {
   font-weight: 600;
 }
 .data-table tr:hover td {
-  background: hsla(0, 0%, 14%, 0.3);
+  background: var(--bg-hover);
 }
 
 /* ----- Alert Cards ----- */
@@ -649,6 +649,19 @@ select.form-control {
   background: var(--bg-primary);
   color: var(--text-primary);
   overflow-x: hidden;
+  /* Cinematic video landing stays dark regardless of app theme */
+  --bg-primary: hsl(0, 0%, 4%);
+  --text-primary: hsl(0, 0%, 95%);
+  --text-secondary: hsl(0, 0%, 70%);
+  --text-muted: hsl(0, 0%, 55%);
+  --text-inverse: hsl(0, 0%, 4%);
+  --bg-card: hsla(0, 0%, 10%, 0.7);
+  --bg-card-hover: hsla(0, 0%, 13%, 0.8);
+  --bg-input: hsla(0, 0%, 11%, 0.6);
+  --bg-elevated: hsla(0, 0%, 9%, 0.85);
+  --border-subtle: hsla(0, 0%, 20%, 0.4);
+  --glass-border: 1px solid hsla(0, 0%, 22%, 0.25);
+  --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* ──── Navbar ──── */
@@ -2280,7 +2293,7 @@ select.form-control {
   padding: 10px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
-  background: linear-gradient(180deg, hsla(0, 0%, 12%, 0.9), hsla(0, 0%, 8%, 0.75));
+  background: var(--bg-secondary);
 }
 
 .cc-tick {
@@ -2289,7 +2302,7 @@ select.form-control {
   gap: 2px;
   padding: 8px 10px;
   border-radius: var(--radius-md);
-  background: hsla(0, 0%, 100%, 0.02);
+  background: var(--bg-hover);
   min-width: 0;
 }
 .cc-tick.danger {
@@ -2480,7 +2493,7 @@ select.form-control {
   gap: 10px;
   padding: 6px 10px;
   border-radius: var(--radius-md);
-  background: hsla(0, 0%, 5%, 0.82);
+  background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   font-size: 0.65rem;
   color: var(--text-secondary);
@@ -2570,10 +2583,10 @@ select.form-control {
   flex-direction: column;
   padding: 16px;
   border-radius: var(--radius-xl);
-  background: hsla(0, 0%, 5%, 0.96);
-  border: 1px solid hsla(192, 80%, 55%, 0.3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
   backdrop-filter: blur(20px);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+  box-shadow: var(--glass-shadow);
   overflow-y: auto;
 }
 .app-layout.sidebar-collapsed .vessel-side-panel {

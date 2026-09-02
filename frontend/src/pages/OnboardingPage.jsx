@@ -202,7 +202,7 @@ export default function OnboardingPage({ onComplete }) {
               onClick={() => handlePortToggle(port.id)}
             >
               <div style={checkboxStyle(sel)}>
-                {sel && <MdCheckCircle size={14} color="var(--bg-primary)" />}
+                {sel && <MdCheckCircle size={14} color="var(--text-inverse)" />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 'var(--font-size-md)', color: 'var(--text-primary)', marginBottom: 2 }}>{port.name}</div>
@@ -257,7 +257,7 @@ export default function OnboardingPage({ onComplete }) {
               onClick={() => handleRouteToggle(route.id)}
             >
               <div style={checkboxStyle(sel)}>
-                {sel && <MdCheckCircle size={14} color="var(--bg-primary)" />}
+                {sel && <MdCheckCircle size={14} color="var(--text-inverse)" />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)', marginBottom: 3 }}>
@@ -298,7 +298,7 @@ export default function OnboardingPage({ onComplete }) {
               onClick={() => handleCargoToggle(cargo)}
             >
               <div style={checkboxStyle(sel)}>
-                {sel && <MdCheckCircle size={14} color="var(--bg-primary)" />}
+                {sel && <MdCheckCircle size={14} color="var(--text-inverse)" />}
               </div>
               <span style={{ fontWeight: 500, fontSize: 'var(--font-size-md)', color: 'var(--text-primary)' }}>{cargo}</span>
             </motion.div>
@@ -397,7 +397,7 @@ export default function OnboardingPage({ onComplete }) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 'var(--font-size-sm)', fontWeight: 700,
                     background: isActive ? 'var(--accent)' : isDone ? 'var(--accent-emerald)' : 'var(--bg-elevated)',
-                    color: isActive || isDone ? 'var(--bg-primary)' : 'var(--text-muted)',
+                    color: isActive || isDone ? 'var(--text-inverse)' : 'var(--text-muted)',
                     transition: 'all var(--transition-base)',
                   }}>
                     {isDone ? <MdCheckCircle size={16} /> : i + 1}
@@ -491,7 +491,7 @@ export default function OnboardingPage({ onComplete }) {
                 background: canProceed() ? 'var(--accent)' : 'var(--bg-elevated)',
                 border: 'none',
                 borderRadius: 'var(--radius-md)',
-                color: canProceed() ? 'var(--bg-primary)' : 'var(--text-muted)',
+                color: canProceed() ? 'var(--text-inverse)' : 'var(--text-muted)',
                 padding: '10px 24px', fontSize: 'var(--font-size-sm)',
                 cursor: canProceed() ? 'pointer' : 'not-allowed',
                 display: 'flex', alignItems: 'center', gap: 6,

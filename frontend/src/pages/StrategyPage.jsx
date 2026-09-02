@@ -25,7 +25,7 @@ const DEFAULT_TIMING = {
 }
 
 export default function StrategyPage() {
-  const { axisCurrencyPrefix, formatMoney, convertMoney } = usePreferences()
+  const { axisCurrencyPrefix, formatMoney, convertMoney, chartTick, chartGrid } = usePreferences()
   const { selectedRoutes } = useUserProfile()
   const defaultRoute = selectedRoutes.length > 0 ? selectedRoutes[0] : 'AU_NEW_TO_IN_PRT'
   const [timing, setTiming] = useState(DEFAULT_TIMING)
@@ -183,10 +183,10 @@ export default function StrategyPage() {
             layout={{
               paper_bgcolor: 'transparent',
               plot_bgcolor: 'transparent',
-              font: { family: 'Inter', color: 'hsl(0, 0%, 55%)', size: 11 },
+              font: { family: 'Inter', color: chartTick, size: 11 },
               margin: { t: 20, r: 20, b: 40, l: 50 },
               xaxis: { gridcolor: 'transparent', title: 'Forward Tenor' },
-              yaxis: { gridcolor: 'hsla(0, 0%, 20%, 0.2)', tickprefix: axisCurrencyPrefix, title: `${axisCurrencyPrefix}/MT` },
+              yaxis: { gridcolor: chartGrid, tickprefix: axisCurrencyPrefix, title: `${axisCurrencyPrefix}/MT` },
               legend: { orientation: 'h', y: -0.2, font: { size: 10 } },
               showlegend: true,
             }}
