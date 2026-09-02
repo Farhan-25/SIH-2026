@@ -5,8 +5,7 @@ import {
   MdLocalGasStation, MdAttachMoney, MdMap, MdRefresh,
   MdShield, MdShowChart
 } from 'react-icons/md'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import mapboxgl, { getMapStyle } from '../lib/maplibre'
 import {
   getDashboard,
   getMapIntelligence,
@@ -15,8 +14,6 @@ import {
 } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
 import { useUserProfile } from '../context/UserProfileContext'
-
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || ''
 
 function formatNumber(val, decimals = 2) {
   if (val === undefined || val === null || isNaN(val)) return '—'
@@ -39,21 +36,33 @@ export default function DashboardPage() {
   const mapInstance = useRef(null)
   const markersRef = useRef([])
 
-  // Ingest data streams
+  // Ingest data streams — show UI as soon as dashboard KPIs arrive; fill the rest in parallel
   useEffect(() => {
+    let cancelled = false
     setLoading(true)
+
+    getDashboard()
+      .then((dash) => {
+        if (cancelled) return
+        setData(dash)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false)
+      })
+
     Promise.allSettled([
-      getDashboard(),
       getMapIntelligence(),
       getChokepointRisks(),
       getCopilotOverview()
-    ]).then(([dashRes, mapRes, chkRes, copilotRes]) => {
-      if (dashRes.status === 'fulfilled') setData(dashRes.value)
+    ]).then(([mapRes, sentRes, chkRes, alertRes, newsRes, copilotRes]) => {
+      if (cancelled) return
       if (mapRes.status === 'fulfilled') setMapIntel(mapRes.value)
       if (chkRes.status === 'fulfilled') setChokepoints(chkRes.value)
       if (copilotRes.status === 'fulfilled') setCopilotBriefing(copilotRes.value)
-      setLoading(false)
     })
+
+    return () => { cancelled = true }
   }, [])
 
   // Initialize Mapbox 
@@ -62,15 +71,14 @@ export default function DashboardPage() {
     if (!mapContainer.current) return
     if (mapInstance.current) return
 
-    // Using dark-matter carto style as it does not require a mapbox token
-    // and looks good in both dark and light mode as a map panel
+    // Carto Dark Matter via MapLibre — free, no Mapbox token
     const m = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: getMapStyle('dark').url,
       center: [85.0, 16.0],
       zoom: 3.8,
       projection: 'mercator',
-      attributionControl: false
+      attributionControl: true
     })
 
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: true }), 'top-right')

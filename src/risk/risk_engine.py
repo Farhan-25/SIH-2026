@@ -25,46 +25,31 @@ class RiskAndDisruptionEngine:
 
     def get_blended_port_congestion(self, port_id: str, port_name: str = "") -> Dict[str, Any]:
         """
-        Blends GFW live congestion with AIS benchmark data for a more robust estimate.
-        GFW provides real-time vessel-derived congestion, AIS provides calibrated benchmarks.
-        Weighted: 60% GFW live + 40% AIS benchmark.
+        Single source of truth: live AIS near the port (AISStream + Open Waters).
+        Legacy name kept; previously "blended" two paths that both read the same SQLite table.
         """
-        gfw_cong = self.gfw_client.get_port_congestion(port_name or port_id)
         ais_cong = self.ais_tracker.get_port_congestion_estimate(port_id)
+        anchored = int(ais_cong.get("anchored_vessels_count") or 0)
+        wait = float(ais_cong.get("estimated_waiting_days") or 0)
+        index = float(ais_cong.get("congestion_index") or 0)
+        status = ais_cong.get("congestion_status") or "Unknown"
 
-        # Blend congestion indices
-        gfw_idx = gfw_cong.get("congestion_index", 0)
-        ais_idx = ais_cong.get("congestion_index", 0)
-        blended_index = round(0.6 * gfw_idx + 0.4 * ais_idx, 1)
-
-        # Blend vessel counts
-        gfw_anchored = gfw_cong.get("anchored_vessels_count", 0)
-        ais_anchored = ais_cong.get("anchored_vessels_count", 0)
-        blended_anchored = max(gfw_anchored, ais_anchored)  # Use the higher estimate
-
-        # Blend wait days
-        gfw_wait = gfw_cong.get("estimated_waiting_days", 0)
-        ais_wait = ais_cong.get("estimated_waiting_days", 0)
-        blended_wait = round(0.5 * gfw_wait + 0.5 * ais_wait, 1) if gfw_wait > 0 else ais_wait
-
-        # Categorize
-        if blended_index < 35:
+        if index < 35:
             status = "Low Congestion"
-        elif blended_index < 65:
+        elif index < 65:
             status = "Moderate Congestion"
         else:
             status = "High Congestion / Demurrage Risk"
 
         return {
             "port_id": port_id,
-            "anchored_vessels_count": blended_anchored,
-            "estimated_waiting_days": blended_wait,
-            "congestion_index": blended_index,
+            "anchored_vessels_count": anchored,
+            "estimated_waiting_days": wait,
+            "congestion_index": index,
             "congestion_status": status,
             "data_sources": {
-                "gfw_live": {"congestion_index": gfw_idx, "anchored": gfw_anchored, "wait_days": gfw_wait},
-                "ais_benchmark": {"congestion_index": ais_idx, "anchored": ais_anchored, "wait_days": ais_wait},
-            }
+                "live_ais": {"congestion_index": index, "anchored": anchored, "wait_days": wait},
+            },
         }
 
     def evaluate_corridor_risk(

@@ -1258,39 +1258,57 @@ select.form-control {
   .footer-content { grid-template-columns: 1fr; }
 }
 
-/* ──── Mapbox Dark Theme Overrides ──── */
-.mapbox-dark-popup .mapboxgl-popup-content {
+/* ──── Mapbox & MapLibre Dark Theme Overrides ──── */
+.mapbox-dark-popup .mapboxgl-popup-content,
+.mapbox-dark-popup .maplibregl-popup-content {
   background: hsla(222,30%,9%,0.97) !important;
   border: 1px solid hsla(192,60%,40%,0.25) !important;
   border-radius: 12px !important;
   box-shadow: 0 8px 32px rgba(0,0,0,0.55) !important;
   padding: 0 !important;
 }
-.mapbox-dark-popup .mapboxgl-popup-close-button {
+.mapbox-dark-popup .mapboxgl-popup-close-button,
+.mapbox-dark-popup .maplibregl-popup-close-button {
   color: #64748b !important;
   font-size: 18px !important;
   right: 8px !important;
   top: 6px !important;
   background: transparent !important;
 }
-.mapbox-dark-popup .mapboxgl-popup-close-button:hover { color: #e2e8f0 !important; }
-.mapbox-dark-popup .mapboxgl-popup-tip { border-top-color: hsla(222,30%,9%,0.97) !important; }
+.mapbox-dark-popup .mapboxgl-popup-close-button:hover,
+.mapbox-dark-popup .maplibregl-popup-close-button:hover { color: #e2e8f0 !important; }
+.mapbox-dark-popup .mapboxgl-popup-tip,
+.mapbox-dark-popup .maplibregl-popup-tip { border-top-color: hsla(222,30%,9%,0.97) !important; }
 
-.mapboxgl-ctrl-group {
+.mapboxgl-ctrl-group,
+.maplibregl-ctrl-group {
   background: hsla(0,0%,8%,0.92) !important;
   border: 1px solid hsla(0,0%,20%,0.4) !important;
   border-radius: 10px !important;
 }
-.mapboxgl-ctrl-group button { background: transparent !important; }
-.mapboxgl-ctrl-group button + button { border-top: 1px solid hsla(0,0%,20%,0.4) !important; }
-.mapboxgl-ctrl-icon { filter: invert(0.7) !important; }
-.mapboxgl-ctrl-scale {
+.mapboxgl-ctrl-group button,
+.maplibregl-ctrl-group button { background: transparent !important; }
+.mapboxgl-ctrl-group button + button,
+.maplibregl-ctrl-group button + button { border-top: 1px solid hsla(0,0%,20%,0.4) !important; }
+.mapboxgl-ctrl-icon,
+.maplibregl-ctrl-icon { filter: invert(0.7) !important; }
+.mapboxgl-ctrl-scale,
+.maplibregl-ctrl-scale {
   background: hsla(0,0%,8%,0.85) !important;
   border-color: hsla(0,0%,22%,0.5) !important;
   color: #94a3b8 !important;
   font-size: 10px !important;
 }
-.mapboxgl-ctrl-attrib { display: none !important; }
+.mapboxgl-ctrl-attrib,
+.maplibregl-ctrl-attrib {
+  background: hsla(0, 0%, 6%, 0.72) !important;
+  color: #94a3b8 !important;
+  font-size: 10px !important;
+  border-radius: 6px !important;
+  margin: 0 8px 8px 0 !important;
+}
+.mapboxgl-ctrl-attrib a,
+.maplibregl-ctrl-attrib a { color: #7dd3fc !important; }
 
 /* ============================================================
    FlightRadar24 Maritime Style Route Map Interface
@@ -1769,8 +1787,9 @@ select.form-control {
   padding-top: 14px;
 }
 
-/* ──── Mapbox Marker Positioning Fix ──── */
-.mapboxgl-marker {
+/* ──── Mapbox & MapLibre Marker Positioning Fix ──── */
+.mapboxgl-marker,
+.maplibregl-marker {
   position: absolute !important;
   top: 0 !important;
   left: 0 !important;

@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MdDashboard, MdShowChart, MdDirectionsBoat,
@@ -11,16 +11,28 @@ import {
 
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
-import OnboardingPage from './pages/OnboardingPage'
-import DashboardPage from './pages/DashboardPage'
-import ForecastPage from './pages/ForecastPage'
-import VesselPage from './pages/VesselPage'
-import RouteMapPage from './pages/RouteMapPage'
-import RiskPage from './pages/RiskPage'
-import StrategyPage from './pages/StrategyPage'
-import CopilotPage from './pages/CopilotPage'
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext'
 import { UserProfileProvider, useUserProfile } from './context/UserProfileContext'
+
+// Heavy pages (MapLibre / Three / Plotly) load on demand so the shell stays snappy
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const ForecastPage = lazy(() => import('./pages/ForecastPage'))
+const VesselPage = lazy(() => import('./pages/VesselPage'))
+const RouteMapPage = lazy(() => import('./pages/RouteMapPage'))
+const RiskPage = lazy(() => import('./pages/RiskPage'))
+const StrategyPage = lazy(() => import('./pages/StrategyPage'))
+const CopilotPage = lazy(() => import('./pages/CopilotPage'))
+
+function PageFallback() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      minHeight: '40vh', color: 'var(--text-muted)', fontSize: '0.95rem'
+    }}>
+      Loading…
+    </div>
+  )
+}
 
 const navItems = [
   { to: '/', icon: <MdHome />, label: 'Product Landing', section: 'Overview' },
@@ -34,10 +46,10 @@ const navItems = [
 ]
 
 const pageTransition = {
-  initial: { opacity: 0, y: 16 },
+  initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 },
-  transition: { duration: 0.3, ease: 'easeOut' },
+  exit: { opacity: 0 },
+  transition: { duration: 0.18, ease: 'easeOut' },
 }
 
 const pageTitles = {
@@ -122,7 +134,7 @@ function AppShell() {
       <aside className="sidebar">
         <div className="sidebar-brand" style={{ justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-            <div className="brand-icon">🚢</div>
+            <img src="/frieght_iq_logo.jpg" alt="FreightIQ Logo" style={{ width: '36px', height: '36px', borderRadius: 'var(--radius-md)', objectFit: 'cover' }} />
             <div className="brand-text">
               <h2>FreightIQ</h2>
             </div>
@@ -311,16 +323,18 @@ function AppShell() {
       <main className="main-content">
         <AnimatePresence mode="wait">
           <motion.div key={location.pathname} {...pageTransition}>
-            <Routes location={location}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/copilot" element={<CopilotPage />} />
-              <Route path="/forecast" element={<ForecastPage />} />
-              <Route path="/vessels" element={<VesselPage />} />
-              <Route path="/routes" element={<RouteMapPage />} />
-              <Route path="/risk" element={<RiskPage />} />
-              <Route path="/strategy" element={<StrategyPage />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            <Suspense fallback={<PageFallback />}>
+              <Routes location={location}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/copilot" element={<CopilotPage />} />
+                <Route path="/forecast" element={<ForecastPage />} />
+                <Route path="/vessels" element={<VesselPage />} />
+                <Route path="/routes" element={<RouteMapPage />} />
+                <Route path="/risk" element={<RiskPage />} />
+                <Route path="/strategy" element={<StrategyPage />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              </Routes>
+            </Suspense>
           </motion.div>
         </AnimatePresence>
       </main>
