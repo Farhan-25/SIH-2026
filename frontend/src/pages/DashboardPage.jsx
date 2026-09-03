@@ -460,22 +460,83 @@ export default function DashboardPage() {
       </div>
 
       <section className={`cc-brief tone-${sentTone}`}>
-        <div className="cc-brief-main">
-          <div className="cc-brief-top">
-            <span className="cc-brief-tag"><MdBolt size={14} /> Intelligence brief</span>
-            <span className={`cc-sent-badge ${sentTone}`}>
-              Sentiment · {sentLabel} ({Number(sentScore).toFixed(2)})
-            </span>
+        <div className="cc-brief-sent">
+          <span className="cc-brief-tag">Market sentiment</span>
+          <div className="cc-sent-score">
+            <div className={`big ${sentTone}`}>{Number(sentScore).toFixed(2)}</div>
+            <div>
+              <strong>{sentLabel}</strong>
+              <p>FinBERT · live headlines</p>
+            </div>
           </div>
+          <div className="cc-sent-bars">
+            <div className="bar-row">
+              <span>Negative</span>
+              <div className="track"><i style={{ width: `${negPct}%` }} className="neg" /></div>
+              <em>{negPct}%</em>
+            </div>
+            <div className="bar-row">
+              <span>Neutral</span>
+              <div className="track"><i style={{ width: `${neuPct}%` }} className="neu" /></div>
+              <em>{neuPct}%</em>
+            </div>
+            <div className="bar-row">
+              <span>Positive</span>
+              <div className="track"><i style={{ width: `${posPct}%` }} className="pos" /></div>
+              <em>{posPct}%</em>
+            </div>
+          </div>
+        </div>
+
+        <div className="cc-brief-ops">
+          <span className="cc-brief-tag">Live desk snapshot</span>
+          <div className="cc-ops-grid">
+            <div className="cc-ops-tile">
+              <em>Live fleet</em>
+              <strong>{fleetCount}</strong>
+              <span>{apiStatus.ais === 'connected' ? 'AIS connected' : (apiStatus.ais || 'AIS warming')}</span>
+            </div>
+            <div className="cc-ops-tile">
+              <em>{primaryRoute.destination} spot</em>
+              <strong>{spotRate != null ? formatMoney(spotRate, { suffix: '/MT' }) : '—'}</strong>
+              <span className={fwdChange != null && fwdChange >= 0 ? 'up' : 'down'}>
+                {fwdChange != null ? `${fwdChange >= 0 ? '+' : ''}${fwdChange.toFixed(1)}% 4W` : 'Forecast pending'}
+              </span>
+            </div>
+            <div className="cc-ops-tile">
+              <em>Port wait</em>
+              <strong>{kpis.avg_port_wait?.value || '—'}</strong>
+              <span>Avg congestion {avgCong != null ? avgCong : '—'}</span>
+            </div>
+            <div className="cc-ops-tile">
+              <em>{(topChoke?.name || 'Chokepoint').split(' / ')[0]}</em>
+              <strong>{topChoke?.risk_level || 'Watch'}</strong>
+              <span>{Object.keys(chokepoints).length || 0} corridors watched</span>
+            </div>
+            <div className="cc-ops-tile">
+              <em>Desk ports</em>
+              <strong>{chosenDeskPorts.length || selectedPorts.length}</strong>
+              <span>{chosenDeskPorts.slice(0, 2).map((p) => (p.name || '').split(' ')[0]).join(' · ') || 'All East Coast'}</span>
+            </div>
+            <div className="cc-ops-tile">
+              <em>Alerts</em>
+              <strong>{geoAlerts.length || Object.keys(chokepoints).length || 0}</strong>
+              <span>{apiStatus.weather === 'connected' ? 'Weather live' : (apiStatus.weather || 'Weather standby')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="cc-brief-main">
+          <span className="cc-brief-tag"><MdBolt size={14} /> Intelligence brief</span>
           <ul className="cc-brief-list">
             {insights.map((line, i) => (
               <li key={i}>{typeof line === 'string' ? line.replace(/^\s*[•\-*]\s*/, '').replace(/\*\*/g, '') : line}</li>
             ))}
           </ul>
+          <button type="button" className="cc-brief-cta" onClick={() => navigate('/copilot')}>
+            Open Copilot
+          </button>
         </div>
-        <button type="button" className="cc-brief-cta" onClick={() => navigate('/copilot')}>
-          Open Copilot
-        </button>
       </section>
 
       <div className="cc-split">
@@ -640,37 +701,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="cc-lower">
-        <section className="cc-panel">
-          <div className="cc-panel-head">
-            <h2>Market sentiment</h2>
-            <button type="button" className="cc-link" onClick={() => navigate('/risk')}>Risk desk</button>
-          </div>
-          <div className="cc-sent-score">
-            <div className={`big ${sentTone}`}>{Number(sentScore).toFixed(2)}</div>
-            <div>
-              <strong>{sentLabel}</strong>
-              <p>From FinBERT on live maritime headlines</p>
-            </div>
-          </div>
-          <div className="cc-sent-bars">
-            <div className="bar-row">
-              <span>Negative</span>
-              <div className="track"><i style={{ width: `${negPct}%` }} className="neg" /></div>
-              <em>{negPct}%</em>
-            </div>
-            <div className="bar-row">
-              <span>Neutral</span>
-              <div className="track"><i style={{ width: `${neuPct}%` }} className="neu" /></div>
-              <em>{neuPct}%</em>
-            </div>
-            <div className="bar-row">
-              <span>Positive</span>
-              <div className="track"><i style={{ width: `${posPct}%` }} className="pos" /></div>
-              <em>{posPct}%</em>
-            </div>
-          </div>
-        </section>
-
         <section className="cc-panel">
           <div className="cc-panel-head">
             <h2><MdNewspaper size={18} /> Intelligence wire</h2>
