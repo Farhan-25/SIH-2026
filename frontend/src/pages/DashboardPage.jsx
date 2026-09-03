@@ -527,9 +527,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="cc-brief-main">
-          <div className="cc-brief-top">
-            <span className="cc-brief-tag"><MdBolt size={14} /> Intelligence brief</span>
-          </div>
+          <span className="cc-brief-tag"><MdBolt size={14} /> Intelligence brief</span>
           <ul className="cc-brief-list">
             {insights.map((line, i) => (
               <li key={i}>{typeof line === 'string' ? line.replace(/^\s*[•\-*]\s*/, '').replace(/\*\*/g, '') : line}</li>
