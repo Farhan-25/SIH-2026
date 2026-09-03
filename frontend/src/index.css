@@ -1500,6 +1500,35 @@ select.form-control {
 .fr24-ais-legend .leg-dot.live { background: #38bdf8; }
 .fr24-ais-legend .leg-dot.modeled { background: #a78bfa; }
 .fr24-ais-legend .leg-dot.anchor { background: #f59e0b; }
+.fr24-ais-legend .leg-dot.desk { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+
+.fr24-desk-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  max-width: 420px;
+}
+
+.fr24-desk-chip,
+.cc-port-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #f59e0b88;
+  background: hsla(38, 92%, 50%, 0.16);
+  color: #fbbf24;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fr24-desk-chip:hover,
+.cc-port-chip:hover {
+  background: hsla(38, 92%, 50%, 0.28);
+}
 
 .hud-pill {
   display: flex;
@@ -1901,8 +1930,13 @@ select.form-control {
   transition: transform var(--transition-fast);
 }
 
-.port-pin-icon:hover {
-  transform: rotate(-45deg) scale(1.2);
+.port-location-pin.desk-pick .port-pin-icon {
+  animation: desk-pin-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes desk-pin-pulse {
+  0%, 100% { box-shadow: 0 0 10px #f59e0bcc; }
+  50% { box-shadow: 0 0 22px #f59e0b; }
 }
 
 .pin-symbol {
@@ -2547,6 +2581,18 @@ select.form-control {
 .cc-leg.modeled { background: #a78bfa; }
 .cc-leg.anchor { background: var(--accent-amber); }
 .cc-leg.port { background: var(--accent-emerald); border-radius: 2px; }
+.cc-leg.desk { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+
+.cc-port-picker {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 70%;
+}
 
 .cc-forecast-strip {
   padding: 10px 14px;

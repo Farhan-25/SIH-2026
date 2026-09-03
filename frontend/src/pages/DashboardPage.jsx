@@ -4,9 +4,9 @@ import { AnimatePresence } from 'framer-motion'
 import {
   MdTrendingUp, MdTrendingDown, MdDirectionsBoat,
   MdLocalGasStation, MdMap, MdRefresh, MdShield,
-  MdShowChart, MdNewspaper, MdBolt, MdOpenInNew
+  MdShowChart, MdNewspaper, MdBolt, MdOpenInNew, MdLocationOn
 } from 'react-icons/md'
-import mapboxgl, { getMapStyle, vesselPopupHTML, vesselMarkerColor } from '../lib/maplibre'
+import mapboxgl, { getMapStyle, vesselPopupHTML, vesselMarkerColor, vesselHeadingDeg, isLiveAisVessel, portsToFeatureCollection, PORT_CIRCLE_PAINT, PORT_HALO_PAINT, upsertVesselArrowLayers } from '../lib/maplibre'
 import VesselSidePanel from '../components/VesselSidePanel'
 import {
   getDashboard,
@@ -57,6 +57,7 @@ function vesselsToFeatureCollection(list) {
           speed: v.speed ?? 0,
           dest: v.dest || v.destination || '',
           mmsi: v.mmsi || '',
+          heading: vesselHeadingDeg(v),
           source: v.source_label || v.source || 'Live AIS',
           color: vesselMarkerColor(v),
         },
@@ -74,8 +75,6 @@ export default function DashboardPage() {
     selectedPorts,
     selectedRoutes,
     selectedCargoes,
-    isPortSelected,
-    isRouteSelected,
     isCargoSelected,
   } = useUserProfile()
 
@@ -186,7 +185,7 @@ export default function DashboardPage() {
     const t2 = setTimeout(bump, 250)
     const t3 = setTimeout(bump, 600)
 
-    m.on('click', 'cc-vessels-hit', (e) => {
+    const openVessel = (e) => {
       const f = e.features?.[0]
       if (!f) return
       e.originalEvent?.stopPropagation?.()
@@ -208,9 +207,13 @@ export default function DashboardPage() {
         ?.setLngLat(f.geometry.coordinates)
         .setHTML(vesselPopupHTML(vessel))
         .addTo(m)
-    })
+    }
+    m.on('click', 'cc-vessels-hit', openVessel)
+    m.on('click', 'cc-vessels-arrow', openVessel)
     m.on('mouseenter', 'cc-vessels-hit', () => { m.getCanvas().style.cursor = 'pointer' })
     m.on('mouseleave', 'cc-vessels-hit', () => { m.getCanvas().style.cursor = '' })
+    m.on('mouseenter', 'cc-vessels-arrow', () => { m.getCanvas().style.cursor = 'pointer' })
+    m.on('mouseleave', 'cc-vessels-arrow', () => { m.getCanvas().style.cursor = '' })
 
     return () => {
       clearTimeout(t1)
@@ -231,17 +234,14 @@ export default function DashboardPage() {
 
     const paint = () => {
       map.resize()
-      const destHints = selectedPortNames.map((n) => n.split(' ')[0].toLowerCase())
-      const vessels = (mapIntel.vessels || [])
-        .filter((v) => {
-          if (!destHints.length) return true
-          const dest = String(v.dest || v.destination || '').toLowerCase()
-          if (!dest) return true
-          return destHints.some((h) => dest.includes(h))
-        })
-        .slice(0, 200)
-      const ports = (mapIntel.ports?.indian || []).filter((p) => isPortSelected(p.port_id || p.id))
-      const routes = (mapIntel.route_risks || []).filter((r) => isRouteSelected(r.route_id || r.id))
+      const allVessels = mapIntel.vessels || []
+      const vessels = [
+        ...allVessels.filter(isLiveAisVessel),
+        ...allVessels.filter((v) => !isLiveAisVessel(v)),
+      ]
+      const indian = mapIntel.ports?.indian || []
+      const global = mapIntel.ports?.global || []
+      const routes = mapIntel.route_risks || []
 
       const routeFc = {
         type: 'FeatureCollection',
@@ -249,7 +249,10 @@ export default function DashboardPage() {
           .filter((r) => Array.isArray(r.waypoints) && r.waypoints.length >= 2)
           .map((r) => ({
             type: 'Feature',
-            properties: { id: r.route_id },
+            properties: {
+              id: r.route_id,
+              selected: selectedRoutes.includes(r.route_id) || selectedRoutes.includes(r.id) ? 1 : 0,
+            },
             geometry: {
               type: 'LineString',
               coordinates: r.waypoints.map((w) => [w[0], w[1]]),
@@ -266,87 +269,55 @@ export default function DashboardPage() {
           source: 'cc-routes',
           paint: {
             'line-color': '#38bdf8',
-            'line-width': 1.5,
-            'line-opacity': 0.4,
+            'line-width': ['case', ['==', ['get', 'selected'], 1], 2.4, 1],
+            'line-opacity': ['case', ['==', ['get', 'selected'], 1], 0.7, 0.22],
           },
         })
       }
 
-      const portFc = {
-        type: 'FeatureCollection',
-        features: ports
-          .filter((p) => p.lat && p.lon)
-          .map((p) => ({
-            type: 'Feature',
-            properties: {
-              name: p.name,
-              nearby: p.anchored_vessels || 0,
-            },
-            geometry: { type: 'Point', coordinates: [p.lon, p.lat] },
-          })),
-      }
+      const portFc = portsToFeatureCollection(indian, global, selectedPorts)
       if (map.getSource('cc-ports')) {
         map.getSource('cc-ports').setData(portFc)
       } else {
         map.addSource('cc-ports', { type: 'geojson', data: portFc })
         map.addLayer({
+          id: 'cc-ports-halo',
+          type: 'circle',
+          source: 'cc-ports',
+          filter: ['==', ['get', 'selected'], 1],
+          paint: PORT_HALO_PAINT,
+        })
+        map.addLayer({
           id: 'cc-ports-core',
           type: 'circle',
           source: 'cc-ports',
-          paint: {
-            'circle-radius': 6,
-            'circle-color': '#10b981',
-            'circle-stroke-width': 1.5,
-            'circle-stroke-color': '#0b1220',
-          },
+          paint: PORT_CIRCLE_PAINT,
         })
       }
 
       const vesselFc = vesselsToFeatureCollection(vessels)
       if (map.getSource('cc-vessels')) {
         map.getSource('cc-vessels').setData(vesselFc)
+        upsertVesselArrowLayers(map, 'cc-vessels', {
+          glow: 'cc-vessels-glow',
+          core: 'cc-vessels-core',
+          symbol: 'cc-vessels-arrow',
+          hit: 'cc-vessels-hit',
+        })
       } else {
         map.addSource('cc-vessels', { type: 'geojson', data: vesselFc })
-        map.addLayer({
-          id: 'cc-vessels-glow',
-          type: 'circle',
-          source: 'cc-vessels',
-          paint: {
-            'circle-radius': 11,
-            'circle-color': ['get', 'color'],
-            'circle-opacity': 0.22,
-            'circle-blur': 0.5,
-          },
-        })
-        map.addLayer({
-          id: 'cc-vessels-core',
-          type: 'circle',
-          source: 'cc-vessels',
-          paint: {
-            'circle-radius': 5.5,
-            'circle-color': ['get', 'color'],
-            'circle-stroke-width': 1.5,
-            'circle-stroke-color': '#0b1220',
-            'circle-opacity': 0.95,
-          },
-        })
-        // Larger invisible hit target for easier clicks
-        map.addLayer({
-          id: 'cc-vessels-hit',
-          type: 'circle',
-          source: 'cc-vessels',
-          paint: {
-            'circle-radius': 14,
-            'circle-opacity': 0,
-            'circle-color': '#000',
-          },
+        upsertVesselArrowLayers(map, 'cc-vessels', {
+          glow: 'cc-vessels-glow',
+          core: 'cc-vessels-core',
+          symbol: 'cc-vessels-arrow',
+          hit: 'cc-vessels-hit',
         })
       }
     }
 
     if (map.isStyleLoaded()) paint()
     else map.once('load', paint)
-  }, [mapIntel, selectedPortNames, isPortSelected, isRouteSelected])
+  }, [mapIntel, selectedPorts, selectedRoutes])
 
   const kpis = data?.kpis || {}
   const forecasts = (data?.recent_forecasts || []).filter((f) => {
@@ -359,13 +330,7 @@ export default function DashboardPage() {
     })
     return cargoOk && routeOk
   })
-  const destHints = selectedPortNames.map((n) => n.split(' ')[0].toLowerCase())
-  const visibleVessels = (mapIntel?.vessels || []).filter((v) => {
-    if (!destHints.length) return true
-    const dest = String(v.dest || v.destination || '').toLowerCase()
-    if (!dest) return true
-    return destHints.some((h) => dest.includes(h))
-  })
+  const visibleVessels = mapIntel?.vessels || []
   const fleetCount = visibleVessels.length
   const apiStatus = mapIntel?.api_status || {}
 
@@ -421,7 +386,8 @@ export default function DashboardPage() {
   const neuPct = sentiment?.neutral_pct ?? 22
   const posPct = sentiment?.positive_pct ?? 18
 
-  const indianPorts = (mapIntel?.ports?.indian || []).filter((p) => isPortSelected(p.port_id || p.id))
+  const indianPorts = mapIntel?.ports?.indian || []
+  const chosenDeskPorts = indianPorts.filter((p) => selectedPorts.includes(p.port_id || p.id))
 
   const corridorFallback = selectedRoutes.map((id) => {
     const r = ALL_TRADE_ROUTES.find((route) => route.id === id)
@@ -525,11 +491,31 @@ export default function DashboardPage() {
           </div>
           <div className="cc-map-wrap">
             <div ref={mapContainer} className="cc-map-el" />
+            {chosenDeskPorts.length > 0 && (
+              <div className="cc-port-picker" aria-label="Your selected ports">
+                {chosenDeskPorts.map((p) => (
+                  <button
+                    key={p.port_id || p.id}
+                    type="button"
+                    className="cc-port-chip"
+                    title={`Fly to ${p.name}`}
+                    onClick={() => {
+                      if (!p.lon || !p.lat || !mapInstance.current) return
+                      mapInstance.current.flyTo({ center: [p.lon, p.lat], zoom: 6.4, duration: 900 })
+                    }}
+                  >
+                    <MdLocationOn size={14} />
+                    {(p.name || '').replace('Port', '').split('(')[0].trim()}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="cc-map-legend">
               <span><i className="cc-leg ship" /> Live AIS</span>
               <span><i className="cc-leg modeled" /> Modeled</span>
               <span><i className="cc-leg anchor" /> At anchor</span>
               <span><i className="cc-leg port" /> Port</span>
+              <span><i className="cc-leg desk" /> Your desk</span>
             </div>
           </div>
         </section>

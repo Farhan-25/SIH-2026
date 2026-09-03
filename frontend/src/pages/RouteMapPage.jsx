@@ -8,7 +8,7 @@ import {
   MdEco, MdSpeed, MdLocationOn, MdCheckCircle, MdScience,
   MdArrowForward, MdSearch, MdStraighten, MdPause, MdPlayArrow, MdLayers
 } from 'react-icons/md'
-import mapboxgl, { getMapStyle, MAP_STYLE_ORDER, MAP_STYLES, vesselPopupHTML, vesselMarkerColor } from '../lib/maplibre'
+import mapboxgl, { getMapStyle, MAP_STYLE_ORDER, MAP_STYLES, vesselPopupHTML, vesselMarkerColor, vesselHeadingDeg, portsToFeatureCollection, PORT_CIRCLE_PAINT, PORT_HALO_PAINT, upsertVesselArrowLayers } from '../lib/maplibre'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Tube } from '@react-three/drei'
 import * as THREE from 'three'
@@ -132,6 +132,8 @@ function getMaritimeWaypointsForCorridor(originStr = '', destPort, routes = []) 
 function MapboxMap({
   indianPorts,
   globalPorts,
+  selectedPortIds = [],
+  focusPort = null,
   routes,
   vessels,
   weatherData,
@@ -228,12 +230,16 @@ function MapboxMap({
   const trackRef = useRef(activeVesselTrackGeoJSON)
   const rulerRef = useRef(rulerGeoJSON)
   const portsRef = useRef(indianPorts)
+  const globalPortsRef = useRef(globalPorts)
+  const selectedPortIdsRef = useRef(selectedPortIds)
   const vesselsRef = useRef(vessels)
   const showAnchorageRef = useRef(showAnchorageZones)
   useEffect(() => { routesRef.current = routes }, [routes])
   useEffect(() => { trackRef.current = activeVesselTrackGeoJSON }, [activeVesselTrackGeoJSON])
   useEffect(() => { rulerRef.current = rulerGeoJSON }, [rulerGeoJSON])
   useEffect(() => { portsRef.current = indianPorts }, [indianPorts])
+  useEffect(() => { globalPortsRef.current = globalPorts }, [globalPorts])
+  useEffect(() => { selectedPortIdsRef.current = selectedPortIds }, [selectedPortIds])
   useEffect(() => { vesselsRef.current = vessels }, [vessels])
   useEffect(() => { showAnchorageRef.current = showAnchorageZones }, [showAnchorageZones])
 
@@ -266,6 +272,7 @@ function MapboxMap({
           speed: vessel.speed ?? 0,
           dest: vessel.dest || vessel.destination || '',
           mmsi: vessel.mmsi || '',
+          heading: vesselHeadingDeg(vessel),
           color: vesselMarkerColor(vessel),
           source: vessel.source_label || vessel.source || 'Live AIS',
         },
@@ -388,42 +395,33 @@ function MapboxMap({
       }
     }
 
-    // Fast GPU vessel dots — DOM markers alone were dropping most ships
+    const portFc = portsToFeatureCollection(portsRef.current, globalPortsRef.current, selectedPortIdsRef.current)
+    if (!m.getSource('ports-geo-src')) {
+      m.addSource('ports-geo-src', { type: 'geojson', data: portFc })
+      m.addLayer({
+        id: 'ports-halo',
+        type: 'circle',
+        source: 'ports-geo-src',
+        filter: ['==', ['get', 'selected'], 1],
+        paint: PORT_HALO_PAINT,
+      })
+      m.addLayer({
+        id: 'ports-dots',
+        type: 'circle',
+        source: 'ports-geo-src',
+        paint: PORT_CIRCLE_PAINT,
+      })
+    } else {
+      m.getSource('ports-geo-src').setData(portFc)
+    }
     const vesselFc = vesselsToGeoJSON(vesselsRef.current)
     if (!m.getSource('vessels-live-src')) {
       m.addSource('vessels-live-src', { type: 'geojson', data: vesselFc })
-      m.addLayer({
-        id: 'vessels-live-glow',
-        type: 'circle',
-        source: 'vessels-live-src',
-        paint: {
-          'circle-radius': 10,
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.25,
-          'circle-blur': 0.6,
-        },
-      })
-      m.addLayer({
-        id: 'vessels-live-core',
-        type: 'circle',
-        source: 'vessels-live-src',
-        paint: {
-          'circle-radius': 5.5,
-          'circle-color': ['get', 'color'],
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#0b1220',
-          'circle-opacity': 0.95,
-        },
-      })
-      m.addLayer({
-        id: 'vessels-live-hit',
-        type: 'circle',
-        source: 'vessels-live-src',
-        paint: {
-          'circle-radius': 16,
-          'circle-opacity': 0,
-          'circle-color': '#000',
-        },
+      upsertVesselArrowLayers(m, 'vessels-live-src', {
+        glow: 'vessels-live-glow',
+        core: 'vessels-live-core',
+        symbol: 'vessels-live-arrow',
+        hit: 'vessels-live-hit',
       })
       if (!m._vesselPopup) {
         m._vesselPopup = new mapboxgl.Popup({
@@ -455,11 +453,17 @@ function MapboxMap({
           .addTo(m)
       }
       m.on('click', 'vessels-live-hit', openVessel)
-      m.on('click', 'vessels-live-core', openVessel)
+      m.on('click', 'vessels-live-arrow', openVessel)
       m.on('mouseenter', 'vessels-live-hit', () => { m.getCanvas().style.cursor = 'pointer' })
       m.on('mouseleave', 'vessels-live-hit', () => { m.getCanvas().style.cursor = '' })
     } else {
       m.getSource('vessels-live-src').setData(vesselFc)
+      upsertVesselArrowLayers(m, 'vessels-live-src', {
+        glow: 'vessels-live-glow',
+        core: 'vessels-live-core',
+        symbol: 'vessels-live-arrow',
+        hit: 'vessels-live-hit',
+      })
     }
   }, [vesselsToGeoJSON])
 
@@ -604,39 +608,41 @@ function MapboxMap({
     return '🌐'
   }
 
-  // Render High-Visibility Location Pins for ALL Global & Indian Ports
+  // GPU dots for every port; HTML location pins only for the user's chosen desk
   useEffect(() => {
     if (!map.current) return
     const ready = () => {
+      const src = map.current.getSource('ports-geo-src')
+      if (src) {
+        src.setData(portsToFeatureCollection(indianPorts, globalPorts, selectedPortIds))
+      }
+
       portMarkersRef.current.forEach(m => m.remove())
       portMarkersRef.current = []
 
-      const allPorts = [
+      const chosen = new Set((selectedPortIds || []).map(String))
+      const deskPorts = [
         ...indianPorts.map(p => ({ ...p, isTargetIndia: true, country: 'India' })),
-        ...globalPorts.map(p => ({ ...p, isTargetIndia: false }))
-      ]
+        ...globalPorts.map(p => ({ ...p, isTargetIndia: false })),
+      ].filter(p => chosen.has(String(p.port_id || p.id)))
 
-      allPorts.forEach(port => {
+      deskPorts.forEach(port => {
         if (!port.lat || !port.lon) return
         const el = document.createElement('div')
-        el.className = `port-location-pin ${port.isTargetIndia ? 'india-port' : 'global-port'}`
-        const color = port.isTargetIndia ? congestionColor(port.congestion_index || 0) : '#38bdf8'
-        const flag = getPortFlag(port.country || '')
-
-        const displayName = port.name.replace('Port of ', '').replace(' (DBCT / HPX)', '').replace(' (RGT / WICET)', '').split(' (')[0].split(' / ')[0]
+        el.className = 'port-location-pin desk-pick'
+        const color = '#f59e0b'
+        const flag = getPortFlag(port.country || (port.isTargetIndia ? 'India' : ''))
+        const displayName = (port.name || '').replace('Port of ', '').replace(' (DBCT / HPX)', '').replace(' (RGT / WICET)', '').split(' (')[0].split(' / ')[0]
 
         el.innerHTML = `
           <div class="port-pin-wrapper">
-            <div class="port-pin-icon ${port.isTargetIndia ? 'pin-india' : 'pin-global'}" style="background: ${color}; box-shadow: 0 0 20px ${color}99;">
-              <span class="pin-symbol">${port.isTargetIndia ? '⚓' : '🚢'}</span>
+            <div class="port-pin-icon pin-desk" style="background: ${color}; box-shadow: 0 0 22px ${color}cc;">
+              <span class="pin-symbol">📍</span>
             </div>
-            <div class="port-pin-badge" style="border-color: ${color}77;">
+            <div class="port-pin-badge" style="border-color: ${color};">
               <span class="port-flag">${flag}</span>
               <span class="port-name">${displayName}</span>
-              ${port.isTargetIndia
-                ? `<span class="port-wait" style="color:${color}">${port.anchored_vessels || 0} live nearby</span>`
-                : `<span class="port-wait text-ocean">${port.waiting_days || port.avg_queue_days || 3}d Queue</span>`
-              }
+              <span class="port-wait" style="color:${color}">Your desk</span>
             </div>
           </div>
         `
@@ -657,7 +663,12 @@ function MapboxMap({
 
     if (map.current.isStyleLoaded()) ready()
     else map.current.once('load', ready)
-  }, [indianPorts, globalPorts])
+  }, [indianPorts, globalPorts, selectedPortIds])
+
+  useEffect(() => {
+    if (!map.current || !focusPort?.lon || !focusPort?.lat) return
+    map.current.flyTo({ center: [focusPort.lon, focusPort.lat], zoom: 6.5, pitch: 25, duration: 900 })
+  }, [focusPort])
 
   // Render vessels as GeoJSON circles (all ships) + DOM chevron for selected only
   useEffect(() => {
@@ -1092,8 +1103,9 @@ function buildGlobeArc(lat1, lon1, lat2, lon2, segments = 60, altitude = 0.3) {
   return new THREE.CatmullRomCurve3(curve.getPoints(segments))
 }
 
-function GlobeScene({ indianPorts, globalPorts, routes, vessels }) {
+function GlobeScene({ indianPorts, globalPorts, selectedPortIds = [], routes, vessels }) {
   const allPorts = useMemo(() => [...indianPorts, ...globalPorts], [indianPorts, globalPorts])
+  const chosen = useMemo(() => new Set((selectedPortIds || []).map(String)), [selectedPortIds])
 
   const routeArcs = useMemo(() => {
     return routes.map(r => {
@@ -1128,10 +1140,15 @@ function GlobeScene({ indianPorts, globalPorts, routes, vessels }) {
 
         {allPorts.filter(p => p.lat && p.lon).map(p => {
           const pos = latLonToVec3(p.lat, p.lon, GLOBE_RADIUS + 0.04)
+          const selected = chosen.has(String(p.port_id || p.id))
           return (
-            <mesh key={p.port_id} position={[pos.x, pos.y, pos.z]}>
-              <sphereGeometry args={[0.04, 16, 16]} />
-              <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.8} />
+            <mesh key={p.port_id || p.id || p.name} position={[pos.x, pos.y, pos.z]}>
+              <sphereGeometry args={[selected ? 0.07 : 0.035, 16, 16]} />
+              <meshStandardMaterial
+                color={selected ? '#f59e0b' : '#38bdf8'}
+                emissive={selected ? '#f59e0b' : '#38bdf8'}
+                emissiveIntensity={selected ? 1.1 : 0.55}
+              />
             </mesh>
           )
         })}
@@ -1154,7 +1171,7 @@ function GlobeScene({ indianPorts, globalPorts, routes, vessels }) {
    Main RouteMapPage Component
    ──────────────────────────────────────────────────────────── */
 export default function RouteMapPage() {
-  const { isPortSelected, isRouteSelected } = useUserProfile()
+  const { selectedPorts } = useUserProfile()
   const [viewMode, setViewMode] = useState('map')
   const [selectedVessel, setSelectedVessel] = useState(null)
   const [selectedPort, setSelectedPort] = useState(null)
@@ -1182,28 +1199,14 @@ export default function RouteMapPage() {
     try {
       if (isInitial) setLoading(true)
       const data = await getMapIntelligence()
-      
-      let selectedIndPorts = []
+
       if (data?.ports?.indian?.length) {
-        selectedIndPorts = data.ports.indian.filter(p => isPortSelected(p.port_id || p.id))
-        setIndianPorts(selectedIndPorts)
+        setIndianPorts(data.ports.indian)
       }
       if (data?.ports?.global?.length) setGlobalPorts(data.ports.global)
       
       if (data?.vessels?.length) {
-        // Filter vessels based on marked Indian ports
-        let finalVessels = data.vessels
-        if (selectedIndPorts.length > 0) {
-          finalVessels = finalVessels.filter(v => 
-            selectedIndPorts.some(p => {
-              const portName = p.name?.toLowerCase() || ''
-              const vDest = v.dest?.toLowerCase()?.split(' ')[0]
-              const vOrigin = v.origin?.toLowerCase()?.split(' ')[0]
-              return (vDest && portName.includes(vDest)) || (vOrigin && portName.includes(vOrigin))
-            })
-          )
-        }
-        setVessels(finalVessels)
+        setVessels(data.vessels)
       }
       
       if (data?.route_risks?.length) setRoutes(data.route_risks)
@@ -1216,7 +1219,7 @@ export default function RouteMapPage() {
     } finally {
       if (isInitial) setLoading(false)
     }
-  }, [isPortSelected])
+  }, [])
 
   useEffect(() => {
     fetchMapIntelligence(true)
@@ -1278,6 +1281,8 @@ export default function RouteMapPage() {
           <MapboxMap
             indianPorts={indianPorts}
             globalPorts={globalPorts}
+            selectedPortIds={selectedPorts}
+            focusPort={selectedPort}
             routes={routes}
             vessels={vessels}
             weatherData={weatherData}
@@ -1299,6 +1304,7 @@ export default function RouteMapPage() {
               <GlobeScene
                 indianPorts={indianPorts}
                 globalPorts={globalPorts}
+                selectedPortIds={selectedPorts}
                 routes={routes}
                 vessels={vessels}
               />
@@ -1361,7 +1367,23 @@ export default function RouteMapPage() {
             <span className="leg-item"><i className="leg-dot live" /> Live AIS</span>
             <span className="leg-item"><i className="leg-dot modeled" /> Modeled</span>
             <span className="leg-item"><i className="leg-dot anchor" /> At anchor</span>
+            <span className="leg-item"><i className="leg-dot desk" /> Your desk</span>
           </div>
+          {indianPorts.filter((p) => selectedPorts.includes(p.port_id || p.id)).length > 0 && (
+            <div className="fr24-desk-picker" aria-label="Your selected ports">
+              {indianPorts.filter((p) => selectedPorts.includes(p.port_id || p.id)).map((p) => (
+                <button
+                  key={p.port_id || p.id}
+                  type="button"
+                  className="fr24-desk-chip"
+                  onClick={() => handlePortClick(p)}
+                >
+                  <MdLocationOn size={14} />
+                  {(p.name || '').replace('Port', '').split('(')[0].trim()}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ──── Top-Right HUD: Layers & Controls ──── */}
