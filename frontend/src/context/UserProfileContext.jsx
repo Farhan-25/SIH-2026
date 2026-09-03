@@ -1,8 +1,12 @@
-import { createContext, useContext, useMemo, useState, useCallback } from 'react'
+import { createContext, useContext, useMemo, useState, useCallback, useEffect } from 'react'
+import { useAuth } from './AuthContext'
 
 const UserProfileContext = createContext(null)
 
-const STORAGE_KEY = 'freightiq_user_profile'
+function profileKey(email) {
+  if (!email) return null
+  return `freightiq_user_profile:${String(email).toLowerCase()}`
+}
 
 /* ── All selectable options (derived from reference data) ────── */
 
@@ -45,9 +49,11 @@ export const ALL_CARGO_TYPES = [
 
 /* ── Helpers ─────────────────────────────────────────────────── */
 
-function loadProfile() {
+function loadProfile(email) {
+  const key = profileKey(email)
+  if (!key) return null
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     if (parsed && parsed.ports && parsed.routes && parsed.cargoes) return parsed
@@ -57,26 +63,35 @@ function loadProfile() {
   }
 }
 
-function saveProfile(profile) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
+function saveProfile(email, profile) {
+  const key = profileKey(email)
+  if (!key) return
+  localStorage.setItem(key, JSON.stringify(profile))
 }
 
 /* ── Provider ────────────────────────────────────────────────── */
 
 export function UserProfileProvider({ children }) {
-  const [profile, setProfile] = useState(() => loadProfile())
+  const { currentUser } = useAuth()
+  const email = currentUser?.email || ''
+  const [profile, setProfile] = useState(() => loadProfile(email))
+
+  useEffect(() => {
+    setProfile(loadProfile(email))
+  }, [email])
 
   const isOnboarded = !!profile
 
   const updateProfile = useCallback((newProfile) => {
     setProfile(newProfile)
-    saveProfile(newProfile)
-  }, [])
+    saveProfile(email, newProfile)
+  }, [email])
 
   const resetProfile = useCallback(() => {
     setProfile(null)
-    localStorage.removeItem(STORAGE_KEY)
-  }, [])
+    const key = profileKey(email)
+    if (key) localStorage.removeItem(key)
+  }, [email])
 
   const value = useMemo(() => {
     const selectedPorts = profile?.ports || []

@@ -1,34 +1,46 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { MdLogin, MdEmail, MdLock } from 'react-icons/md'
-import { loginUser } from '../api/client'
+import { MdLogin, MdEmail, MdLock, MdPerson, MdPersonAdd } from 'react-icons/md'
+import { useAuth } from '../context/AuthContext'
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage() {
+  const { login, signup } = useAuth()
+  const [mode, setMode] = useState('signup')
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const isSignup = mode === 'signup'
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setIsLoading(true)
-
     try {
-      if (!email || !password) {
-        throw new Error("Please enter your credentials.")
-      }
-      const data = await loginUser({ email, password })
-      onLogin(data) // pass data back to App
-    } catch (err) {
-      if (err.response && err.response.data && err.response.data.detail) {
-        setError(err.response.data.detail)
+      if (isSignup) {
+        signup({ name, email, password })
       } else {
-        setError(err.message || 'Authentication failed. Please try again.')
+        login({ email, password })
       }
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const inputStyle = {
+    width: '100%',
+    padding: '12px 16px 12px 48px',
+    background: 'var(--bg-input)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 'var(--radius-md)',
+    color: 'var(--text-primary)',
+    fontSize: 'var(--font-size-md)',
+    outline: 'none',
+    transition: 'border-color var(--transition-fast)',
   }
 
   return (
@@ -42,19 +54,18 @@ export default function LoginPage({ onLogin }) {
       padding: 'var(--space-lg)',
       position: 'relative'
     }}>
-      
-      {/* Top Left Branding */}
-      <div style={{ 
-        position: 'absolute', 
-        top: 'var(--space-xl)', 
-        left: 'var(--space-xl)', 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 'var(--space-sm)' 
+      <div style={{
+        position: 'absolute',
+        top: 'var(--space-xl)',
+        left: 'var(--space-xl)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-sm)'
       }}>
         <img src="/frieght_iq_logo.jpg" alt="FreightIQ Logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'cover' }} />
         <h2 style={{ margin: 0, fontSize: 'var(--font-size-xl)', fontWeight: '700', color: 'var(--text-primary)' }}>FreightIQ</h2>
       </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -74,7 +85,6 @@ export default function LoginPage({ onLogin }) {
           overflow: 'hidden'
         }}
       >
-        {/* Decorative background glow */}
         <div style={{
           position: 'absolute', top: -50, right: -50, width: 150, height: 150,
           background: 'var(--accent)', filter: 'blur(80px)', opacity: 0.15, borderRadius: '50%'
@@ -82,11 +92,30 @@ export default function LoginPage({ onLogin }) {
 
         <div style={{ textAlign: 'center', marginBottom: 'var(--space-sm)' }}>
           <h1 style={{ margin: '0 0 var(--space-xs) 0', fontSize: 'var(--font-size-2xl)', fontWeight: '700' }}>
-            Welcome Back
+            {isSignup ? 'Create your workspace' : 'Welcome back'}
           </h1>
           <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-            Sign in to access your account
+            {isSignup
+              ? 'Set up an account, then tell us your ports, routes, and cargo.'
+              : 'Sign in to open the dashboard built around your preferences.'}
           </p>
+        </div>
+
+        <div className="login-mode-tabs" role="tablist">
+          <button
+            type="button"
+            className={isSignup ? 'active' : ''}
+            onClick={() => { setMode('signup'); setError('') }}
+          >
+            Create account
+          </button>
+          <button
+            type="button"
+            className={!isSignup ? 'active' : ''}
+            onClick={() => { setMode('signin'); setError('') }}
+          >
+            Sign in
+          </button>
         </div>
 
         {error && (
@@ -104,26 +133,34 @@ export default function LoginPage({ onLogin }) {
         )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+          {isSignup && (
+            <div>
+              <label style={{ display: 'block', marginBottom: 'var(--space-xs)', fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', fontWeight: '500' }}>Full name</label>
+              <div style={{ position: 'relative' }}>
+                <MdPerson style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={20} />
+                <input
+                  type="text"
+                  placeholder="Priya Sharma"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  style={inputStyle}
+                  onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+                  onBlur={(e) => e.target.style.borderColor = 'var(--border-subtle)'}
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label style={{ display: 'block', marginBottom: 'var(--space-xs)', fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', fontWeight: '500' }}>Email Address</label>
             <div style={{ position: 'relative' }}>
               <MdEmail style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={20} />
               <input
-                type="text"
-                placeholder="admin@freightiq.com"
+                type="email"
+                placeholder="you@company.com"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px 12px 48px',
-                  background: 'var(--bg-input)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--font-size-md)',
-                  outline: 'none',
-                  transition: 'border-color var(--transition-fast)'
-                }}
+                style={inputStyle}
                 onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
                 onBlur={(e) => e.target.style.borderColor = 'var(--border-subtle)'}
               />
@@ -139,17 +176,7 @@ export default function LoginPage({ onLogin }) {
                 placeholder="••••••••"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '12px 16px 12px 48px',
-                  background: 'var(--bg-input)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-md)',
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--font-size-md)',
-                  outline: 'none',
-                  transition: 'border-color var(--transition-fast)'
-                }}
+                style={inputStyle}
                 onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
                 onBlur={(e) => e.target.style.borderColor = 'var(--border-subtle)'}
               />
@@ -179,16 +206,18 @@ export default function LoginPage({ onLogin }) {
             }}
             onMouseOver={(e) => !isLoading && (e.currentTarget.style.transform = 'translateY(-2px)')}
             onMouseOut={(e) => !isLoading && (e.currentTarget.style.transform = 'translateY(0)')}
-            onMouseDown={(e) => !isLoading && (e.currentTarget.style.transform = 'translateY(0)')}
-            onMouseUp={(e) => !isLoading && (e.currentTarget.style.transform = 'translateY(-2px)')}
           >
-            {isLoading ? 'Authenticating...' : (
-              <>
-                Sign In <MdLogin size={20} />
-              </>
+            {isLoading ? 'Working…' : isSignup ? (
+              <>Continue to preferences <MdPersonAdd size={20} /></>
+            ) : (
+              <>Sign In <MdLogin size={20} /></>
             )}
           </button>
         </form>
+
+        <p style={{ margin: 0, textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--font-size-xs)' }}>
+          Demo login only — accounts stay in this browser.
+        </p>
       </motion.div>
     </div>
   )
