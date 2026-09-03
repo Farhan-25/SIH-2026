@@ -18,9 +18,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// ─── Authentication ────────────────────────────────────────
-export const loginUser = (credentials) => api.post('/auth/login', credentials).then(r => r.data)
-
 // ─── Health ───────────────────────────────────────────────
 export const getHealth = () => api.get('/health')
 

@@ -19,6 +19,12 @@ import {
   getForecast
 } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
+import { useAuth } from '../context/AuthContext'
+import {
+  ALL_DESTINATION_PORTS,
+  ALL_TRADE_ROUTES,
+  useUserProfile,
+} from '../context/UserProfileContext'
 
 function parseNum(val, fallback = 0) {
   if (typeof val === 'number' && !Number.isNaN(val)) return val
@@ -63,6 +69,24 @@ function vesselsToFeatureCollection(list) {
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { formatMoney } = usePreferences()
+  const { currentUser } = useAuth()
+  const {
+    selectedPorts,
+    selectedRoutes,
+    selectedCargoes,
+    isPortSelected,
+    isRouteSelected,
+    isCargoSelected,
+  } = useUserProfile()
+
+  const primaryRoute = useMemo(() => {
+    return ALL_TRADE_ROUTES.find((r) => selectedRoutes.includes(r.id)) || ALL_TRADE_ROUTES[0]
+  }, [selectedRoutes])
+
+  const selectedPortNames = useMemo(
+    () => ALL_DESTINATION_PORTS.filter((p) => selectedPorts.includes(p.id)).map((p) => p.name),
+    [selectedPorts]
+  )
 
   const [data, setData] = useState(null)
   const [mapIntel, setMapIntel] = useState(null)
@@ -110,14 +134,14 @@ export default function DashboardPage() {
 
   useEffect(() => { loadAll() }, [loadAll])
 
-  // Primary corridor forecast for Command Centre
+  // Primary corridor forecast for Command Centre — uses this user's first selected route
   useEffect(() => {
     let cancelled = false
-    getForecast({ route_id: 'AU_NEW_TO_IN_PRT', vessel_class: 'Panamax', horizon_weeks: 8 })
+    getForecast({ route_id: primaryRoute.id, vessel_class: 'Panamax', horizon_weeks: 8 })
       .then((res) => { if (!cancelled) setForecast(res) })
       .catch(() => { if (!cancelled) setForecast(null) })
     return () => { cancelled = true }
-  }, [])
+  }, [primaryRoute.id])
 
   // Keep vessel lookup fresh for popup clicks
   useEffect(() => {
@@ -207,9 +231,17 @@ export default function DashboardPage() {
 
     const paint = () => {
       map.resize()
-      const vessels = (mapIntel.vessels || []).slice(0, 200)
-      const ports = mapIntel.ports?.indian || []
-      const routes = mapIntel.route_risks || []
+      const destHints = selectedPortNames.map((n) => n.split(' ')[0].toLowerCase())
+      const vessels = (mapIntel.vessels || [])
+        .filter((v) => {
+          if (!destHints.length) return true
+          const dest = String(v.dest || v.destination || '').toLowerCase()
+          if (!dest) return true
+          return destHints.some((h) => dest.includes(h))
+        })
+        .slice(0, 200)
+      const ports = (mapIntel.ports?.indian || []).filter((p) => isPortSelected(p.port_id || p.id))
+      const routes = (mapIntel.route_risks || []).filter((r) => isRouteSelected(r.route_id || r.id))
 
       const routeFc = {
         type: 'FeatureCollection',
@@ -314,11 +346,27 @@ export default function DashboardPage() {
 
     if (map.isStyleLoaded()) paint()
     else map.once('load', paint)
-  }, [mapIntel])
+  }, [mapIntel, selectedPortNames, isPortSelected, isRouteSelected])
 
   const kpis = data?.kpis || {}
-  const forecasts = data?.recent_forecasts || []
-  const fleetCount = mapIntel?.vessels?.length || 0
+  const forecasts = (data?.recent_forecasts || []).filter((f) => {
+    const cargoOk = !f.cargo || isCargoSelected(f.cargo)
+    const routeText = `${f.route || ''} ${f.route_id || ''}`.toLowerCase()
+    const routeOk = selectedRoutes.length === 0 || selectedRoutes.some((id) => {
+      const meta = ALL_TRADE_ROUTES.find((r) => r.id === id)
+      if (!meta) return false
+      return routeText.includes(meta.destination.toLowerCase()) || routeText.includes(id.toLowerCase())
+    })
+    return cargoOk && routeOk
+  })
+  const destHints = selectedPortNames.map((n) => n.split(' ')[0].toLowerCase())
+  const visibleVessels = (mapIntel?.vessels || []).filter((v) => {
+    if (!destHints.length) return true
+    const dest = String(v.dest || v.destination || '').toLowerCase()
+    if (!dest) return true
+    return destHints.some((h) => dest.includes(h))
+  })
+  const fleetCount = visibleVessels.length
   const apiStatus = mapIntel?.api_status || {}
 
   const sentScore = copilotBriefing?.sentiment_score ?? sentiment?.current_score ?? -0.15
@@ -330,7 +378,9 @@ export default function DashboardPage() {
     if (Array.isArray(fromCopilot) && fromCopilot.length) return fromCopilot.slice(0, 4)
     return [
       `Market tone is ${sentLabel.toLowerCase()} (${Number(sentScore).toFixed(2)}).`,
-      `East-coast average port wait is ${kpis.avg_port_wait?.value || '—'}.`,
+      selectedPortNames.length
+        ? `Watching ${selectedPortNames.slice(0, 3).join(', ')}${selectedPortNames.length > 3 ? ` +${selectedPortNames.length - 3}` : ''}.`
+        : `East-coast average port wait is ${kpis.avg_port_wait?.value || '—'}.`,
       Object.keys(chokepoints).length
         ? `${Object.keys(chokepoints).length} chokepoints under watch — check Red Sea / Suez exposure.`
         : 'Monitoring key chokepoints for transit disruption.',
@@ -338,16 +388,21 @@ export default function DashboardPage() {
         ? `${fleetCount} vessels currently on the India corridor map.`
         : 'Live AIS feed warming up for the Bay of Bengal.',
     ]
-  }, [copilotBriefing, sentLabel, sentScore, kpis, chokepoints, fleetCount])
+  }, [copilotBriefing, sentLabel, sentScore, kpis, chokepoints, fleetCount, selectedPortNames])
 
   const tickerItems = [
     { key: 'brent', label: 'Brent', value: formatMoney(parseNum(kpis.brent_crude?.value, 82.4)), trend: kpis.brent_crude?.trend, up: kpis.brent_crude?.trend_dir === 'up', icon: <MdLocalGasStation /> },
     { key: 'inr', label: 'USD/INR', value: kpis.usd_inr?.value || '₹85.2', trend: kpis.usd_inr?.trend, up: kpis.usd_inr?.trend_dir === 'up' },
-    { key: 'coal', label: 'Newcastle Coal', value: formatMoney(parseNum(kpis.coal_price?.value, 130)), trend: kpis.coal_price?.trend, up: kpis.coal_price?.trend_dir === 'up' },
     { key: 'freight', label: 'Avg Freight', value: formatMoney(parseNum(kpis.avg_freight_rate?.value, 14.82), { suffix: '/MT' }), trend: kpis.avg_freight_rate?.trend, up: kpis.avg_freight_rate?.trend_dir === 'up', icon: <MdDirectionsBoat /> },
-    { key: 'wait', label: 'Odisha Wait', value: kpis.avg_port_wait?.value || '3.8d', trend: kpis.avg_port_wait?.trend, up: kpis.avg_port_wait?.trend_dir === 'up' },
-    { key: 'iron', label: 'Iron Ore', value: formatMoney(parseNum(kpis.iron_ore?.value, 110)), trend: kpis.iron_ore?.trend, up: kpis.iron_ore?.trend_dir === 'up' },
+    { key: 'wait', label: 'Port Wait', value: kpis.avg_port_wait?.value || '3.8d', trend: kpis.avg_port_wait?.trend, up: kpis.avg_port_wait?.trend_dir === 'up' },
   ]
+
+  if (selectedCargoes.length === 0 || selectedCargoes.some((c) => c.toLowerCase().includes('coal'))) {
+    tickerItems.splice(2, 0, { key: 'coal', label: 'Newcastle Coal', value: formatMoney(parseNum(kpis.coal_price?.value, 130)), trend: kpis.coal_price?.trend, up: kpis.coal_price?.trend_dir === 'up' })
+  }
+  if (selectedCargoes.length === 0 || isCargoSelected('Iron Ore')) {
+    tickerItems.push({ key: 'iron', label: 'Iron Ore', value: formatMoney(parseNum(kpis.iron_ore?.value, 110)), trend: kpis.iron_ore?.trend, up: kpis.iron_ore?.trend_dir === 'up' })
+  }
 
   const topChoke = Object.values(chokepoints)[0]
   if (topChoke) {
@@ -366,7 +421,13 @@ export default function DashboardPage() {
   const neuPct = sentiment?.neutral_pct ?? 22
   const posPct = sentiment?.positive_pct ?? 18
 
-  const indianPorts = mapIntel?.ports?.indian || []
+  const indianPorts = (mapIntel?.ports?.indian || []).filter((p) => isPortSelected(p.port_id || p.id))
+
+  const corridorFallback = selectedRoutes.map((id) => {
+    const r = ALL_TRADE_ROUTES.find((route) => route.id === id)
+    if (!r) return null
+    return { route: `${r.origin} → ${r.destination}`, cargo: r.cargo, vessel: 'Panamax', rate: 14.82, congestion: 42 }
+  }).filter(Boolean)
   const avgCong = indianPorts.length
     ? Math.round(indianPorts.reduce((s, p) => s + (p.congestion_index || 0), 0) / indianPorts.length)
     : null
@@ -399,6 +460,9 @@ export default function DashboardPage() {
       <header className="cc-header">
         <div>
           <h1>Command Centre</h1>
+          <p className="cc-profile-line">
+            Built for {currentUser?.name || 'your desk'} · {selectedPorts.length} ports · {selectedRoutes.length} corridors · {selectedCargoes.slice(0, 3).join(', ') || 'cargo mix'}
+          </p>
         </div>
         <div className="cc-header-actions">
           <div className="cc-feed-pill">
@@ -480,7 +544,7 @@ export default function DashboardPage() {
 
           <div className="cc-forecast-strip">
             <div className="cc-forecast-head">
-              <strong>Newcastle → Paradip · Panamax</strong>
+              <strong>{primaryRoute.origin} → {primaryRoute.destination} · Panamax</strong>
               <button type="button" className="cc-link" onClick={() => navigate('/forecast')}>Details</button>
             </div>
             <div className="cc-forecast-metrics">
@@ -544,10 +608,8 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {(forecasts.length ? forecasts : [
-                  { route: 'Newcastle → Paradip', cargo: 'Thermal Coal', vessel: 'Panamax', rate: '$14.82/MT', congestion: 42 },
-                  { route: 'Hay Point → Vizag', cargo: 'Coking Coal', vessel: 'Capesize', rate: '$16.40/MT', congestion: 38 },
-                  { route: 'Kalimantan → Dhamra', cargo: 'Thermal Coal', vessel: 'Supramax', rate: '$11.20/MT', congestion: 55 },
+                {(forecasts.length ? forecasts : corridorFallback.length ? corridorFallback : [
+                  { route: `${primaryRoute.origin} → ${primaryRoute.destination}`, cargo: primaryRoute.cargo, vessel: 'Panamax', rate: '$14.82/MT', congestion: 42 },
                 ]).slice(0, 4).map((f, i) => {
                   const rateVal = parseNum(f.rate, 15)
                   const fwdVal = (i === 0 && fwd4 != null) ? fwd4 : (rateVal * 1.04)

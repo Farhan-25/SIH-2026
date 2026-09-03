@@ -13,6 +13,7 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import OnboardingPage from './pages/OnboardingPage'
 import { PreferencesProvider, usePreferences } from './context/PreferencesContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import { UserProfileProvider, useUserProfile } from './context/UserProfileContext'
 
 // Heavy pages (MapLibre / Three / Plotly) load on demand so the shell stays snappy
@@ -70,10 +71,8 @@ function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!localStorage.getItem('freightiq_token')
-  })
-  const { isOnboarded, resetProfile } = useUserProfile()
+  const { currentUser, isAuthenticated, logout } = useAuth()
+  const { isOnboarded, resetProfile, selectedPorts, selectedRoutes, selectedCargoes } = useUserProfile()
   const {
     currency,
     currencySymbol,
@@ -108,12 +107,7 @@ function AppShell() {
     return (
       <AnimatePresence mode="wait">
         <motion.div key="login" {...pageTransition}>
-          <LoginPage onLogin={(data) => {
-            if (data && data.token) {
-              localStorage.setItem('freightiq_token', data.token)
-              setIsAuthenticated(true)
-            }
-          }} />
+          <LoginPage />
         </motion.div>
       </AnimatePresence>
     )
@@ -266,11 +260,14 @@ function AppShell() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', paddingBottom: 'var(--space-sm)', borderBottom: '1px solid var(--border-subtle)', marginBottom: 'var(--space-sm)' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '18px' }}>
-                    AD
+                    {(currentUser?.name || 'U').slice(0, 2).toUpperCase()}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 'var(--font-size-md)', color: 'var(--text-primary)' }}>Admin User</div>
-                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>demo@freightiq.com</div>
+                    <div style={{ fontWeight: 600, fontSize: 'var(--font-size-md)', color: 'var(--text-primary)' }}>{currentUser?.name || 'User'}</div>
+                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>{currentUser?.email}</div>
+                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
+                      {selectedPorts.length} ports · {selectedRoutes.length} routes · {selectedCargoes.length} cargoes
+                    </div>
                   </div>
                 </div>
 
@@ -311,10 +308,7 @@ function AppShell() {
               </div>
             )}
           </div>
-          <button className="btn btn-ghost" onClick={() => {
-            localStorage.removeItem('freightiq_token')
-            setIsAuthenticated(false)
-          }} title="Logout">
+          <button className="btn btn-ghost" onClick={logout} title="Logout">
             <MdLogout size={20} />
           </button>
         </div>
@@ -346,9 +340,11 @@ function AppShell() {
 export default function App() {
   return (
     <PreferencesProvider>
-      <UserProfileProvider>
-        <AppShell />
-      </UserProfileProvider>
+      <AuthProvider>
+        <UserProfileProvider>
+          <AppShell />
+        </UserProfileProvider>
+      </AuthProvider>
     </PreferencesProvider>
   )
 }

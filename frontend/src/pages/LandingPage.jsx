@@ -11,10 +11,14 @@ import {
 
 import { analyzeScenario } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
+import { useAuth } from '../context/AuthContext'
+import { useUserProfile } from '../context/UserProfileContext'
 
 export default function LandingPage() {
   const navigate = useNavigate()
   const { formatMoney } = usePreferences()
+  const { isAuthenticated } = useAuth()
+  const { isOnboarded } = useUserProfile()
 
   // Video Background Controls
   const videoRef = useRef(null)
@@ -119,12 +123,29 @@ export default function LandingPage() {
           >
             <MdOutlineDescription /> API Specs
           </a>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="btn btn-primary btn-sm glow-button"
-          >
-            Launch Command Center <MdArrowForward />
-          </button>
+          {isAuthenticated && isOnboarded ? (
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="btn btn-primary btn-sm glow-button"
+            >
+              Open Command Center <MdArrowForward />
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="btn btn-ghost btn-sm"
+              >
+                Sign in
+              </button>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="btn btn-primary btn-sm glow-button"
+              >
+                Create workspace <MdArrowForward />
+              </button>
+            </>
+          )}
         </div>
       </header>
 
