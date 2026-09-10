@@ -130,6 +130,16 @@ npm run dev
 
 For full setup documentation, environment key configuration, and troubleshooting, see [**`setup.md`**](file:///d:/SIH-2026/setup.md).
 
+### 📚 Documentation & Reference Guides
+All architecture specifications, engineering blueprints, and hackathon requirements are organized inside [`docs/`](file:///d:/SIH-2026/docs/):
+- [**System Design & Architecture**](file:///d:/SIH-2026/docs/DESIGN.md)
+- [**Technical Project Explanation**](file:///d:/SIH-2026/docs/PROJECT_EXPLANATION.md)
+- [**Codebase Architecture Analysis**](file:///d:/SIH-2026/docs/SIH26006_Codebase_Analysis.md)
+- [**SIH Execution Plan & Milestones**](file:///d:/SIH-2026/docs/SIH26006_Execution_Plan.md)
+- [**News Sentiment & NLP Engine Reference**](file:///d:/SIH-2026/docs/news_sentiment.md)
+- [**Problem Statement & Objectives**](file:///d:/SIH-2026/docs/ps.md)
+- [**Requirements Specification**](file:///d:/SIH-2026/docs/requirement.md)
+
 ---
 
 ## 📋 Project TODOs & Active Roadmap
