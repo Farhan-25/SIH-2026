@@ -1,12 +1,12 @@
-import os
-import math
-import time
 import logging
-from typing import Dict, Any, List, Optional
+import os
+import time
 from datetime import datetime, timedelta
+from typing import Any
+
+from src.data.db_manager import FreightDBManager
 from src.data.news_client import MaritimeNewsClient
 from src.risk.nlp_engine import MaritimeNLPEngine
-from src.data.db_manager import FreightDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -17,21 +17,21 @@ class GeopoliticalRiskEngine:
     and Shock Alerts using NLP signals from maritime news and dynamic database-configured weights.
     """
 
-    def __init__(self, db_manager: Optional[FreightDBManager] = None):
+    def __init__(self, db_manager: FreightDBManager | None = None):
         self.db = db_manager or FreightDBManager()
         self.news_client = MaritimeNewsClient()
         self.nlp_engine = MaritimeNLPEngine()
 
         # In-memory TTL caches
-        self._articles_cache: Optional[List[Dict[str, Any]]] = None
+        self._articles_cache: list[dict[str, Any]] | None = None
         self._articles_cache_ts: float = 0
-        self._sentiment_cache: Optional[Dict[str, Any]] = None
+        self._sentiment_cache: dict[str, Any] | None = None
         self._sentiment_cache_ts: float = 0
-        self._chokepoint_risks_cache: Optional[Dict[str, Any]] = None
+        self._chokepoint_risks_cache: dict[str, Any] | None = None
         self._chokepoint_risks_cache_ts: float = 0
         self._CACHE_TTL = 600  # 10 minutes
 
-    def get_chokepoints(self) -> Dict[str, Any]:
+    def get_chokepoints(self) -> dict[str, Any]:
         """Loads active monitored chokepoints from SQLite."""
         try:
             return self.db.load_chokepoints_master(active_only=True)
@@ -44,7 +44,7 @@ class GeopoliticalRiskEngine:
                 "strait_of_hormuz": {"name": "Strait of Hormuz", "terms": ["hormuz", "strait of hormuz"], "baseline_volume_per_day": 10.0}
             }
 
-    def get_processed_articles(self) -> List[Dict[str, Any]]:
+    def get_processed_articles(self) -> list[dict[str, Any]]:
         """Fetch and analyze latest maritime articles through the NLP engine with TTL caching."""
         now = time.time()
         if self._articles_cache is not None and (now - self._articles_cache_ts) < self._CACHE_TTL:
@@ -63,7 +63,7 @@ class GeopoliticalRiskEngine:
         self._articles_cache_ts = now
         return processed
 
-    def get_market_sentiment_summary(self) -> Dict[str, Any]:
+    def get_market_sentiment_summary(self) -> dict[str, Any]:
         """
         Aggregates overall maritime market sentiment with TTL caching.
         """
@@ -137,7 +137,7 @@ class GeopoliticalRiskEngine:
         self._sentiment_cache_ts = time.time()
         return result
 
-    def compute_chokepoint_risk(self, chokepoint_key: str, articles: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    def compute_chokepoint_risk(self, chokepoint_key: str, articles: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """
         Calculates the Maritime Disruption Risk Index for a specific chokepoint.
         Accepts pre-fetched articles to avoid redundant re-processing.
@@ -252,7 +252,7 @@ class GeopoliticalRiskEngine:
             "matched_article_count": len(matching)
         }
 
-    def get_all_chokepoint_risks(self) -> Dict[str, Any]:
+    def get_all_chokepoint_risks(self) -> dict[str, Any]:
         """Calculates risk across all chokepoints with single-pass article processing and TTL caching."""
         now = time.time()
         if self._chokepoint_risks_cache is not None and (now - self._chokepoint_risks_cache_ts) < self._CACHE_TTL:
@@ -269,7 +269,7 @@ class GeopoliticalRiskEngine:
         self._chokepoint_risks_cache_ts = now
         return results
 
-    def detect_geopolitical_shocks_and_alerts(self) -> List[Dict[str, Any]]:
+    def detect_geopolitical_shocks_and_alerts(self) -> list[dict[str, Any]]:
         """
         Identifies Geopolitical Shocks and generates alerts according to PRD FR-11 & FR-12:
         Triggers when: High volume anomaly AND High severity AND/OR strong negative sentiment.
@@ -317,7 +317,7 @@ class GeopoliticalRiskEngine:
 
         return alerts
 
-    def get_forecasting_nlp_features(self) -> Dict[str, Any]:
+    def get_forecasting_nlp_features(self) -> dict[str, Any]:
         """
         Extracts structured NLP features ready for direct consumption by ML models
         complying with PRD FR-13.

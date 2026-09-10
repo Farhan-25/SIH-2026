@@ -4,10 +4,10 @@ Implements FinBERT sentiment analysis, maritime entity extraction,
 chokepoint identification, and event taxonomy categorization according to the PRD in news_sentiment.md.
 """
 
-import os
-import re
 import logging
-from typing import Dict, Any, List, Optional
+import re
+from datetime import datetime, timezone
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +117,11 @@ class MaritimeNLPEngine:
         if not self.use_transformer:
             return
         try:
-            from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
-            import torch
+            from transformers import (
+                AutoModelForSequenceClassification,
+                AutoTokenizer,
+                pipeline,
+            )
             model_name = "ProsusAI/finbert"
             # Attempt loading with small timeout / safe local cache
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -129,7 +132,7 @@ class MaritimeNLPEngine:
             logger.debug(f"FinBERT transformer not active ({e}); using high-accuracy calibrated financial-maritime lexicon engine.")
             self.pipeline = None
 
-    def analyze_sentiment(self, text: str) -> Dict[str, Any]:
+    def analyze_sentiment(self, text: str) -> dict[str, Any]:
         """
         FinBERT sentiment analysis complying with PRD Section 9:
         Returns:
@@ -172,7 +175,7 @@ class MaritimeNLPEngine:
         # Calibrated domain-specific financial/maritime sentiment model
         return self._lexicon_sentiment(clean_text)
 
-    def _lexicon_sentiment(self, text: str) -> Dict[str, Any]:
+    def _lexicon_sentiment(self, text: str) -> dict[str, Any]:
         """Domain-calibrated financial & maritime sentiment analyzer."""
         t_lower = text.lower()
 
@@ -221,7 +224,7 @@ class MaritimeNLPEngine:
                 "engine": "domain_lexicon"
             }
 
-    def detect_events_and_entities(self, text: str) -> Dict[str, Any]:
+    def detect_events_and_entities(self, text: str) -> dict[str, Any]:
         """
         Extracts maritime event types, severity, chokepoint/locations, and vessel entities
         complying with PRD FR-05, FR-06, and FR-07.
@@ -288,7 +291,7 @@ class MaritimeNLPEngine:
             }
         }
 
-    def process_article(self, article: Dict[str, Any]) -> Dict[str, Any]:
+    def process_article(self, article: dict[str, Any]) -> dict[str, Any]:
         """Runs end-to-end NLP analysis pipeline on a single news article."""
         full_text = f"{article.get('title', '')}. {article.get('description', '')}"
         

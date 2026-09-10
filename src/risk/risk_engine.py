@@ -9,10 +9,11 @@ Data Sources:
   - Open-Meteo Marine API — wave height, swell, sea condition risk
 """
 
-from typing import Dict, Any, List
-from src.data.openmeteo_client import OpenMeteoMarineClient
-from src.data.gfw_client import GFWClient
+from typing import Any
+
 from src.data.aisstream_client import AISPortCongestionTracker
+from src.data.gfw_client import GFWClient
+from src.data.openmeteo_client import OpenMeteoMarineClient
 
 
 class RiskAndDisruptionEngine:
@@ -23,7 +24,7 @@ class RiskAndDisruptionEngine:
         self.gfw_client = GFWClient()
         self.ais_tracker = AISPortCongestionTracker()
 
-    def get_blended_port_congestion(self, port_id: str, port_name: str = "") -> Dict[str, Any]:
+    def get_blended_port_congestion(self, port_id: str, port_name: str = "") -> dict[str, Any]:
         """
         Single source of truth: live AIS near the port (AISStream + Open Waters).
         Legacy name kept; previously "blended" two paths that both read the same SQLite table.
@@ -61,7 +62,7 @@ class RiskAndDisruptionEngine:
         origin_port_name: str = "",
         dest_port_name: str = "",
         historical_freight_volatility_pct: float = 8.5
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Computes composite risk metrics across port congestion, marine weather, and market volatility.
         Uses blended GFW + AIS data for port congestion.

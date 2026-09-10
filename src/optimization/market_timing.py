@@ -4,7 +4,8 @@ Evaluates forward freight trajectories, volatility cones, and suggests optimal c
 (Spot vs 3-Month COA vs 6-Month COA) along with idle vessel repositioning guidance.
 """
 
-from typing import Dict, Any, List
+from typing import Any
+
 import numpy as np
 
 
@@ -14,11 +15,11 @@ class MarketTimingEngine:
     def evaluate_strategy(
         self,
         current_spot_rate: float,
-        forecast_rates: List[float],
-        forecast_lower: List[float],
-        forecast_upper: List[float],
+        forecast_rates: list[float],
+        forecast_lower: list[float],
+        forecast_upper: list[float],
         target_volume_mt: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Determines whether procurement should enter spot market now, lock in a multi-voyage term contract,
         or wait for an upcoming market dip.
@@ -82,7 +83,7 @@ class MarketTimingEngine:
             "idle_scenario_guidance": self._get_idle_scenario_repositioning(current_spot_rate, avg_mid_term)
         }
 
-    def _get_idle_scenario_repositioning(self, current_rate: float, future_rate: float) -> Dict[str, Any]:
+    def _get_idle_scenario_repositioning(self, current_rate: float, future_rate: float) -> dict[str, Any]:
         """Provides idle vessel mitigation suggestions."""
         if future_rate < current_rate * 0.90:
             return {

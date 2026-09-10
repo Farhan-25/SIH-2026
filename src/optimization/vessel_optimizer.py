@@ -5,8 +5,7 @@ and international load ports to determine feasible vessels and compute total lan
 """
 
 import json
-from typing import Dict, Any, List, Optional
-
+from typing import Any
 
 from src.data.db_manager import FreightDBManager
 
@@ -19,7 +18,7 @@ class VesselConstraintOptimizer:
         ports_path: str = "data/reference/ports_master.json",
         vessels_path: str = "data/reference/vessels_master.json",
         routes_path: str = "data/reference/routes_master.json",
-        db_manager: Optional[FreightDBManager] = None
+        db_manager: FreightDBManager | None = None
     ):
         self.db = db_manager or FreightDBManager()
         try:
@@ -71,7 +70,7 @@ class VesselConstraintOptimizer:
         "sagar": "IN_SGR",
     }
 
-    def _resolve_port(self, port_id: str, is_destination: bool = False) -> Optional[Dict[str, Any]]:
+    def _resolve_port(self, port_id: str, is_destination: bool = False) -> dict[str, Any] | None:
         """Resolves port ID or name against Indian and Global port records."""
         if not port_id:
             return None
@@ -103,9 +102,9 @@ class VesselConstraintOptimizer:
         cargo_parcel_mt: float,
         origin_port_id: str,
         dest_port_id: str,
-        predicted_freight_rates: Optional[Dict[str, float]] = None,
-        live_fleet: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+        predicted_freight_rates: dict[str, float] | None = None,
+        live_fleet: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         """
         Evaluates physical feasibility of all vessel classes and ranks them by total landed cost per tonne.
         """
