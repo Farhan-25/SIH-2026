@@ -165,7 +165,7 @@ export default function DatasetExplorer() {
                 <th style={{ padding: '12px 16px', fontWeight: 600 }}>Bunker ($/t)</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600 }}>USD/INR FX</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600 }}>Lag 1W ($)</th>
-                <th style={{ padding: '12px 16px', fontWeight 600 }}>Volatility 4W</th>
+                <th style={{ padding: '12px 16px', fontWeight: 600 }}>Volatility 4W</th>
               </tr>
             </thead>
             <tbody>
