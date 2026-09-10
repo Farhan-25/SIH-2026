@@ -84,4 +84,15 @@ export const getCopilotOverview = () =>
 export const askCopilot = (message, context = null) =>
   api.post('/copilot/chat', { message, context }).then(r => r.data)
 
+// ─── ML Retraining & Dataset Explorer ───────────────────
+export const triggerModelRetrain = () =>
+  api.post('/models/train').then(r => r.data)
+
+export const getRetrainStatus = () =>
+  api.get('/models/train/status').then(r => r.data)
+
+export const getDatasetPreview = (params = {}) =>
+  api.get('/dataset/preview', { params }).then(r => r.data)
+
 export default api
+

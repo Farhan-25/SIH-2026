@@ -13,11 +13,16 @@ import {
   MdAccountBalanceWallet,
   MdPlayArrow,
   MdRefresh,
-  MdWarning
+  MdWarning,
+  MdTerminal,
+  MdTableChart
 } from 'react-icons/md'
 import { getForecast, getRoutes } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
 import { useUserProfile } from '../context/UserProfileContext'
+import RetrainModal from '../components/RetrainModal'
+import DatasetExplorer from '../components/DatasetExplorer'
+
 
 const FEATURE_NAME_MAP = {
   target_lag_1: { name: 'Prior Week Freight Rate', direction: '↑ Spot rate momentum & market inertia' },
@@ -78,6 +83,8 @@ export default function ForecastPage() {
   const [allowedVessels, setAllowedVessels] = useState(ALL_VESSEL_CLASSES)
   const [horizon, setHorizon] = useState(12)
   const [modelMode, setModelMode] = useState('compare')
+  const [activeViewTab, setActiveViewTab] = useState('analytics')
+  const [isRetrainOpen, setIsRetrainOpen] = useState(false)
   const [loadingRoutes, setLoadingRoutes] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -399,14 +406,48 @@ export default function ForecastPage() {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
       {/* ─── Page Header ─── */}
-      <div className="section-header">
+      <div className="section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1>Freight Rate Forecasting & Neural Intelligence</h1>
-          <p>
+          <p style={{ margin: 0 }}>
             Ensemble AI blending XGBoost, LightGBM, Regularized ElasticNet & PyTorch BiLSTM Attention with 80% Quantile Uncertainty Cones & Live SHAP Attributions.
           </p>
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            onClick={() => setIsRetrainOpen(true)}
+            className="btn btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', border: '1px solid var(--accent-ocean)' }}
+          >
+            <MdTerminal style={{ fontSize: '18px', color: '#38bdf8' }} /> Retrain ML Models
+          </button>
+        </div>
       </div>
+
+      {/* ─── View Tabs ─── */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: 'var(--space-md)' }}>
+        <button
+          onClick={() => setActiveViewTab('analytics')}
+          className={`btn ${activeViewTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '8px 18px', borderRadius: '8px' }}
+        >
+          <MdShowChart style={{ fontSize: '16px' }} /> Forecast Analytics & Drivers
+        </button>
+        <button
+          onClick={() => setActiveViewTab('dataset')}
+          className={`btn ${activeViewTab === 'dataset' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '8px 18px', borderRadius: '8px' }}
+        >
+          <MdTableChart style={{ fontSize: '16px' }} /> Dataset Explorer & Provenance
+        </button>
+      </div>
+
+      {activeViewTab === 'dataset' ? (
+        <DatasetExplorer />
+      ) : (
+        <>
+
 
       {/* ─── Controls & Filters ─── */}
       <div
@@ -785,6 +826,15 @@ export default function ForecastPage() {
           </div>
         </div>
       )}
+        </>
+      )}
+
+      <RetrainModal
+        isOpen={isRetrainOpen}
+        onClose={() => setIsRetrainOpen(false)}
+        onTrainingSuccess={runForecast}
+      />
     </motion.div>
   )
 }
+
