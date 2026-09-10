@@ -3030,3 +3030,58 @@ select.form-control {
     width: auto;
   }
 }
+
+/* ----- Copilot Markdown Typography ----- */
+.copilot-markdown {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+
+.copilot-markdown h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+}
+
+.copilot-markdown h4 {
+  margin: 10px 0 4px 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.copilot-markdown p {
+  margin: 0 0 10px 0;
+  line-height: 1.6;
+}
+
+.copilot-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.copilot-markdown ul, .copilot-markdown ol {
+  margin: 6px 0 10px 20px;
+  padding: 0;
+}
+
+.copilot-markdown li {
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.copilot-markdown strong {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.copilot-markdown code {
+  background: var(--bg-card);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  border: 1px solid var(--border-subtle);
+  color: var(--accent-amber);
+}
+

@@ -8,6 +8,7 @@ import {
 } from 'react-icons/md'
 import { getCopilotOverview, askCopilot } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
+import ReactMarkdown from 'react-markdown'
 
 const QUICK_PROMPTS = [
   { label: '📈 Newcastle → Paradip Drivers', query: 'Why are freight rates rising for Newcastle to Paradip?' },
@@ -45,8 +46,6 @@ export default function CopilotPage() {
           {
             sender: 'copilot',
             text: data.briefing || "Welcome to FreightIQ Maritime Copilot. Ask me anything about freight rate forecasts, SHAP feature importance, vessel choices, or geopolitical chokepoint risks.",
-            key_insights: data.key_insights || [],
-            suggested_actions: data.suggested_actions || [],
             timestamp: new Date().toLocaleTimeString()
           }
         ])
@@ -56,15 +55,6 @@ export default function CopilotPage() {
           {
             sender: 'copilot',
             text: "Welcome to FreightIQ Maritime Copilot. How can I assist with your freight forecasting or vessel chartering strategy today?",
-            key_insights: [
-              "Macro Sentiment: Negative (-0.42)",
-              "Red Sea Disruption Index: 0.88 (CRITICAL)",
-              "Paradip Port Wait: ~4.8 days"
-            ],
-            suggested_actions: [
-              "Explain Newcastle → Paradip rate drivers",
-              "Recommend vessel for 75,000 MT coal"
-            ],
             timestamp: new Date().toLocaleTimeString()
           }
         ])
@@ -91,18 +81,15 @@ export default function CopilotPage() {
         const copilotMsg = {
           sender: 'copilot',
           text: res.response || "Analysis complete.",
-          key_insights: res.key_insights || [],
-          suggested_actions: res.suggested_actions || [],
           timestamp: new Date().toLocaleTimeString()
         }
         setMessages(prev => [...prev, copilotMsg])
       })
       .catch(err => {
+        console.error("Copilot query failed:", err)
         const errorMsg = {
           sender: 'copilot',
           text: "I encountered an issue processing that query. Please try again or select one of the suggested prompts below.",
-          key_insights: [],
-          suggested_actions: [],
           timestamp: new Date().toLocaleTimeString()
         }
         setMessages(prev => [...prev, errorMsg])
@@ -119,6 +106,11 @@ export default function CopilotPage() {
             <span style={{ fontSize: '1.5rem' }}>🤖</span>
             <h1 style={{ margin: 0 }}>AI Maritime Intelligence Copilot</h1>
             <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>NLP + XAI REASONING</span>
+            {overview?.ai_active && (
+              <span className="badge badge-success" style={{ fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <MdAutoAwesome /> GEMINI AI LIVE
+              </span>
+            )}
           </div>
           <p>Conversational explanations of freight rate forecasting, SHAP driver weights, and geopolitical risk</p>
         </div>
@@ -154,7 +146,9 @@ export default function CopilotPage() {
               <strong>FreightIQ Reasoning Copilot</strong>
               <span style={{ color: 'var(--text-muted)' }}>• Active Context: Australia, Indonesia, Odisha Ports</span>
             </div>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>v2.0 XAI Mode</span>
+            <span style={{ fontSize: '0.75rem', color: overview?.ai_active ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
+              {overview?.ai_active ? `⚡ ${overview.ai_model || 'Gemini'} Online` : 'v2.0 XAI Mode'}
+            </span>
           </div>
 
           {/* Messages Scroll View */}
@@ -192,63 +186,21 @@ export default function CopilotPage() {
                     background: isUser ? 'linear-gradient(135deg, var(--accent-ocean), hsl(200, 70%, 35%))' : 'var(--bg-elevated)',
                     border: isUser ? 'none' : '1px solid var(--border-subtle)',
                     borderRadius: isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
-                    padding: '14px 18px',
+                    padding: '16px 20px',
                     color: isUser ? '#ffffff' : 'var(--text-primary)',
                     boxShadow: 'var(--glass-shadow)',
                     lineHeight: 1.6,
-                    fontSize: '0.9rem',
-                    whiteSpace: 'pre-line'
+                    fontSize: '0.9rem'
                   }}>
-                    {msg.text}
-
-                    {/* Key Insight Bullets */}
-                    {msg.key_insights && msg.key_insights.length > 0 && (
-                      <div style={{
-                        marginTop: 12,
-                        paddingTop: 10,
-                        borderTop: '1px solid hsla(0, 0%, 100%, 0.12)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 4
-                      }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                          KEY TAKEAWAYS:
-                        </div>
-                        {msg.key_insights.map((insight, idx) => (
-                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem' }}>
-                            <MdCheckCircle style={{ color: 'var(--accent-emerald)', flexShrink: 0 }} size={14} />
-                            <span>{insight}</span>
-                          </div>
-                        ))}
+                    {isUser ? (
+                      <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
+                    ) : (
+                      <div className="copilot-markdown">
+                        <ReactMarkdown>{msg.text}</ReactMarkdown>
                       </div>
                     )}
-                  </div>
 
-                  {/* Suggested Follow-up Actions */}
-                  {msg.suggested_actions && msg.suggested_actions.length > 0 && !isUser && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                      {msg.suggested_actions.map((act, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => handleSendMessage(act)}
-                          style={{
-                            background: 'var(--bg-secondary)',
-                            border: '1px solid var(--border-subtle)',
-                            color: 'var(--accent-ocean)',
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s'
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-ocean)'}
-                          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-subtle)'}
-                        >
-                          ⚡ {act}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  </div>
                 </motion.div>
               )
             })}
