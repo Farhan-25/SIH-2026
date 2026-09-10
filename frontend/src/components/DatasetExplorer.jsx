@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { getDatasetPreview } from '../api/client'
-import { MdTableChart, MdFilterList, MdSearch, MdChevronLeft, MdChevronRight, MdStorage, MdDateRange, MdDirectionsBoat, MdAltRoute } from 'react-icons/md'
+import { MdTableChart, MdFilterList, MdSearch, MdChevronLeft, MdChevronRight, MdStorage, MdDateRange, MdDirectionsBoat, MdAltRoute, MdDownload } from 'react-icons/md'
 
 export default function DatasetExplorer() {
   const [data, setData] = useState(null)
@@ -10,6 +10,15 @@ export default function DatasetExplorer() {
   const [selectedRoute, setSelectedRoute] = useState('')
   const [selectedVessel, setSelectedVessel] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
+
+  const handleDownloadCSV = () => {
+    const params = new URLSearchParams()
+    if (selectedRoute) params.append('route_id', selectedRoute)
+    if (selectedVessel) params.append('vessel_class', selectedVessel)
+    const url = `/api/v1/dataset/download?${params.toString()}`
+    window.open(url, '_blank')
+  }
+
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -146,8 +155,30 @@ export default function DatasetExplorer() {
           </select>
         </div>
 
-        <div style={{ fontSize: '13px', color: '#94a3b8' }}>
-          Showing {data?.summary?.filtered_records?.toLocaleString() || 0} matching records
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ fontSize: '13px', color: '#94a3b8' }}>
+            Showing {data?.summary?.filtered_records?.toLocaleString() || 0} matching records
+          </div>
+
+          <button
+            onClick={handleDownloadCSV}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+            }}
+          >
+            <MdDownload style={{ fontSize: '16px' }} /> Download CSV
+          </button>
         </div>
       </div>
 

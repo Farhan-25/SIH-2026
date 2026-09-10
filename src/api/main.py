@@ -17,7 +17,7 @@ from typing import Any
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -427,6 +427,40 @@ def get_dataset_preview(
         "summary": summary_stats,
         "records": page_data,
     }
+
+
+@app.get("/api/v1/dataset/download")
+def download_dataset_csv(
+    route_id: str | None = None,
+    vessel_class: str | None = None,
+):
+    """
+    Downloads the filtered or full unified freight timeseries dataset as a CSV file.
+    """
+    df = get_cached_timeseries_df()
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail="Unified freight timeseries dataset not found.")
+
+    filtered_df = df.copy()
+    if route_id and route_id.strip():
+        norm_route = normalize_route_id(route_id)
+        filtered_df = filtered_df[filtered_df["route_id"] == norm_route]
+
+    if vessel_class and vessel_class.strip():
+        filtered_df = filtered_df[filtered_df["vessel_class"] == vessel_class.strip()]
+
+    if "date" in filtered_df.columns:
+        filtered_df = filtered_df.sort_values(by="date", ascending=False)
+
+    csv_data = filtered_df.to_csv(index=False)
+    filename = f"unified_freight_timeseries_{route_id or 'all'}.csv"
+
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
 
 
 @app.get("/api/v1/ports")
