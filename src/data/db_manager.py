@@ -4,12 +4,13 @@ Provides relational querying and persistence interfaces for ports, vessels, rout
 live tracking telemetry, market indicators, news sentiment articles, and OGD turnaround times.
 """
 
-import os
 import json
+import os
 import sqlite3
 import time
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Any
+
 import pandas as pd
 
 
@@ -17,12 +18,12 @@ class FreightDBManager:
     """Manages relational SQLite storage and querying for ports, vessels, routes, and historical rates."""
 
     # Class-level singleton caches shared across all instances
-    _cache_ports: Optional[Dict[str, Any]] = None
-    _cache_routes: Optional[Dict[str, Any]] = None
-    _cache_vessels: Optional[Dict[str, Any]] = None
-    _cache_chokepoints: Optional[Dict[str, Dict[str, Any]]] = None
-    _cache_risk_weights: Optional[Dict[str, float]] = None
-    _cache_ts: Dict[str, float] = {}
+    _cache_ports: dict[str, Any] | None = None
+    _cache_routes: dict[str, Any] | None = None
+    _cache_vessels: dict[str, Any] | None = None
+    _cache_chokepoints: dict[str, dict[str, Any]] | None = None
+    _cache_risk_weights: dict[str, float] | None = None
+    _cache_ts: dict[str, float] = {}
     _CACHE_TTL = 600  # 10 minutes
 
     def __init__(self, db_path: str = "data/processed/freight_data.db"):
@@ -299,21 +300,19 @@ class FreightDBManager:
                         v.get("geared", False), now_iso
                     ))
 
-            # Check active_fleet independently
-            cursor.execute("SELECT count(*) FROM active_fleet")
-            if cursor.fetchone()[0] == 0:
-                for i, fl in enumerate(v_data.get("active_fleet", [])):
-                    vid = fl.get("vessel_id") or f"vessel_{i+1:03d}"
-                    v_name = fl.get("vessel_name") or fl.get("name", f"MV BULK CARRIER {i+1}")
-                    v_cls = fl.get("vessel_class") or fl.get("class", "Panamax")
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO active_fleet VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        vid, v_name,
-                        v_cls, fl.get("operator", "Fleet Operator"),
-                        fl.get("imo", f"984{i:04d}"), fl.get("flag", "PAN"),
-                        fl.get("year_built", fl.get("built_year", 2018)), "Active", now_iso
-                    ))
+            # Ensure reference fleet vessels are always seeded into active_fleet
+            for i, fl in enumerate(v_data.get("active_fleet", [])):
+                vid = fl.get("vessel_id") or f"ref_vessel_{i+1:03d}"
+                v_name = fl.get("vessel_name") or fl.get("name", f"MV BULK CARRIER {i+1}")
+                v_cls = fl.get("vessel_class") or fl.get("class", "Panamax")
+                cursor.execute("""
+                    INSERT OR IGNORE INTO active_fleet VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    vid, v_name,
+                    v_cls, fl.get("operator", "Fleet Operator"),
+                    fl.get("imo", f"984{i:04d}"), fl.get("flag", "PAN"),
+                    fl.get("year_built", fl.get("built_year", 2018)), "Active", now_iso
+                ))
 
         # Check routes_master
         cursor.execute("SELECT count(*) FROM routes_master")
@@ -394,7 +393,7 @@ class FreightDBManager:
         ts = FreightDBManager._cache_ts.get(key, 0)
         return (time.time() - ts) < FreightDBManager._CACHE_TTL
 
-    def load_ports_master(self, path: Optional[str] = None) -> Dict[str, Any]:
+    def load_ports_master(self, path: str | None = None) -> dict[str, Any]:
         """Loads ports dynamically from relational SQLite table with in-memory caching."""
         if FreightDBManager._cache_ports is not None and self._is_cache_valid("ports"):
             return FreightDBManager._cache_ports
@@ -406,44 +405,47 @@ class FreightDBManager:
         indian_ports = {}
         global_ports = {}
 
+        def _clean(v):
+            return None if pd.isna(v) else v
+
         for _, row in df.iterrows():
-            coords = {"lat": row["lat"], "lon": row["lon"]}
+            coords = {"lat": _clean(row["lat"]), "lon": _clean(row["lon"])}
             p_dict = {
                 "port_id": row["port_id"],
                 "port_name": row["port_name"],
                 "coordinates": coords,
-                "max_permissible_draft_m": row["max_permissible_draft_m"],
-                "max_draft_with_tides_m": row["max_draft_with_tides_m"],
-                "max_loa_m": row["max_loa_m"],
-                "max_beam_m": row["max_beam_m"],
-                "max_dwt_capacity": row["max_dwt_capacity"],
+                "max_permissible_draft_m": _clean(row["max_permissible_draft_m"]),
+                "max_draft_with_tides_m": _clean(row["max_draft_with_tides_m"]),
+                "max_loa_m": _clean(row["max_loa_m"]),
+                "max_beam_m": _clean(row["max_beam_m"]),
+                "max_dwt_capacity": _clean(row["max_dwt_capacity"]),
                 "primary_bulk_cargoes": json.loads(row["primary_bulk_cargoes_json"] or "[]"),
-                "notes": row["notes"]
+                "notes": _clean(row["notes"]) or ""
             }
 
             if row["is_indian_port"]:
                 p_dict.update({
-                    "state": row["state"],
-                    "country": row["country"],
+                    "state": _clean(row["state"]),
+                    "country": _clean(row["country"]),
                     "typical_vessel_classes_accommodated": json.loads(row["typical_vessel_classes_json"] or "[]"),
-                    "average_output_per_ship_berthday_mt": row["average_output_per_ship_berthday_mt"],
-                    "handling_capacity_mtpa": row["handling_capacity_mtpa"],
-                    "lighterage_required": bool(row["lighterage_required"]),
-                    "lighterage_location": row["lighterage_location"],
-                    "night_navigation": bool(row["night_navigation"]),
-                    "tidal_restriction_level": row["tidal_restriction_level"],
-                    "port_dues_usd_per_gt": row["port_dues_usd_per_gt"],
-                    "berth_hire_usd_per_gt_day": row["berth_hire_usd_per_gt_day"],
-                    "pilotage_usd_per_gt": row["pilotage_usd_per_gt"],
+                    "average_output_per_ship_berthday_mt": _clean(row["average_output_per_ship_berthday_mt"]),
+                    "handling_capacity_mtpa": _clean(row["handling_capacity_mtpa"]),
+                    "lighterage_required": bool(row["lighterage_required"]) if not pd.isna(row["lighterage_required"]) else False,
+                    "lighterage_location": _clean(row["lighterage_location"]),
+                    "night_navigation": bool(row["night_navigation"]) if not pd.isna(row["night_navigation"]) else False,
+                    "tidal_restriction_level": _clean(row["tidal_restriction_level"]),
+                    "port_dues_usd_per_gt": _clean(row["port_dues_usd_per_gt"]),
+                    "berth_hire_usd_per_gt_day": _clean(row["berth_hire_usd_per_gt_day"]),
+                    "pilotage_usd_per_gt": _clean(row["pilotage_usd_per_gt"]),
                 })
                 indian_ports[row["port_id"]] = p_dict
             else:
                 p_dict.update({
-                    "country": row["country"],
-                    "region": row["region"],
+                    "country": _clean(row["country"]),
+                    "region": _clean(row["region"]),
                     "typical_vessel_classes_loaded": json.loads(row["typical_vessel_classes_json"] or "[]"),
-                    "loading_rate_tph": row["loading_rate_tph"],
-                    "average_queue_waiting_days": row["average_queue_waiting_days"],
+                    "loading_rate_tph": _clean(row["loading_rate_tph"]),
+                    "average_queue_waiting_days": _clean(row["average_queue_waiting_days"]),
                 })
                 global_ports[row["port_id"]] = p_dict
 
@@ -455,7 +457,7 @@ class FreightDBManager:
         FreightDBManager._cache_ts["ports"] = time.time()
         return result
 
-    def load_vessels_master(self, path: Optional[str] = None) -> Dict[str, Any]:
+    def load_vessels_master(self, path: str | None = None) -> dict[str, Any]:
         """Loads vessel classes and active fleet dynamically from relational SQLite tables with caching."""
         if FreightDBManager._cache_vessels is not None and self._is_cache_valid("vessels"):
             return FreightDBManager._cache_vessels
@@ -502,7 +504,7 @@ class FreightDBManager:
         FreightDBManager._cache_ts["vessels"] = time.time()
         return result
 
-    def load_routes_master(self, path: Optional[str] = None) -> Dict[str, Any]:
+    def load_routes_master(self, path: str | None = None) -> dict[str, Any]:
         """Loads trade routes dynamically from relational SQLite table with caching."""
         if FreightDBManager._cache_routes is not None and self._is_cache_valid("routes"):
             return FreightDBManager._cache_routes
@@ -534,7 +536,7 @@ class FreightDBManager:
         return result
 
     # ── Admin CRUD Endpoints Support ──
-    def save_port(self, p: Dict[str, Any]):
+    def save_port(self, p: dict[str, Any]):
         """Upserts a port record into ports_master."""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -602,7 +604,7 @@ class FreightDBManager:
         self._invalidate_cache("ports")
         return deleted
 
-    def save_route(self, r: Dict[str, Any]):
+    def save_route(self, r: dict[str, Any]):
         """Upserts a trade route into routes_master."""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -648,7 +650,7 @@ class FreightDBManager:
         self._invalidate_cache("routes")
         return deleted
 
-    def save_vessel_class(self, v: Dict[str, Any]):
+    def save_vessel_class(self, v: dict[str, Any]):
         """Upserts a vessel class into vessel_classes."""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -680,7 +682,7 @@ class FreightDBManager:
         conn.close()
         self._invalidate_cache("vessels")
 
-    def save_fleet_vessel(self, f: Dict[str, Any]):
+    def save_fleet_vessel(self, f: dict[str, Any]):
         """Upserts an active fleet ship into active_fleet."""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -716,7 +718,7 @@ class FreightDBManager:
         return deleted
 
     # ── Chokepoints Master CRUD ──
-    def load_chokepoints_master(self, active_only: bool = True) -> Dict[str, Dict[str, Any]]:
+    def load_chokepoints_master(self, active_only: bool = True) -> dict[str, dict[str, Any]]:
         """Loads chokepoints configuration dynamically from relational SQLite table with caching."""
         if active_only and FreightDBManager._cache_chokepoints is not None and self._is_cache_valid("chokepoints"):
             return FreightDBManager._cache_chokepoints
@@ -742,7 +744,7 @@ class FreightDBManager:
             FreightDBManager._cache_ts["chokepoints"] = time.time()
         return chokepoints
 
-    def save_chokepoint(self, chk: Dict[str, Any]):
+    def save_chokepoint(self, chk: dict[str, Any]):
         """Upserts a maritime chokepoint into chokepoints_master."""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -781,7 +783,7 @@ class FreightDBManager:
         return deleted
 
     # ── Risk Scoring Weights Config ──
-    def get_risk_scoring_weights(self) -> Dict[str, float]:
+    def get_risk_scoring_weights(self) -> dict[str, float]:
         """Retrieves configured risk scoring component weights, normalized to 1.0, with caching."""
         if FreightDBManager._cache_risk_weights is not None and self._is_cache_valid("risk_weights"):
             return FreightDBManager._cache_risk_weights
@@ -815,7 +817,7 @@ class FreightDBManager:
                 "recency": 0.20
             }
 
-    def save_risk_scoring_weights(self, weights: Dict[str, float]):
+    def save_risk_scoring_weights(self, weights: dict[str, float]):
         """Upserts configurable risk scoring weights into SQLite."""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -840,10 +842,10 @@ class FreightDBManager:
 
     def query_historical_rates(
         self,
-        route_id: Optional[str] = None,
-        vessel_class: Optional[str] = None,
+        route_id: str | None = None,
+        vessel_class: str | None = None,
         limit: int = 500
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Queries historical freight rates matching filters."""
         conn = self.get_connection()
         query = "SELECT * FROM freight_rates_historical WHERE 1=1"
@@ -869,7 +871,7 @@ class FreightDBManager:
             return []
 
     # ── Live Vessel Tracking CRUD ──
-    def save_live_vessels(self, vessels: List[Dict[str, Any]], *, replace: bool = False, max_keep: int = 150):
+    def save_live_vessels(self, vessels: list[dict[str, Any]], *, replace: bool = False, max_keep: int = 150):
         """Upserts live tracked vessels into SQLite.
 
         When replace=True, clears the table first so AIS snapshots don't grow forever.
@@ -969,7 +971,7 @@ class FreightDBManager:
         conn.close()
         return int(remaining)
 
-    def get_live_vessels(self, limit: int = 150) -> List[Dict[str, Any]]:
+    def get_live_vessels(self, limit: int = 150) -> list[dict[str, Any]]:
         """Retrieves currently tracked live vessels from SQLite (newest first, capped)."""
         conn = self.get_connection()
         try:
@@ -1004,7 +1006,7 @@ class FreightDBManager:
             return []
 
     # ── News Articles Cache ──
-    def save_news_articles(self, articles: List[Dict[str, Any]]):
+    def save_news_articles(self, articles: list[dict[str, Any]]):
         """Upserts raw/processed maritime news headlines for cold-start cache."""
         if not articles:
             return
@@ -1040,7 +1042,7 @@ class FreightDBManager:
         conn.commit()
         conn.close()
 
-    def get_latest_news_articles(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def get_latest_news_articles(self, limit: int = 50) -> list[dict[str, Any]]:
         """Returns recently cached news articles (newest first)."""
         conn = self.get_connection()
         try:
@@ -1089,7 +1091,7 @@ class FreightDBManager:
         conn.commit()
         conn.close()
 
-    def get_market_indicators(self) -> Dict[str, Dict[str, Any]]:
+    def get_market_indicators(self) -> dict[str, dict[str, Any]]:
         """Retrieves cached market indicators."""
         conn = self.get_connection()
         try:
@@ -1127,7 +1129,7 @@ class FreightDBManager:
         conn.commit()
         conn.close()
 
-    def get_port_congestion(self, port_id: str) -> Optional[Dict[str, Any]]:
+    def get_port_congestion(self, port_id: str) -> dict[str, Any] | None:
         conn = self.get_connection()
         try:
             cursor = conn.cursor()

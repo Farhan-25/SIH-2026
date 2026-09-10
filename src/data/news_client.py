@@ -4,16 +4,16 @@ Collects shipping news from public RSS / GDELT sources and provides a high-fidel
 fallback engine for maritime intelligence and geopolitical events.
 """
 
-import os
-import re
-import time
-import logging
 import hashlib
+import logging
+import re
 import threading
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
-import requests
+import time
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
+from typing import Any
+
+import requests
 
 from src.data.db_manager import FreightDBManager
 
@@ -73,6 +73,7 @@ except Exception:
 
 import concurrent.futures
 
+
 class MaritimeNewsClient:
     """Client for collecting, filtering, and caching maritime news articles."""
 
@@ -87,15 +88,15 @@ class MaritimeNewsClient:
     GDELT_DOC_API = "https://api.gdeltproject.org/api/v2/doc/doc"
 
     # Global class-level singleton cache across all instances
-    _GLOBAL_CACHE: List[Dict[str, Any]] = []
+    _GLOBAL_CACHE: list[dict[str, Any]] = []
     _GLOBAL_LAST_FETCH = 0.0
     _REFRESH_LOCK = threading.Lock()
 
-    def __init__(self, cache_ttl_seconds: int = 900, db_manager: Optional[FreightDBManager] = None):
+    def __init__(self, cache_ttl_seconds: int = 900, db_manager: FreightDBManager | None = None):
         self.cache_ttl = cache_ttl_seconds
         self.db = db_manager or FreightDBManager()
 
-    def get_articles(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+    def get_articles(self, force_refresh: bool = False) -> list[dict[str, Any]]:
         """Retrieve deduplicated, relevance-filtered maritime news articles with instant return."""
         current_time = time.time()
         if not force_refresh and MaritimeNewsClient._GLOBAL_CACHE and (current_time - MaritimeNewsClient._GLOBAL_LAST_FETCH < self.cache_ttl):
@@ -117,7 +118,7 @@ class MaritimeNewsClient:
                 except Exception:
                     pass
 
-            fetched: List[Dict[str, Any]] = []
+            fetched: list[dict[str, Any]] = []
 
             def fetch_feed(feed):
                 try:
@@ -182,7 +183,7 @@ class MaritimeNewsClient:
 
             return MaritimeNewsClient._GLOBAL_CACHE or processed
 
-    def _fetch_gdelt_maritime_news(self) -> List[Dict[str, Any]]:
+    def _fetch_gdelt_maritime_news(self) -> list[dict[str, Any]]:
         """Queries the live GDELT 2.0 Doc API for real-time global maritime incidents and disruptions."""
         articles = []
         params = {
@@ -221,7 +222,7 @@ class MaritimeNewsClient:
 
         return articles
 
-    def _parse_rss(self, xml_content: str, source_name: str) -> List[Dict[str, Any]]:
+    def _parse_rss(self, xml_content: str, source_name: str) -> list[dict[str, Any]]:
         """Parses raw RSS XML into standard article objects."""
         articles = []
         try:
@@ -251,7 +252,7 @@ class MaritimeNewsClient:
             logger.debug(f"Error parsing RSS XML: {e}")
         return articles
 
-    def _process_and_filter(self, raw_articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _process_and_filter(self, raw_articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Filters articles for maritime relevance and removes duplicates."""
         seen_titles = set()
         filtered = []
@@ -280,7 +281,7 @@ class MaritimeNewsClient:
 
         return filtered
 
-    def _generate_realistic_news_stream(self) -> List[Dict[str, Any]]:
+    def _generate_realistic_news_stream(self) -> list[dict[str, Any]]:
         """
         Provides realistic, curated shipping intelligence articles reflecting
         active global chokepoints, freight market dynamics, strikes, and port congestion.

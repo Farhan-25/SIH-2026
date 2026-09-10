@@ -150,102 +150,116 @@
   },
   "active_fleet": [
     {
-      "vessel_name": "MV Atlantic Runner",
+      "vessel_name": "MV Mount Hikurangi",
+      "imo": 9765439,
       "vessel_class": "Handysize",
       "operator": "Pacific Basin",
       "flag": "HKG",
-      "year_built": 2018
+      "year_built": 2017
     },
     {
-      "vessel_name": "MV Oriental Dawn",
+      "vessel_name": "MV Clipper Kamoshio",
+      "imo": 9552571,
       "vessel_class": "Handysize",
       "operator": "Clipper Group",
       "flag": "PAN",
-      "year_built": 2015
+      "year_built": 2011
     },
     {
-      "vessel_name": "MV Star Horizon",
+      "vessel_name": "MV Star Lutas",
+      "imo": 9745580,
       "vessel_class": "Supramax",
       "operator": "Star Bulk",
-      "flag": "LBR",
-      "year_built": 2019
+      "flag": "MHL",
+      "year_built": 2016
     },
     {
-      "vessel_name": "MV Eagle Crest",
+      "vessel_name": "MV Grebe Bulker",
+      "imo": 9637907,
       "vessel_class": "Supramax",
       "operator": "Eagle Bulk",
       "flag": "MHL",
-      "year_built": 2014
+      "year_built": 2013
     },
     {
-      "vessel_name": "MV Eco Explorer",
+      "vessel_name": "MV SBI Cronos",
+      "imo": 9769079,
       "vessel_class": "Ultramax",
       "operator": "Scorpio Bulkers",
-      "flag": "SGP",
-      "year_built": 2021
-    },
-    {
-      "vessel_name": "MV Nordic Ranger",
-      "vessel_class": "Ultramax",
-      "operator": "Norden",
-      "flag": "DNK",
-      "year_built": 2022
-    },
-    {
-      "vessel_name": "MV Pacific Harmony",
-      "vessel_class": "Panamax",
-      "operator": "Diana Shipping",
       "flag": "MHL",
       "year_built": 2017
     },
     {
-      "vessel_name": "MV Golden Era",
-      "vessel_class": "Panamax",
-      "operator": "Golden Ocean",
-      "flag": "NOR",
-      "year_built": 2016
-    },
-    {
-      "vessel_name": "MV Bulk Jupiter",
-      "vessel_class": "Kamsarmax",
-      "operator": "Genco Shipping",
-      "flag": "MHL",
+      "vessel_name": "MV Nord Hydra",
+      "imo": 9827006,
+      "vessel_class": "Ultramax",
+      "operator": "Norden",
+      "flag": "DNK",
       "year_built": 2020
     },
     {
-      "vessel_name": "MV Crimson Tide",
-      "vessel_class": "Kamsarmax",
-      "operator": "Oldendorff",
-      "flag": "LBR",
+      "vessel_name": "MV Santa Barbara",
+      "imo": 9670389,
+      "vessel_class": "Panamax",
+      "operator": "Diana Shipping",
+      "flag": "MHL",
+      "year_built": 2015
+    },
+    {
+      "vessel_name": "MV Golden Feng",
+      "imo": 9796044,
+      "vessel_class": "Panamax",
+      "operator": "Golden Ocean",
+      "flag": "MHL",
       "year_built": 2018
     },
     {
-      "vessel_name": "MV Berge Everest",
-      "vessel_class": "Capesize",
-      "operator": "Berge Bulk",
-      "flag": "IOM",
-      "year_built": 2016
+      "vessel_name": "MV Genco Resolute",
+      "imo": 9796056,
+      "vessel_class": "Kamsarmax",
+      "operator": "Genco Shipping",
+      "flag": "MHL",
+      "year_built": 2018
     },
     {
-      "vessel_name": "MV Navios Stellar",
+      "vessel_name": "MV Johanna Oldendorff",
+      "imo": 9762483,
+      "vessel_class": "Kamsarmax",
+      "operator": "Oldendorff",
+      "flag": "LBR",
+      "year_built": 2017
+    },
+    {
+      "vessel_name": "MV Berge Neblina",
+      "imo": 9672882,
+      "vessel_class": "Capesize",
+      "operator": "Berge Bulk",
+      "flag": "SGP",
+      "year_built": 2015
+    },
+    {
+      "vessel_name": "MV Navios Bonavis",
+      "imo": 9347643,
       "vessel_class": "Capesize",
       "operator": "Navios Maritime",
       "flag": "PAN",
-      "year_built": 2014
+      "year_built": 2009
     },
     {
-      "vessel_name": "MV Gargantua",
+      "vessel_name": "MV Mineral Belgium",
+      "imo": 9782203,
       "vessel_class": "Newcastlemax",
       "operator": "Bocimar",
       "flag": "BEL",
-      "year_built": 2021
+      "year_built": 2018
     },
     {
-      "vessel_name": "MV Oredigger",
+      "vessel_name": "MV Ore Sudbury",
+      "imo": 9820879,
       "vessel_class": "Newcastlemax",
       "operator": "Vale",
       "flag": "SGP",
-      "year_built": 2022
+      "year_built": 2019
     }
   ]
 }

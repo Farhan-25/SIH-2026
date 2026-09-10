@@ -7,13 +7,15 @@ positions. Live AIS is ingested by AISStream + Open Waters into SQLite
 payloads. Corridor positions are a last-resort demo fallback only.
 """
 
+import logging
+import math
 import os
 import time
-import math
-import logging
-from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
+from typing import Any
+
 from dotenv import load_dotenv
+
 from src.data.db_manager import FreightDBManager
 
 load_dotenv()
@@ -32,11 +34,11 @@ def _dist_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 def vessels_near_port(
-    vessels: List[Dict[str, Any]],
+    vessels: list[dict[str, Any]],
     lat: float,
     lon: float,
     radius_deg: float = PORT_RADIUS_DEG,
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split vessels within radius into (anchored, underway)."""
     anchored, underway = [], []
     for v in vessels:
@@ -63,13 +65,13 @@ class GFWClient:
     Name kept for import compatibility across the codebase.
     """
 
-    def __init__(self, db_manager: Optional[FreightDBManager] = None):
+    def __init__(self, db_manager: FreightDBManager | None = None):
         self.cache_ttl = 30  # seconds — fleet should feel live
         self._vessels_cache = None
         self._last_fetch_time = 0.0
         self.db = db_manager or FreightDBManager()
 
-    def _interpolate_corridor_position(self, waypoints: List[List[float]], progress_ratio: float) -> tuple:
+    def _interpolate_corridor_position(self, waypoints: list[list[float]], progress_ratio: float) -> tuple:
         """Interpolates lon, lat, heading along route waypoints (0.0–1.0 progress)."""
         if not waypoints or len(waypoints) < 2:
             return 86.67, 20.26, 0.0
@@ -92,7 +94,7 @@ class GFWClient:
         heading = (math.degrees(math.atan2(p2[0] - p1[0], p2[1] - p1[1])) + 360) % 360
         return round(lon, 4), round(lat, 4), round(heading, 1)
 
-    def _generate_dynamic_fleet_positions(self) -> List[Dict[str, Any]]:
+    def _generate_dynamic_fleet_positions(self) -> list[dict[str, Any]]:
         """Modeled ships along trade routes — used only when live AIS is empty/thin."""
         routes_data = self.db.load_routes_master()
         routes_list = routes_data.get("trade_routes", []) if isinstance(routes_data, dict) else routes_data
@@ -154,7 +156,7 @@ class GFWClient:
 
         return live_vessels
 
-    def _generate_modeled_anchorage_fill(self) -> List[Dict[str, Any]]:
+    def _generate_modeled_anchorage_fill(self) -> list[dict[str, Any]]:
         """
         Modest labeled anchorage/approach ships near Indian East Coast ports.
         Density tracks port queue hints — not a fake worldwide AIS dump.
@@ -167,7 +169,7 @@ class GFWClient:
         classes = ["Handysize", "Supramax", "Panamax", "Kamsarmax", "Capesize"]
         now_iso = datetime.now(timezone.utc).isoformat()
         now_sec = time.time()
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
 
         for i, (port_id, port) in enumerate(indian.items()):
             coords = port.get("coordinates") or {}
@@ -247,7 +249,7 @@ class GFWClient:
 
         return out
 
-    def get_live_cargo_vessels(self, limit: Optional[int] = 700) -> List[Dict[str, Any]]:
+    def get_live_cargo_vessels(self, limit: int | None = 700) -> list[dict[str, Any]]:
         """
         Hybrid fleet for maps/APIs:
           1. Live AIS in India ROI (AISStream + Open Waters → SQLite) — primary
@@ -261,7 +263,7 @@ class GFWClient:
             return self._vessels_cache[:lim]
 
         live_rows = self.db.get_live_vessels(limit=max(lim * 2, 1400))
-        india_ships: List[Dict[str, Any]] = []
+        india_ships: list[dict[str, Any]] = []
         seen = set()
 
         for v in live_rows:
@@ -289,7 +291,7 @@ class GFWClient:
         live_count = len(india_ships)
         need_fill = live_count < max(CORRIDOR_FALLBACK_THRESHOLD, DEMO_FLEET_TARGET)
 
-        def _absorb(candidates: List[Dict[str, Any]]):
+        def _absorb(candidates: list[dict[str, Any]]):
             for v in candidates:
                 if len(india_ships) >= lim:
                     break
@@ -334,7 +336,7 @@ class GFWClient:
         )
         return self._vessels_cache
 
-    def get_port_congestion(self, port_name: str) -> Dict[str, Any]:
+    def get_port_congestion(self, port_name: str) -> dict[str, Any]:
         """Congestion from vessels actually near the named Indian/load port."""
         ports_master = self.db.load_ports_master()
         indian = ports_master.get("indian_east_coast_ports") or {}
@@ -368,7 +370,7 @@ class GFWClient:
 
         return self._congestion_for_port(port_id, port_info)
 
-    def _congestion_for_port(self, port_id: str, port_info: Dict[str, Any]) -> Dict[str, Any]:
+    def _congestion_for_port(self, port_id: str, port_info: dict[str, Any]) -> dict[str, Any]:
         coords = port_info.get("coordinates") or {}
         plat, plon = float(coords.get("lat") or 0), float(coords.get("lon") or 0)
         vessels = self.get_live_cargo_vessels()

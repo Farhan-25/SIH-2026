@@ -4,17 +4,16 @@ Provides dynamic real-time and historical prices for thermal coal, coking coal, 
 crude oil, and bunker fuel using TwelveData, Yahoo Finance, and St. Louis FRED / World Bank APIs.
 """
 
-import os
-import time
 import logging
-from typing import Dict, Any, List, Optional
-import pandas as pd
-import numpy as np
+import time
+from typing import Any
 
-from src.data.twelvedata_client import TwelveDataClient
-from src.data.fred_client import FREDClient
+import numpy as np
+import pandas as pd
 
 from src.data.db_manager import FreightDBManager
+from src.data.fred_client import FREDClient
+from src.data.twelvedata_client import TwelveDataClient
 
 logger = logging.getLogger(__name__)
 
@@ -25,9 +24,9 @@ class CommodityPriceTracker:
     Pulls live data from TwelveData, Yahoo Finance, and FRED with automated SQLite caching.
     """
 
-    _GLOBAL_CACHE: Dict[str, Any] = {}
+    _GLOBAL_CACHE: dict[str, Any] = {}
 
-    def __init__(self, db_manager: Optional[FreightDBManager] = None):
+    def __init__(self, db_manager: FreightDBManager | None = None):
         self.db = db_manager or FreightDBManager()
         self.twelvedata = TwelveDataClient(db_manager=self.db)
         self.fred = None
@@ -38,7 +37,7 @@ class CommodityPriceTracker:
 
         self._cache_ttl = 600  # 10 minutes cache
 
-    def get_latest_commodity_prices(self) -> Dict[str, float]:
+    def get_latest_commodity_prices(self) -> dict[str, float]:
         """
         Returns dynamic real-time commodity benchmark and bunker fuel prices.
         Automatically updates from live market feeds (TwelveData / Yahoo Finance / FRED / SQLite cache).
@@ -49,7 +48,7 @@ class CommodityPriceTracker:
             prices[key] = item.get("price", 100.0)
         return prices
 
-    def get_detailed_commodity_snapshot(self) -> Dict[str, Any]:
+    def get_detailed_commodity_snapshot(self) -> dict[str, Any]:
         """
         Returns structured real-time commodity and bunker spot pricing with source provenance,
         units, and percentage changes.

@@ -3,16 +3,18 @@ AISStream.io WebSocket Client & Dynamic Port Congestion Monitor.
 Streams live vessel positions in target bounding boxes and computes dynamic anchorage queue metrics.
 """
 
-import os
-import json
 import asyncio
+import json
 import logging
+import os
 import time
-from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
+from typing import Any
+
 import requests
 import websockets
 from dotenv import load_dotenv
+
 from src.data.db_manager import FreightDBManager
 
 load_dotenv()
@@ -68,25 +70,25 @@ def is_near_india(lat: float, lon: float) -> bool:
 class AISPortCongestionTracker:
     """Monitors live vessel counts and anchorage congestion in port bounding boxes."""
 
-    def __init__(self, api_key: Optional[str] = None, db_manager: Optional[FreightDBManager] = None):
+    def __init__(self, api_key: str | None = None, db_manager: FreightDBManager | None = None):
         self.api_key = api_key or os.getenv("AISSTREAM_API_KEY", "")
         self.db = db_manager or FreightDBManager()
         self.connected = False
-        self.last_error: Optional[str] = None
-        self.last_message_at: Optional[float] = None
+        self.last_error: str | None = None
+        self.last_message_at: float | None = None
 
-    def get_port_bounding_box(self, lat: float, lon: float, radius_deg: float = 0.3) -> List[List[float]]:
+    def get_port_bounding_box(self, lat: float, lon: float, radius_deg: float = 0.3) -> list[list[float]]:
         """Creates bounding box [[lat_min, lon_min], [lat_max, lon_max]] around port coordinates."""
         return [
             [lat - radius_deg, lon - radius_deg],
             [lat + radius_deg, lon + radius_deg]
         ]
 
-    def build_corridor_bounding_boxes(self, radius_deg: float = 1.2) -> List[List[List[float]]]:
+    def build_corridor_bounding_boxes(self, radius_deg: float = 1.2) -> list[list[list[float]]]:
         """Few large India tiles — many small boxes starve AISStream delivery."""
         return [list(b) for b in INDIA_REGION_BOXES]
 
-    def build_load_port_bounding_boxes(self, radius_deg: float = 0.5) -> List[List[List[float]]]:
+    def build_load_port_bounding_boxes(self, radius_deg: float = 0.5) -> list[list[list[float]]]:
         """Optional smaller boxes around foreign load ports (not used for primary map feed)."""
         ports_master = self.db.load_ports_master()
         routes_master = self.db.load_routes_master()
@@ -103,12 +105,12 @@ class AISPortCongestionTracker:
             boxes.append(self.get_port_bounding_box(float(lat), float(lon), radius_deg))
         return boxes
 
-    def point_in_interest_region(self, lat: float, lon: float, boxes: Optional[List] = None) -> bool:
+    def point_in_interest_region(self, lat: float, lon: float, boxes: list | None = None) -> bool:
         """True if lat/lon falls inside any ROI bounding box."""
         boxes = boxes or self.build_corridor_bounding_boxes()
         return any(_box_contains(box, lat, lon) for box in boxes)
 
-    async def sample_live_vessels(self, bounding_box: List[List[float]], duration_seconds: int = 5) -> List[Dict[str, Any]]:
+    async def sample_live_vessels(self, bounding_box: list[list[float]], duration_seconds: int = 5) -> list[dict[str, Any]]:
         """Connect to AISStream WebSocket for N seconds and capture active vessels within bounding box."""
         if not self.api_key:
             return []
@@ -137,13 +139,13 @@ class AISPortCongestionTracker:
 
         return vessels_seen
 
-    def fetch_openwaters_vessels(self, boxes: Optional[List[List[List[float]]]] = None) -> List[Dict[str, Any]]:
+    def fetch_openwaters_vessels(self, boxes: list[list[list[float]]] | None = None) -> list[dict[str, Any]]:
         """
         Pull latest India-ROI positions from Open Waters (AISHub + open feeds).
         No API key required — complements sparse AISStream coverage.
         """
         boxes = boxes or self.build_corridor_bounding_boxes()
-        by_mmsi: Dict[str, Dict[str, Any]] = {}
+        by_mmsi: dict[str, dict[str, Any]] = {}
         now_iso = datetime.now(timezone.utc).isoformat()
 
         for box in boxes:
@@ -245,7 +247,7 @@ class AISPortCongestionTracker:
             "BoundingBoxes": boxes,
             "FilterMessageTypes": ["PositionReport"],
         }
-        vessel_buffer: Dict[str, Dict[str, Any]] = {}
+        vessel_buffer: dict[str, dict[str, Any]] = {}
         last_save = time.time()
 
         while True:
@@ -359,7 +361,7 @@ class AISPortCongestionTracker:
             self._run_aisstream_loop(boxes),
         )
 
-    def get_port_congestion_estimate(self, port_id: str, historical_avg_waiting: float = 2.5) -> Dict[str, Any]:
+    def get_port_congestion_estimate(self, port_id: str, historical_avg_waiting: float = 2.5) -> dict[str, Any]:
         """
         Port congestion from live AIS near the port (same fleet the map shows).
         Cache TTL 3 minutes — never invent ship counts from the index formula.

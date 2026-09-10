@@ -4,13 +4,14 @@ Provides dynamic fetching, caching, and querying of official Indian major port
 turnaround times (TRT) and berth-day outputs from data.gov.in / Ministry of Shipping.
 """
 
-import os
 import logging
-from typing import Dict, Any, Optional
+import os
 from datetime import datetime, timezone
-import requests
+
 import pandas as pd
+import requests
 from dotenv import load_dotenv
+
 from src.data.db_manager import FreightDBManager
 
 load_dotenv()
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 class OGDPortTurnaroundTracker:
     """Manages official Indian port turnaround times and operational efficiency statistics."""
 
-    def __init__(self, db_manager: Optional[FreightDBManager] = None):
+    def __init__(self, db_manager: FreightDBManager | None = None):
         self.db = db_manager or FreightDBManager()
         self.api_key = os.getenv("DATAGOV_API_KEY", "")
         self._init_turnaround_data()
@@ -107,7 +108,7 @@ class OGDPortTurnaroundTracker:
 
         return False
 
-    def get_latest_turnaround_map(self) -> Dict[str, float]:
+    def get_latest_turnaround_map(self) -> dict[str, float]:
         """
         Returns a dictionary mapping port_id -> average turnaround time (days)
         from the most recent official data.

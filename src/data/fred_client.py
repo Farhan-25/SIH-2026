@@ -9,12 +9,13 @@ Fetches real-time and historical series for:
 - WPU057303: Marine Bunker Fuel PPI
 """
 
+import concurrent.futures
 import os
 import time
-import requests
+from typing import Any
+
 import pandas as pd
-import concurrent.futures
-from typing import Optional, Dict, Any
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,18 +39,18 @@ class FREDClient:
         "global_industrial_production": "INDPRO"
     }
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self.api_key = api_key or os.getenv("FRED_API_KEY")
         if not self.api_key:
             raise ValueError("FRED_API_KEY is not set in environment or constructor.")
-        self._series_cache: Dict[str, Dict[str, Any]] = {}
+        self._series_cache: dict[str, dict[str, Any]] = {}
         self._cache_ttl = 300  # 5 minutes cache
 
     def fetch_series(
         self,
         series_id: str = "DEXINUS",
-        observation_start: Optional[str] = None,
-        observation_end: Optional[str] = None
+        observation_start: str | None = None,
+        observation_end: str | None = None
     ) -> pd.DataFrame:
         """
         Fetches time-series data for a given FRED series ID.
@@ -99,7 +100,7 @@ class FREDClient:
             self._series_cache[cache_key] = {"timestamp": now, "df": df}
         return df
 
-    def get_latest_usd_inr(self) -> Dict[str, Any]:
+    def get_latest_usd_inr(self) -> dict[str, Any]:
         """Fetches the latest available USD/INR spot exchange rate."""
         df = self.fetch_series(series_id="DEXINUS")
         if df.empty:
@@ -149,7 +150,7 @@ class FREDClient:
         unified = unified.sort_values("date").ffill().bfill()
         return unified
 
-    def get_latest_market_snapshot(self) -> Dict[str, Any]:
+    def get_latest_market_snapshot(self) -> dict[str, Any]:
         """Concurrently fetches the latest values across all key maritime and energy indicators."""
         snapshot = {}
 

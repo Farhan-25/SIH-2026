@@ -5,26 +5,24 @@ and relational database master vessel/route parameters into a high-fidelity time
 """
 
 import os
-import json
 import sqlite3
-from typing import Optional, Dict, Any
 from datetime import datetime
-import pandas as pd
-import numpy as np
 
-from src.data.worldbank_pinksheet import CommodityPriceTracker
-from src.data.fred_client import FREDClient
+import numpy as np
+import pandas as pd
+
 from src.data.db_manager import FreightDBManager
 from src.data.ogd_client import OGDPortTurnaroundTracker
+from src.data.worldbank_pinksheet import CommodityPriceTracker
 
 
 def build_unified_freight_dataset(
     output_csv: str = "data/processed/unified_freight_timeseries.csv",
     output_db: str = "data/processed/freight_data.db",
     start_date: str = "2018-01-01",
-    end_date: Optional[str] = None,
-    random_seed: Optional[int] = 101,
-    db_manager: Optional[FreightDBManager] = None
+    end_date: str | None = None,
+    random_seed: int | None = 101,
+    db_manager: FreightDBManager | None = None
 ) -> pd.DataFrame:
     """
     Constructs a calibrated, high-fidelity multi-route, multi-vessel-class dry bulk dataset
@@ -61,7 +59,7 @@ def build_unified_freight_dataset(
                 direction="nearest"
             )
             macro_df["usd_inr_fx"] = fx_merged["usd_inr"].fillna(macro_df["usd_inr_fx"]).values
-        except Exception as e:
+        except Exception:
             pass
 
     # 4. Ingest Dynamic OGD Port Turnaround Times

@@ -4,9 +4,10 @@ Retrieves real-time and forecasted wave height, swell, and wind speed for shippi
 Free, requires no API key.
 """
 
-import time
 import logging
-from typing import Dict, Any, Optional
+import time
+from typing import Any
+
 import requests
 
 logger = logging.getLogger(__name__)
@@ -18,14 +19,14 @@ class OpenMeteoMarineClient:
     """Client for fetching marine weather and sea state conditions with coordinate-rounded caching."""
 
     # Class-level cache shared across all instances: key = (rounded_lat, rounded_lon)
-    _CACHE: Dict[tuple, Dict[str, Any]] = {}
-    _CACHE_TS: Dict[tuple, float] = {}
+    _CACHE: dict[tuple, dict[str, Any]] = {}
+    _CACHE_TS: dict[tuple, float] = {}
     _CACHE_TTL = 900  # 15 minutes
 
     def __init__(self, timeout: int = 5):
         self.timeout = timeout
 
-    def get_sea_state(self, lat: float, lon: float) -> Dict[str, Any]:
+    def get_sea_state(self, lat: float, lon: float) -> dict[str, Any]:
         """
         Fetch current and 7-day forecast wave and sea conditions for given lat/lon coordinates.
         Uses coordinate-rounded in-memory cache to avoid redundant network calls.
@@ -96,7 +97,7 @@ class OpenMeteoMarineClient:
         else:
             return "Severe Storm / Cyclone Alert (Voyage Deviation / Anchorage Delay Advised)"
 
-    def _fallback_seasonal_estimate(self, lat: float, lon: float) -> Dict[str, Any]:
+    def _fallback_seasonal_estimate(self, lat: float, lon: float) -> dict[str, Any]:
         """Deterministic seasonal fallback if offline."""
         # Baseline estimate for Bay of Bengal / Indian Ocean
         return {

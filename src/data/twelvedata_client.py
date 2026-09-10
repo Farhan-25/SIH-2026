@@ -4,12 +4,14 @@ Fetches real-time and historical FX rates (USD/INR, USD/AUD), energy proxies (Br
 and commodity market tickers using TwelveData with Yahoo Finance and SQLite database caching.
 """
 
+import logging
 import os
 import time
-import logging
-from typing import Dict, Any, Optional
+from typing import Any
+
 import requests
 from dotenv import load_dotenv
+
 from src.data.db_manager import FreightDBManager
 
 load_dotenv()
@@ -21,14 +23,14 @@ TWELVEDATA_BASE_URL = "https://api.twelvedata.com"
 class TwelveDataClient:
     """Client for fetching financial and FX time-series from TwelveData and real-time market feeds."""
 
-    _GLOBAL_CACHE: Dict[str, Dict[str, Any]] = {}
+    _GLOBAL_CACHE: dict[str, dict[str, Any]] = {}
 
-    def __init__(self, api_key: Optional[str] = None, db_manager: Optional[FreightDBManager] = None):
+    def __init__(self, api_key: str | None = None, db_manager: FreightDBManager | None = None):
         self.api_key = api_key or os.getenv("TWELVEDATA_API_KEY", "")
         self._cache_ttl = 600  # 10 minutes cache
         self.db = db_manager or FreightDBManager()
 
-    def get_exchange_rate(self, symbol: str = "USD/INR") -> Dict[str, Any]:
+    def get_exchange_rate(self, symbol: str = "USD/INR") -> dict[str, Any]:
         """
         Fetch latest exchange rate for currency pair (e.g. 'USD/INR' or 'USD/AUD').
         Uses TwelveData first, Yahoo Finance second, and SQLite verified cache.
@@ -94,7 +96,7 @@ class TwelveDataClient:
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
 
-    def get_brent_crude_proxy(self) -> Dict[str, Any]:
+    def get_brent_crude_proxy(self) -> dict[str, Any]:
         """Fetch Brent crude oil spot/futures price ($/barrel)."""
         now = time.time()
         cached = TwelveDataClient._GLOBAL_CACHE.get("BRENT")
@@ -136,7 +138,7 @@ class TwelveDataClient:
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
 
-    def get_wti_crude_proxy(self) -> Dict[str, Any]:
+    def get_wti_crude_proxy(self) -> dict[str, Any]:
         """Fetch WTI crude oil spot/futures price ($/barrel)."""
         now = time.time()
         cached = TwelveDataClient._GLOBAL_CACHE.get("WTI")
@@ -178,7 +180,7 @@ class TwelveDataClient:
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         }
 
-    def _fetch_yahoo_finance_price(self, symbol: str, label: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def _fetch_yahoo_finance_price(self, symbol: str, label: str | None = None) -> dict[str, Any] | None:
         """Fetches live market ticker from Yahoo Finance Public API."""
         ticker_map = {
             "USD/INR": "INR=X",
