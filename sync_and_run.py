@@ -86,6 +86,8 @@ def verify_python_environment():
         import pandas
         import uvicorn
         import src
+        import yfinance
+        import pandas_datareader
         print("✅ Python core dependencies and 'src' package are installed.")
     except ImportError:
         print("⚙️ Installing/Updating Python package in editable mode...")

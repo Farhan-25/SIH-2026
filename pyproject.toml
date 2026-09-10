@@ -25,6 +25,8 @@ dependencies = [
     "httpx>=0.25.0",
     "joblib>=1.3.0",
     "reportlab>=4.0.0",
+    "yfinance",
+    "pandas-datareader",
 ]
 
 [build-system]
