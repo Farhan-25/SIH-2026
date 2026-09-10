@@ -4,12 +4,14 @@ Includes Naive, Simple Moving Average (SMA), Exponential Smoothing (EMA),
 and Auto-Regressive baselines with evaluation metrics (RMSE, MAE, MAPE, Directional Accuracy).
 """
 
-from typing import Dict, Any, List, Tuple
 import numpy as np
 import pandas as pd
 
 
-def compute_evaluation_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
+from typing import Any
+
+
+def compute_evaluation_metrics(y_true: Any, y_pred: Any) -> dict[str, float]:
     """
     Computes standard time-series forecast error metrics:
     - RMSE (Root Mean Squared Error)
@@ -56,7 +58,7 @@ class BaselineForecaster:
         self.window = window
         self.alpha = alpha
 
-    def fit_predict(self, series: pd.Series, horizon_steps: int = 4) -> Tuple[np.ndarray, np.ndarray]:
+    def fit_predict(self, series: pd.Series, horizon_steps: int = 4) -> tuple[np.ndarray, np.ndarray]:
         """
         Generates in-sample fitted values and out-of-sample forward forecast.
         """

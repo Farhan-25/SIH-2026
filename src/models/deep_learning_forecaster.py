@@ -5,15 +5,15 @@ with full epoch training loops, backpropagation, batch optimization, and quantil
 """
 
 import os
-import time
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Any
+
 import numpy as np
 import pandas as pd
+
 try:
     import torch
-    import torch.nn as nn
-    import torch.optim as optim
-    from torch.utils.data import Dataset, DataLoader
+    from torch import nn, optim
+    from torch.utils.data import DataLoader, Dataset
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
@@ -27,8 +27,8 @@ except ImportError:
 
 from sklearn.preprocessing import StandardScaler
 
-from src.models.feature_engineering import FreightFeatureEngineer
 from src.models.baseline_forecasting import compute_evaluation_metrics
+from src.models.feature_engineering import FreightFeatureEngineer
 
 
 class TimeSeriesDataset(Dataset):
@@ -49,7 +49,7 @@ class TimeSeriesDataset(Dataset):
 class QuantilePinballLoss(nn.Module):
     """Pinball loss for asymmetric quantile uncertainty estimation."""
 
-    def __init__(self, quantiles: List[float] = [0.10, 0.90]):
+    def __init__(self, quantiles: list[float] = [0.10, 0.90]):
         super().__init__()
         self.quantiles = quantiles
 
@@ -117,7 +117,7 @@ class FreightTransformerLSTM(nn.Module):
         self.point_head = nn.Linear(32, 1)
         self.quantile_head = nn.Linear(32, 2)  # [q_0.10, q_0.90]
 
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         # x: [batch, input_dim] -> add sequence dim [batch, 1, input_dim]
         if x.dim() == 2:
             x_seq = x.unsqueeze(1)
@@ -169,11 +169,18 @@ class DeepLearningFreightForecaster:
         df: pd.DataFrame,
         test_size: float = 0.15,
         verbose: bool = True
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Executes full epoch-based gradient descent training with backpropagation and validation.
         """
         feat_df = self.feature_engineer.create_features(df)
+        feat_df = feat_df.replace([np.inf, -np.inf], np.nan)
+        feat_df["freight_rate_usd_per_mt"] = feat_df["freight_rate_usd_per_mt"].clip(0.5, 1000.0)
+        feat_df = feat_df.dropna(subset=["freight_rate_usd_per_mt"]).reset_index(drop=True)
+        feat_df[self.feature_names] = feat_df[self.feature_names].ffill().bfill()
+        feat_df[self.feature_names] = feat_df[self.feature_names].fillna(feat_df[self.feature_names].median())
+        feat_df[self.feature_names] = feat_df[self.feature_names].clip(-1e6, 1e6)
+
         X = feat_df[self.feature_names].values
         y = feat_df["freight_rate_usd_per_mt"].values
 
@@ -202,7 +209,7 @@ class DeepLearningFreightForecaster:
 
         if verbose:
             print(f"\n🧠 Starting PyTorch Deep Learning Training on {self.device}:")
-            print(f"   • Model Architecture: BiLSTM + Multi-Head Self-Attention + Quantile Risk Heads")
+            print("   • Model Architecture: BiLSTM + Multi-Head Self-Attention + Quantile Risk Heads")
             print(f"   • Total Trainable Parameters: {sum(p.numel() for p in self.model.parameters()):,}")
             print(f"   • Training Batches per Epoch: {len(train_loader)} (Batch Size = {self.batch_size})")
             print(f"   • Optimization: AdamW (lr={self.lr}) + Cosine Annealing Schedule\n")
@@ -275,7 +282,7 @@ class DeepLearningFreightForecaster:
         self.metrics = compute_evaluation_metrics(val_trues, val_preds)
         return self.metrics
 
-    def predict_future(self, route_df: pd.DataFrame, horizon_weeks: int = 12) -> Dict[str, Any]:
+    def predict_future(self, route_df: pd.DataFrame, horizon_weeks: int = 12) -> dict[str, Any]:
         """
         Iterative recursive deep multi-horizon forecasting with neural quantile heads.
         """

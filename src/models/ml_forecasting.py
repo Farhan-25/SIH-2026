@@ -6,18 +6,20 @@ Outputs multi-horizon predictions with quantile risk cones and SHAP explainabili
 """
 
 import os
+from typing import Any
+
 import joblib
-from typing import Dict, Any, List, Tuple, Optional
 import numpy as np
 import pandas as pd
+import shap
+from lightgbm import LGBMRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import ElasticNet
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
-from lightgbm import LGBMRegressor
-import shap
 
-from src.models.feature_engineering import FreightFeatureEngineer
 from src.models.baseline_forecasting import compute_evaluation_metrics
+from src.models.feature_engineering import FreightFeatureEngineer
 
 
 class FreightMLForecaster:
@@ -41,15 +43,26 @@ class FreightMLForecaster:
         # SHAP Explainer
         self.shap_explainer = None
 
+        # Preprocessor: fitted on training data, saved as part of model registry
+        self.scaler = StandardScaler()
+        self._scaler_fitted = False
+
         # Metrics and ensemble weights
         self.metrics = {}
         self.model_weights = {"xgboost": 0.45, "lightgbm": 0.45, "elasticnet": 0.10}
 
-    def train(self, df: pd.DataFrame, test_size: float = 0.15) -> Dict[str, Any]:
+    def train(self, df: pd.DataFrame, test_size: float = 0.15) -> dict[str, Any]:
         """
         Trains point forecast models (XGBoost, LightGBM, Ensemble) and quantile risk models.
         """
         feat_df = self.feature_engineer.create_features(df)
+        feat_df = feat_df.replace([np.inf, -np.inf], np.nan)
+        feat_df["freight_rate_usd_per_mt"] = feat_df["freight_rate_usd_per_mt"].clip(0.5, 1000.0)
+        feat_df = feat_df.dropna(subset=["freight_rate_usd_per_mt"]).reset_index(drop=True)
+        feat_df[self.feature_names] = feat_df[self.feature_names].ffill().bfill()
+        feat_df[self.feature_names] = feat_df[self.feature_names].fillna(feat_df[self.feature_names].median())
+        feat_df[self.feature_names] = feat_df[self.feature_names].clip(-1e6, 1e6)
+
         X = feat_df[self.feature_names]
         y = feat_df["freight_rate_usd_per_mt"]
 
@@ -84,7 +97,7 @@ class FreightMLForecaster:
         self.lgb_model.fit(X_train, y_train)
 
         # 3. Train Regularized Linear Baseline (ElasticNet)
-        self.elastic_model = ElasticNet(alpha=0.1, l1_ratio=0.5, random_state=42)
+        self.elastic_model = ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=5000, random_state=42)
         self.elastic_model.fit(X_train, y_train)
 
         # Evaluate individual models to compute optimal dynamic weights
@@ -92,9 +105,10 @@ class FreightMLForecaster:
         lgb_preds = self.lgb_model.predict(X_test)
         ela_preds = self.elastic_model.predict(X_test)
 
-        xgb_metrics = compute_evaluation_metrics(y_test.values, xgb_preds)
-        lgb_metrics = compute_evaluation_metrics(y_test.values, lgb_preds)
-        ela_metrics = compute_evaluation_metrics(y_test.values, ela_preds)
+        y_test_arr = np.asarray(y_test, dtype=float)
+        xgb_metrics = compute_evaluation_metrics(y_test_arr, xgb_preds)
+        lgb_metrics = compute_evaluation_metrics(y_test_arr, lgb_preds)
+        ela_metrics = compute_evaluation_metrics(y_test_arr, ela_preds)
 
         # Dynamic Inverse-MAPE Weighting
         inv_xgb = 1.0 / max(xgb_metrics["mape_pct"], 0.01)
@@ -132,7 +146,7 @@ class FreightMLForecaster:
             self.model_weights["elasticnet"] * ela_preds
         )
         self.metrics = {
-            "ensemble": compute_evaluation_metrics(y_test.values, ensemble_preds),
+            "ensemble": compute_evaluation_metrics(y_test_arr, ensemble_preds),
             "xgboost": xgb_metrics,
             "lightgbm": lgb_metrics,
             "elasticnet": ela_metrics,
@@ -163,7 +177,7 @@ class FreightMLForecaster:
         self,
         route_df: pd.DataFrame,
         horizon_weeks: int = 12
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Iterative recursive multi-step forecasting for forward horizon with SHAP attributions.
         """
@@ -268,7 +282,7 @@ class FreightMLForecaster:
         }
 
     def save_model(self, filepath: str = "models/freight_xgb_model.joblib"):
-        """Serializes all model weights, quantile regressors, and benchmark metrics."""
+        """Serializes all model weights, quantile regressors, benchmark metrics, and the fitted scaler."""
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         joblib.dump({
             "xgb_model": self.xgb_model,
@@ -276,19 +290,22 @@ class FreightMLForecaster:
             "elastic_model": self.elastic_model,
             "model_upper": self.model_upper,
             "model_lower": self.model_lower,
+            "scaler": self.scaler,
             "feature_names": self.feature_names,
             "metrics": self.metrics,
             "model_weights": self.model_weights
         }, filepath)
 
     def load_model(self, filepath: str = "models/freight_xgb_model.joblib"):
-        """Deserializes trained models from joblib file."""
+        """Deserializes trained models, scaler, and metadata from joblib file."""
         checkpoint = joblib.load(filepath)
         self.xgb_model = checkpoint.get("xgb_model", checkpoint.get("model"))
         self.lgb_model = checkpoint.get("lgb_model")
         self.elastic_model = checkpoint.get("elastic_model")
         self.model_upper = checkpoint["model_upper"]
         self.model_lower = checkpoint["model_lower"]
+        self.scaler = checkpoint.get("scaler", StandardScaler())
+        self._scaler_fitted = True
         self.feature_names = checkpoint["feature_names"]
         self.metrics = checkpoint["metrics"]
         self.model_weights = checkpoint.get("model_weights", {"xgboost": 0.5, "lightgbm": 0.5, "elasticnet": 0.0})

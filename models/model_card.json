@@ -1,0 +1,100 @@
+{
+  "model_name": "SIH26006 Intelligent Freight Forecasting Engine",
+  "version": "3.0.0",
+  "problem_type": "Multi-horizon time-series regression",
+  "description": "Predicts weekly dry bulk freight rates (USD/MT) for 12 trade corridors into India's East Coast ports (Paradip, Vizag, Gangavaram, Dhamra, Haldia, Gopalpur) across 7 vessel classes (Handysize\u2013Newcastlemax). Trained on BDI-calibrated voyage economics from real market signals (2015-2026).",
+  "training_data": {
+    "source": "Baltic Dry Index (Yahoo Finance/Stooq) + World Bank Commodity Pink Sheet + Yahoo Finance commodity/FX data",
+    "start_date": "2015-01-05",
+    "end_date": "2026-09-07",
+    "total_records": 16470,
+    "routes": [
+      "AU_GLA_TO_IN_GNV",
+      "AU_HAY_TO_IN_VTZ",
+      "AU_NEW_TO_IN_PRT",
+      "ID_KLT_TO_IN_DHM",
+      "ID_KLT_TO_IN_PRT",
+      "ID_SMR_TO_IN_HLD",
+      "MZ_BEI_TO_IN_GPL",
+      "MZ_NAC_TO_IN_VTZ",
+      "RU_TAM_TO_IN_VTZ",
+      "RU_VOS_TO_IN_PRT",
+      "US_BAL_TO_IN_GNV",
+      "US_NOR_TO_IN_PRT"
+    ],
+    "vessel_classes": [
+      "Capesize",
+      "Newcastlemax",
+      "Panamax",
+      "Kamsarmax",
+      "Supramax",
+      "Ultramax",
+      "Handysize"
+    ],
+    "frequency": "Weekly (Monday)"
+  },
+  "model_architectures": {
+    "tree_ensemble": {
+      "framework": "XGBoost 2.x + LightGBM 4.x + sklearn ElasticNet",
+      "xgboost": {
+        "n_estimators": 500,
+        "learning_rate": 0.03,
+        "max_depth": 6,
+        "subsample": 0.8
+      },
+      "lightgbm": {
+        "n_estimators": 500,
+        "learning_rate": 0.03,
+        "num_leaves": 63
+      },
+      "elasticnet": {
+        "alpha": 0.1,
+        "l1_ratio": 0.5,
+        "max_iter": 5000
+      },
+      "quantile_regressors": "GradientBoostingRegressor \u03b1=0.10 and \u03b1=0.90 (200 estimators)"
+    },
+    "deep_bilstm_attention": {
+      "framework": "PyTorch 2.x",
+      "architecture": "Linear Embed \u2192 BiLSTM (hidden=128) \u2192 Multi-Head Attention (4h) \u2192 LayerNorm \u2192 MLP \u2192 Point + Quantile Heads",
+      "training": {
+        "epochs": 100,
+        "batch_size": 128,
+        "learning_rate": 0.002,
+        "optimizer": "AdamW (weight_decay=1e-4)",
+        "loss": "MSELoss + Pinball Quantile Loss (q=0.10, 0.90)"
+      }
+    }
+  },
+  "evaluation_methodology": "Temporal walk-forward split \u2014 85% train, 15% held-out test. No data leakage.",
+  "metrics_on_test_set": {
+    "tree_ensemble": {
+      "rmse": 2.802,
+      "rmse_usd": 2.802,
+      "mae": 1.803,
+      "mae_usd": 1.803,
+      "mape_pct": 5.8,
+      "mda_pct": 41.01,
+      "r2_score": 0.9642
+    },
+    "deep_bilstm_attention": {
+      "rmse": 10.72,
+      "rmse_usd": 10.72,
+      "mae": 7.909,
+      "mae_usd": 7.909,
+      "mape_pct": 22.86,
+      "mda_pct": 43.12,
+      "r2_score": 0.4754
+    }
+  },
+  "explainability": "TreeSHAP (shap.TreeExplainer) on XGBoost for per-feature attribution per prediction",
+  "artifacts": {
+    "freight_xgb_model.joblib": "Serialized tree ensemble + StandardScaler + SHAP explainer",
+    "freight_deep_lstm.pt": "PyTorch state dict + feature scaler + training history",
+    "metrics.json": "Benchmark evaluation on held-out test set",
+    "feature_schema.json": "Input feature names, sources, and descriptions",
+    "model_card.json": "This file \u2014 model documentation"
+  },
+  "created_at": "2026-09-09T10:56:19.285429+00:00",
+  "created_by": "SIH26006 Team \u2014 Smart India Hackathon 2026"
+}

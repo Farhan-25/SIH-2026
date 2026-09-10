@@ -4,9 +4,8 @@ Constructs lag features, rolling moving averages, rolling volatility,
 monsoon seasonality indicators, and fuel-to-freight ratios.
 """
 
-from typing import List, Tuple
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 
 class FreightFeatureEngineer:
@@ -86,7 +85,7 @@ class FreightFeatureEngineer:
         result_df = result_df.bfill().ffill()
         return result_df
 
-    def get_feature_columns(self) -> List[str]:
+    def get_feature_columns(self) -> list[str]:
         """Returns the list of training feature column names."""
         return [
             "target_lag_1", "target_lag_2", "target_lag_4", "target_lag_8", "target_lag_12",
