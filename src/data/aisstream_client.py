@@ -152,7 +152,7 @@ class AISPortCongestionTracker:
             (lat_a, lon_a), (lat_b, lon_b) = box[0], box[1]
             bbox = ",".join(
                 str(round(x, 4))
-                for x in (min(lat_a, lat_b), min(lon_a, lon_b), max(lat_a, lat_b), max(lon_a, lon_b))
+                for x in (min(lon_a, lon_b), min(lat_a, lat_b), max(lon_a, lon_b), max(lat_a, lat_b))
             )
             try:
                 resp = requests.get(
