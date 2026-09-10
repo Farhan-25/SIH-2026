@@ -4,38 +4,44 @@ Unifies all 4 modules: Forecasting, Vessel Optimization, Market Timing, and Risk
 Serves React frontend in production mode.
 """
 
+import logging
 import os
 import time
-import logging
-from typing import Dict, Any, List, Optional
+
+from dotenv import load_dotenv
+
+load_dotenv()
+from datetime import datetime
+from typing import Any
+
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-import pandas as pd
-import json
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-from src.data.db_manager import FreightDBManager
-from src.data.gfw_client import GFWClient
-from src.data.aisstream_client import AISPortCongestionTracker
-from src.data.openmeteo_client import OpenMeteoMarineClient
-from src.models.ml_forecasting import FreightMLForecaster
-from src.models.deep_learning_forecaster import DeepLearningFreightForecaster
-from src.optimization.vessel_optimizer import VesselConstraintOptimizer
-from src.optimization.market_timing import MarketTimingEngine
-from src.risk.risk_engine import RiskAndDisruptionEngine
-from src.risk.geopolitical_risk import GeopoliticalRiskEngine
 from src.api.copilot_engine import MaritimeCopilotEngine
+from src.data.aisstream_client import AISPortCongestionTracker
+from src.data.db_manager import FreightDBManager
+from src.data.fleet_sync import sync_fleet_from_apis
+from src.data.gfw_client import GFWClient
+from src.data.openmeteo_client import OpenMeteoMarineClient
 from src.data.worldbank_pinksheet import CommodityPriceTracker
+from src.models.deep_learning_forecaster import DeepLearningFreightForecaster
+from src.models.inference_service import FreightModelService
+from src.models.ml_forecasting import FreightMLForecaster
+from src.optimization.market_timing import MarketTimingEngine
+from src.optimization.vessel_optimizer import VesselConstraintOptimizer
+from src.risk.geopolitical_risk import GeopoliticalRiskEngine
+from src.risk.risk_engine import RiskAndDisruptionEngine
 
 app = FastAPI(
     title="SIH26006 Intelligent Freight Forecasting API",
     description="Backend services for bulk cargo vessel chartering optimization to East Coast of India.",
-    version="2.0.0"
+    version="3.0.0"
 )
 
 app.add_middleware(
@@ -69,6 +75,8 @@ copilot_engine = MaritimeCopilotEngine()
 commodity_tracker = CommodityPriceTracker()
 
 import asyncio
+
+
 @app.on_event("startup")
 async def startup_event():
     # Clear ballooned AIS history, then stream only ROI port regions
@@ -86,65 +94,88 @@ async def startup_event():
         logger.info("Cleared port_congestion_cache for live-AIS recount")
     except Exception as e:
         logger.warning("Could not clear congestion cache: %s", e)
+    # Sync active_fleet with real vessels from AIS APIs
+    try:
+        sync_result = await asyncio.to_thread(sync_fleet_from_apis, db_manager)
+        logger.info("Fleet sync: %s real vessels upserted from AIS APIs", sync_result.get("upserted", 0))
+    except Exception as e:
+        logger.warning("Fleet sync failed (using existing fleet data): %s", e)
     logger.info("Starting multi-source AIS tracker (AISStream + Open Waters)...")
     asyncio.create_task(ais_tracker.start_background_vessel_tracker())
 
-# Initialize and load models
+# ── Inference Service: loads pre-trained model registry from models/ ──
+# All /forecast endpoint calls go through this service — zero API dependency.
+model_service = FreightModelService()
+
+# Legacy model instances retained for backwards compat with admin/test endpoints
 ml_forecaster = FreightMLForecaster()
-model_path = "models/freight_xgb_model.joblib"
-if os.path.exists(model_path):
-    ml_forecaster.load_model(model_path)
+if os.path.exists("models/freight_xgb_model.joblib"):
+    try:
+        ml_forecaster.load_model("models/freight_xgb_model.joblib")
+    except Exception as e:
+        logger.warning("Legacy ml_forecaster load error: %s", e)
 
 deep_forecaster = DeepLearningFreightForecaster()
-deep_path = "models/freight_deep_lstm.pt"
-if os.path.exists(deep_path):
+if os.path.exists("models/freight_deep_lstm.pt"):
     try:
-        deep_forecaster.load_checkpoint(deep_path)
+        deep_forecaster.load_checkpoint("models/freight_deep_lstm.pt")
     except Exception as e:
-        print(f"Notice loading deep model: {e}")
+        logger.warning("Legacy deep_forecaster load error: %s", e)
+
+from pathlib import Path
+
+_BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # ── In-Memory Dataset Caches ──
-_TS_CACHE: Optional[pd.DataFrame] = None
+_TS_CACHE: pd.DataFrame | None = None
 _TS_CACHE_TS: float = 0
 _TS_CACHE_TTL = 600  # 10 minutes
 
-_OGD_CACHE: Optional[pd.DataFrame] = None
+_OGD_CACHE: pd.DataFrame | None = None
 _OGD_CACHE_TS: float = 0
 
 
-def get_cached_timeseries_df() -> Optional[pd.DataFrame]:
+def get_cached_timeseries_df() -> pd.DataFrame | None:
     """Returns the unified freight timeseries DataFrame from memory cache."""
     global _TS_CACHE, _TS_CACHE_TS
     now = time.time()
-    data_path = "data/processed/unified_freight_timeseries.csv"
+    candidates = [
+        "data/processed/unified_freight_timeseries.csv",
+        str(_BASE_DIR / "data" / "processed" / "unified_freight_timeseries.csv"),
+    ]
     if _TS_CACHE is not None and (now - _TS_CACHE_TS) < _TS_CACHE_TTL:
         return _TS_CACHE
-    if os.path.exists(data_path):
-        _TS_CACHE = pd.read_csv(data_path)
-        _TS_CACHE_TS = now
-        return _TS_CACHE
+    for p in candidates:
+        if os.path.exists(p):
+            _TS_CACHE = pd.read_csv(p)
+            _TS_CACHE_TS = now
+            return _TS_CACHE
     return None
 
 
-def get_cached_ogd_df() -> Optional[pd.DataFrame]:
+def get_cached_ogd_df() -> pd.DataFrame | None:
     """Returns OGD port turnaround CSV from memory cache."""
     global _OGD_CACHE, _OGD_CACHE_TS
     now = time.time()
-    ogd_path = "data/raw/ogd_port_average_turnaround_time.csv"
+    candidates = [
+        "data/raw/ogd_port_average_turnaround_time.csv",
+        str(_BASE_DIR / "data" / "raw" / "ogd_port_average_turnaround_time.csv"),
+    ]
     if _OGD_CACHE is not None and (now - _OGD_CACHE_TS) < _TS_CACHE_TTL:
         return _OGD_CACHE
-    if os.path.exists(ogd_path):
-        _OGD_CACHE = pd.read_csv(ogd_path)
-        _OGD_CACHE_TS = now
-        return _OGD_CACHE
+    for p in candidates:
+        if os.path.exists(p):
+            _OGD_CACHE = pd.read_csv(p)
+            _OGD_CACHE_TS = now
+            return _OGD_CACHE
     return None
 
 
 # ── Pre-built Route Normalizer Map ──
-_ROUTE_NORM_MAP: Optional[Dict[str, str]] = None
+_ROUTE_NORM_MAP: dict[str, str] | None = None
 
 
-def _build_route_norm_map() -> Dict[str, str]:
+def _build_route_norm_map() -> dict[str, str]:
     """Pre-builds a case-insensitive route lookup map for O(1) resolution."""
     global _ROUTE_NORM_MAP
     if _ROUTE_NORM_MAP is not None:
@@ -214,24 +245,38 @@ class MarketTimingRequest(BaseModel):
 
 class CopilotChatRequest(BaseModel):
     message: str = Field(..., examples=["Why are freight rates rising for Newcastle to Paradip?"])
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 
 
 # --- Endpoints ---
 @app.get("/api/v1/health")
 def health_check():
+    svc_info = model_service.get_model_info() if model_service.is_ready else {}
     return {
         "status": "online",
-        "model_version": "XGBoost-2.0.0",
+        "model_version": svc_info.get("model_card", {}).get("version", "2.0.0"),
+        "model_registry_ready": model_service.is_ready,
+        "has_deep_model": svc_info.get("has_deep_model", False),
         "service": "SIH26006 Freight Intelligence Platform",
         "modules": {
-            "forecasting": "active",
+            "forecasting": "active" if model_service.is_ready else "model not trained",
             "vessel_optimizer": "active",
             "market_timing": "active",
             "risk_engine": "active",
         }
     }
-
+@app.post("/api/v1/models/reload")
+def reload_models():
+    """Reloads model artifacts from models/ directory and clears dataset caches."""
+    global _TS_CACHE, _TS_CACHE_TS
+    _TS_CACHE = None
+    _TS_CACHE_TS = 0
+    model_service.reload()
+    return {
+        "status": "success",
+        "message": "Model registry reloaded",
+        "model_info": model_service.get_model_info() if model_service.is_ready else {}
+    }
 
 @app.get("/api/v1/ports")
 def get_all_ports():
@@ -255,86 +300,49 @@ def normalize_route_id(route_input: str) -> str:
 
 @app.post("/api/v1/forecast")
 def get_freight_forecast(req: ForecastRequest):
+    """
+    Multi-horizon freight rate forecast served directly from pre-trained model registry.
+    Zero external API calls in the request path — 100% offline inference.
+    """
     normalized_route_id = normalize_route_id(req.route_id)
     df_raw = get_cached_timeseries_df()
     if df_raw is None:
         raise HTTPException(
             status_code=503,
-            detail="Unified freight timeseries dataset not found. Please train models or run pipeline."
+            detail="Unified freight timeseries dataset not found. Run: python train_models.py"
         )
-    route_sub = df_raw[(df_raw["route_id"] == normalized_route_id) & (df_raw["vessel_class"] == req.vessel_class)]
 
-    if route_sub.empty:
-        # Fallback to route alone if vessel class not matched directly
-        route_sub = df_raw[df_raw["route_id"] == normalized_route_id]
-
-    if route_sub.empty:
-        # Fallback to vessel class alone
-        route_sub = df_raw[df_raw["vessel_class"] == req.vessel_class]
-
-    if route_sub.empty:
-        # Fallback to entire dataset for generalized corridor inference
-        route_sub = df_raw
-
-    if route_sub.empty:
+    if not model_service.is_ready:
         raise HTTPException(
-            status_code=404,
-            detail=f"No timeseries data available for route {req.route_id} and vessel class {req.vessel_class}"
+            status_code=503,
+            detail="Model registry not ready. Run: python train_models.py to generate model artifacts."
         )
 
-    forecast_res = ml_forecaster.predict_future(route_sub, horizon_weeks=req.horizon_weeks)
-    latest_record = route_sub.iloc[-1].to_dict()
-    current_spot = float(latest_record["freight_rate_usd_per_mt"])
+    try:
+        result = model_service.predict_route_forecast(
+            df_timeseries=df_raw,
+            route_id=normalized_route_id,
+            vessel_class=req.vessel_class,
+            horizon_weeks=req.horizon_weeks,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Inference error: {e!s}")
 
-    # Extract historical time-series points (up to last 36 weeks) for chart continuity
-    hist_tail = route_sub.tail(36)
-    historical_dates = hist_tail["date"].tolist() if "date" in hist_tail.columns else []
-    historical_rates = hist_tail["freight_rate_usd_per_mt"].round(2).tolist() if "freight_rate_usd_per_mt" in hist_tail.columns else []
+    # Attach market timing insight
+    try:
+        timing_insight = timing_engine.evaluate_strategy(
+            current_spot_rate=result["latest_actual_rate_usd_per_mt"],
+            forecast_rates=result["predictions_usd_per_mt"],
+            forecast_lower=result["lower_bound_80pct"],
+            forecast_upper=result["upper_bound_80pct"],
+            target_volume_mt=75000.0
+        )
+        result["market_timing"] = timing_insight
+    except Exception:
+        result["market_timing"] = None
 
-    deep_res = None
-    if deep_forecaster.model is not None:
-        try:
-            deep_res = deep_forecaster.predict_future(route_sub, horizon_weeks=req.horizon_weeks)
-        except Exception:
-            pass
-
-    # Evaluate actionable market timing recommendation for this corridor
-    timing_insight = timing_engine.evaluate_strategy(
-        current_spot_rate=current_spot,
-        forecast_rates=forecast_res["predictions_usd_per_mt"],
-        forecast_lower=forecast_res["lower_bound_80pct"],
-        forecast_upper=forecast_res["upper_bound_80pct"],
-        target_volume_mt=75000.0
-    )
-
-    benchmarks = forecast_res.get("benchmarks", {})
-    if deep_res and "evaluation_metrics" in deep_res:
-        benchmarks["deep_learning"] = deep_res["evaluation_metrics"]
-
-    return {
-        "route_id": normalized_route_id,
-        "vessel_class": req.vessel_class,
-        "latest_actual_rate_usd_per_mt": current_spot,
-        "latest_actual_date": latest_record["date"],
-        "historical_dates": historical_dates,
-        "historical_rates": historical_rates,
-        "forecast_dates": forecast_res["forecast_dates"],
-        "predictions_usd_per_mt": forecast_res["predictions_usd_per_mt"],
-        "deep_predictions_usd_per_mt": deep_res["predictions_usd_per_mt"] if deep_res else None,
-        "xgb_predictions_usd_per_mt": forecast_res.get("xgb_predictions_usd_per_mt"),
-        "lgb_predictions_usd_per_mt": forecast_res.get("lgb_predictions_usd_per_mt"),
-        "elastic_predictions_usd_per_mt": forecast_res.get("elastic_predictions_usd_per_mt"),
-        "lower_bound_80pct": forecast_res["lower_bound_80pct"],
-        "upper_bound_80pct": forecast_res["upper_bound_80pct"],
-        "top_driving_factors": forecast_res["top_driving_factors"],
-        "evaluation_metrics": forecast_res["evaluation_metrics"],
-        "deep_metrics": deep_res.get("evaluation_metrics") if deep_res else None,
-        "model_weights": forecast_res.get("model_weights") or getattr(ml_forecaster, "model_weights", {}),
-        "benchmarks": benchmarks,
-        "market_timing": timing_insight,
-        "forecast": forecast_res,
-        "deep_forecast": deep_res
-    }
+    result["forecast"] = result  # Backwards compat with frontend
+    return result
 
 
 @app.post("/api/v1/recommend-vessel")
@@ -437,7 +445,7 @@ def run_full_scenario_analysis(req: ScenarioPlanRequest):
         )
     except Exception:
         vessel_eval = {
-            "recommended_vessel_name": "MV Pacific Harmony",
+            "recommended_vessel_name": "N/A (optimization unavailable)",
             "recommended_vessel_class": "Panamax",
             "recommended_total_cost_usd_per_mt": 16.42,
             "all_vessel_evaluations": [],
@@ -515,10 +523,10 @@ _FRED_CACHE = {}
 _FRED_CACHE_TTL = 300
 
 
-def get_cached_fred_data() -> Dict[str, Any]:
+def get_cached_fred_data() -> dict[str, Any]:
     """Shared cached macroeconomic series from FRED API."""
-    import time
     import concurrent.futures
+    import time
     global _FRED_CACHE
     now_ts = time.time()
 
@@ -795,8 +803,8 @@ def get_map_intelligence():
     All data from live APIs — nothing hardcoded.
     Cached for 5 minutes to avoid burning API limits.
     """
-    import time
     import concurrent.futures
+    import time
 
     global _MAP_INTEL_CACHE
     now_ts = time.time()
@@ -1092,7 +1100,7 @@ def ask_copilot(req: CopilotChatRequest):
 # ── Admin Master Data Management Endpoints ──
 
 @app.post("/api/v1/admin/ports")
-def admin_upsert_port(port_data: Dict[str, Any]):
+def admin_upsert_port(port_data: dict[str, Any]):
     """Admin endpoint to create or modify port constraints, drafts, and handling rates."""
     if "port_id" not in port_data or "port_name" not in port_data:
         raise HTTPException(status_code=400, detail="port_id and port_name are required")
@@ -1110,7 +1118,7 @@ def admin_delete_port(port_id: str):
 
 
 @app.post("/api/v1/admin/routes")
-def admin_upsert_route(route_data: Dict[str, Any]):
+def admin_upsert_route(route_data: dict[str, Any]):
     """Admin endpoint to create or update trade route distance, waypoints, and allowed vessel classes."""
     if "route_id" not in route_data:
         raise HTTPException(status_code=400, detail="route_id is required")
@@ -1128,7 +1136,7 @@ def admin_delete_route(route_id: str):
 
 
 @app.post("/api/v1/admin/vessels")
-def admin_upsert_vessel_class(vessel_data: Dict[str, Any]):
+def admin_upsert_vessel_class(vessel_data: dict[str, Any]):
     """Admin endpoint to create or update a vessel class specification."""
     if "class_name" not in vessel_data:
         raise HTTPException(status_code=400, detail="class_name is required")
@@ -1137,7 +1145,7 @@ def admin_upsert_vessel_class(vessel_data: Dict[str, Any]):
 
 
 @app.post("/api/v1/admin/fleet")
-def admin_upsert_fleet_vessel(fleet_data: Dict[str, Any]):
+def admin_upsert_fleet_vessel(fleet_data: dict[str, Any]):
     """Admin endpoint to add or update an active fleet vessel."""
     if "vessel_id" not in fleet_data:
         raise HTTPException(status_code=400, detail="vessel_id is required")
@@ -1154,8 +1162,22 @@ def admin_delete_fleet_vessel(vessel_id: str):
     return {"status": "success", "message": f"Fleet vessel '{vessel_id}' deleted successfully"}
 
 
+@app.post("/api/v1/admin/fleet/sync")
+def admin_sync_fleet():
+    """Sync active fleet with real bulk carriers from live AIS APIs (Open Waters + Digitraffic)."""
+    try:
+        result = sync_fleet_from_apis(db_manager)
+        return {
+            "status": "success",
+            "message": f"Synced {result['upserted']} real vessels from AIS APIs",
+            "details": result,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fleet sync failed: {e}")
+
+
 @app.post("/api/v1/admin/rebuild-dataset")
-def admin_rebuild_dataset(start_date: str = "2018-01-01", end_date: Optional[str] = None):
+def admin_rebuild_dataset(start_date: str = "2018-01-01", end_date: str | None = None):
     """Admin endpoint to trigger dynamic dataset generation from relational database and live feeds."""
     from src.data.freight_rate_synthesizer import build_unified_freight_dataset
     df = build_unified_freight_dataset(start_date=start_date, end_date=end_date, db_manager=db_manager)
@@ -1174,7 +1196,7 @@ def admin_get_chokepoints():
 
 
 @app.post("/api/v1/admin/chokepoints")
-def admin_upsert_chokepoint(chokepoint_data: Dict[str, Any]):
+def admin_upsert_chokepoint(chokepoint_data: dict[str, Any]):
     """Admin endpoint to add or modify a monitored maritime chokepoint and NLP search terms."""
     if "chokepoint_key" not in chokepoint_data or "name" not in chokepoint_data:
         raise HTTPException(status_code=400, detail="chokepoint_key and name are required")
@@ -1198,7 +1220,7 @@ def admin_get_risk_weights():
 
 
 @app.post("/api/v1/admin/risk-weights")
-def admin_save_risk_weights(weights: Dict[str, float]):
+def admin_save_risk_weights(weights: dict[str, float]):
     """Admin endpoint to update risk scoring formula weights (automatically normalized to 1.0)."""
     if not weights:
         raise HTTPException(status_code=400, detail="Weights dictionary cannot be empty")

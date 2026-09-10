@@ -121,6 +121,7 @@ def run_servers(run_backend=True, run_frontend=True):
                 "src.api.main:app",
                 "--host", "0.0.0.0",
                 "--port", "8000",
+                "--reload",
                 "--reload-dir", "src",
             ]
             p_back = subprocess.Popen(backend_cmd, cwd=PROJECT_ROOT, env=os.environ)

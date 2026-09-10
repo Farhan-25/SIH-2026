@@ -1,0 +1,19 @@
+{
+  "include": [
+    "src",
+    "tests",
+    "train_models.py",
+    "sync_and_run.py"
+  ],
+  "extraPaths": [
+    "."
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": [
+        "."
+      ]
+    }
+  ]
+}
