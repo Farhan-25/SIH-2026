@@ -303,12 +303,16 @@ def _run_retrain_task():
 
     try:
         script_path = str(_BASE_DIR / "train_models.py")
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
         proc = subprocess.Popen(
             [sys.executable, script_path],
             cwd=str(_BASE_DIR),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
             bufsize=1
         )
 
