@@ -278,6 +278,153 @@ def reload_models():
         "model_info": model_service.get_model_info() if model_service.is_ready else {}
     }
 
+import subprocess
+import sys
+import threading
+
+# ── Training State & Worker ──
+_TRAINING_LOCK = threading.Lock()
+_TRAINING_STATE: dict[str, Any] = {
+    "status": "idle",  # "idle" | "running" | "completed" | "failed"
+    "started_at": None,
+    "ended_at": None,
+    "logs": [],
+    "error": None
+}
+
+def _run_retrain_task():
+    global _TRAINING_STATE, _TS_CACHE, _TS_CACHE_TS
+    with _TRAINING_LOCK:
+        _TRAINING_STATE["status"] = "running"
+        _TRAINING_STATE["started_at"] = datetime.now().isoformat()
+        _TRAINING_STATE["ended_at"] = None
+        _TRAINING_STATE["logs"] = ["🚀 Initiating model retraining pipeline (train_models.py)..."]
+        _TRAINING_STATE["error"] = None
+
+    try:
+        script_path = str(_BASE_DIR / "train_models.py")
+        proc = subprocess.Popen(
+            [sys.executable, script_path],
+            cwd=str(_BASE_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+
+        if proc.stdout:
+            for line in iter(proc.stdout.readline, ""):
+                if line:
+                    clean_line = line.rstrip()
+                    with _TRAINING_LOCK:
+                        _TRAINING_STATE["logs"].append(clean_line)
+                        if len(_TRAINING_STATE["logs"]) > 500:
+                            _TRAINING_STATE["logs"].pop(0)
+            proc.stdout.close()
+
+        return_code = proc.wait()
+
+        with _TRAINING_LOCK:
+            if return_code == 0:
+                _TRAINING_STATE["status"] = "completed"
+                _TRAINING_STATE["logs"].append("✅ Model training completed successfully! Reloading registry...")
+                _TS_CACHE = None
+                _TS_CACHE_TS = 0
+                model_service.reload()
+                _TRAINING_STATE["logs"].append("🎉 Model registry reloaded and active for inference.")
+            else:
+                _TRAINING_STATE["status"] = "failed"
+                _TRAINING_STATE["error"] = f"train_models.py exited with code {return_code}"
+                _TRAINING_STATE["logs"].append(f"❌ Retraining failed with exit code {return_code}.")
+            _TRAINING_STATE["ended_at"] = datetime.now().isoformat()
+    except Exception as e:
+        with _TRAINING_LOCK:
+            _TRAINING_STATE["status"] = "failed"
+            _TRAINING_STATE["error"] = str(e)
+            _TRAINING_STATE["logs"].append(f"❌ Retraining exception: {e}")
+            _TRAINING_STATE["ended_at"] = datetime.now().isoformat()
+
+
+@app.post("/api/v1/models/train")
+def trigger_model_retrain():
+    """Triggers asynchronous model retraining via train_models.py."""
+    with _TRAINING_LOCK:
+        if _TRAINING_STATE["status"] == "running":
+            return {"status": "running", "message": "Model retraining is already in progress.", "state": _TRAINING_STATE}
+
+    thread = threading.Thread(target=_run_retrain_task, daemon=True)
+    thread.start()
+    return {"status": "started", "message": "Model retraining started in background.", "state": _TRAINING_STATE}
+
+
+@app.get("/api/v1/models/train/status")
+def get_model_train_status():
+    """Returns current model retraining status and log output."""
+    with _TRAINING_LOCK:
+        return dict(_TRAINING_STATE)
+
+
+@app.get("/api/v1/dataset/preview")
+def get_dataset_preview(
+    page: int = 1,
+    page_size: int = 50,
+    route_id: str | None = None,
+    vessel_class: str | None = None,
+):
+    """
+    Returns paginated rows, schema info, summary statistics, and filter options
+    from the unified freight timeseries dataset.
+    """
+    df = get_cached_timeseries_df()
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail="Unified freight timeseries dataset not found.")
+
+    filtered_df = df.copy()
+
+    if route_id and route_id.strip():
+        norm_route = normalize_route_id(route_id)
+        filtered_df = filtered_df[filtered_df["route_id"] == norm_route]
+
+    if vessel_class and vessel_class.strip():
+        filtered_df = filtered_df[filtered_df["vessel_class"] == vessel_class.strip()]
+
+    if "date" in filtered_df.columns:
+        filtered_df = filtered_df.sort_values(by="date", ascending=False)
+
+    total_rows = len(filtered_df)
+    page_size = max(1, min(page_size, 200))
+    page = max(1, page)
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+
+    page_data = filtered_df.iloc[start_idx:end_idx].fillna("").to_dict(orient="records")
+
+    columns = list(df.columns)
+    available_routes = sorted(df["route_id"].dropna().unique().tolist()) if "route_id" in df.columns else []
+    available_vessels = sorted(df["vessel_class"].dropna().unique().tolist()) if "vessel_class" in df.columns else []
+
+    summary_stats = {
+        "total_records": len(df),
+        "filtered_records": total_rows,
+        "date_min": str(df["date"].min()) if "date" in df.columns else "N/A",
+        "date_max": str(df["date"].max()) if "date" in df.columns else "N/A",
+        "routes_count": len(available_routes),
+        "vessel_classes": available_vessels,
+    }
+
+    return {
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total_rows + page_size - 1) // page_size if total_rows > 0 else 1,
+        "total_rows": total_rows,
+        "columns": columns,
+        "available_routes": available_routes,
+        "available_vessels": available_vessels,
+        "summary": summary_stats,
+        "records": page_data,
+    }
+
+
 @app.get("/api/v1/ports")
 def get_all_ports():
     return db_manager.load_ports_master()
