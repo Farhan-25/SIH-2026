@@ -69,22 +69,22 @@
   "evaluation_methodology": "Temporal walk-forward split \u2014 85% train, 15% held-out test. No data leakage.",
   "metrics_on_test_set": {
     "tree_ensemble": {
-      "rmse": 2.802,
-      "rmse_usd": 2.802,
-      "mae": 1.803,
-      "mae_usd": 1.803,
-      "mape_pct": 5.8,
-      "mda_pct": 41.01,
-      "r2_score": 0.9642
+      "rmse": 2.905,
+      "rmse_usd": 2.905,
+      "mae": 1.926,
+      "mae_usd": 1.926,
+      "mape_pct": 6.09,
+      "mda_pct": 44.53,
+      "r2_score": 0.9669
     },
     "deep_bilstm_attention": {
-      "rmse": 10.72,
-      "rmse_usd": 10.72,
-      "mae": 7.909,
-      "mae_usd": 7.909,
-      "mape_pct": 22.86,
-      "mda_pct": 43.12,
-      "r2_score": 0.4754
+      "rmse": 10.544,
+      "rmse_usd": 10.544,
+      "mae": 8.313,
+      "mae_usd": 8.313,
+      "mape_pct": 24.82,
+      "mda_pct": 46.6,
+      "r2_score": 0.5638
     }
   },
   "explainability": "TreeSHAP (shap.TreeExplainer) on XGBoost for per-feature attribution per prediction",
@@ -95,6 +95,6 @@
     "feature_schema.json": "Input feature names, sources, and descriptions",
     "model_card.json": "This file \u2014 model documentation"
   },
-  "created_at": "2026-09-09T10:56:19.285429+00:00",
+  "created_at": "2026-09-10T12:38:35.662983+00:00",
   "created_by": "SIH26006 Team \u2014 Smart India Hackathon 2026"
 }

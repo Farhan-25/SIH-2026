@@ -341,8 +341,10 @@ def get_freight_forecast(req: ForecastRequest):
     except Exception:
         result["market_timing"] = None
 
-    result["forecast"] = result  # Backwards compat with frontend
-    return result
+    response_payload = dict(result)
+    response_payload["forecast"] = result  # Backwards compat with frontend without circular self-reference
+    return response_payload
+
 
 
 @app.post("/api/v1/recommend-vessel")
