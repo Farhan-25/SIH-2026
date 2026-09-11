@@ -5,20 +5,12 @@ using macroeconomic, bunker fuel, and route congestion features.
 Outputs multi-horizon predictions with quantile risk cones and SHAP explainability.
 """
 
-import os
 from typing import Any
 
 import joblib
 import numpy as np
 import pandas as pd
-import shap
-from lightgbm import LGBMRegressor
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.linear_model import ElasticNet
-from sklearn.preprocessing import StandardScaler
-from xgboost import XGBRegressor
 
-from src.models.baseline_forecasting import compute_evaluation_metrics
 from src.models.feature_engineering import FreightFeatureEngineer
 
 
@@ -44,134 +36,13 @@ class FreightMLForecaster:
         self.shap_explainer = None
 
         # Preprocessor: fitted on training data, saved as part of model registry
-        self.scaler = StandardScaler()
-        self._scaler_fitted = False
+        self.scaler = None
 
         # Metrics and ensemble weights
         self.metrics = {}
         self.model_weights = {"xgboost": 0.45, "lightgbm": 0.45, "elasticnet": 0.10}
 
-    def train(self, df: pd.DataFrame, test_size: float = 0.15) -> dict[str, Any]:
-        """
-        Trains point forecast models (XGBoost, LightGBM, Ensemble) and quantile risk models.
-        """
-        feat_df = self.feature_engineer.create_features(df)
-        feat_df = feat_df.replace([np.inf, -np.inf], np.nan)
-        feat_df["freight_rate_usd_per_mt"] = feat_df["freight_rate_usd_per_mt"].clip(0.5, 1000.0)
-        feat_df = feat_df.dropna(subset=["freight_rate_usd_per_mt"]).reset_index(drop=True)
-        feat_df[self.feature_names] = feat_df[self.feature_names].ffill().bfill()
-        feat_df[self.feature_names] = feat_df[self.feature_names].fillna(feat_df[self.feature_names].median())
-        feat_df[self.feature_names] = feat_df[self.feature_names].clip(-1e6, 1e6)
 
-        X = feat_df[self.feature_names]
-        y = feat_df["freight_rate_usd_per_mt"]
-
-        split_idx = int(len(X) * (1 - test_size))
-        X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
-        y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
-
-        # 1. Train XGBoost Model
-        self.xgb_model = XGBRegressor(
-            n_estimators=180,
-            learning_rate=0.04,
-            max_depth=5,
-            subsample=0.85,
-            colsample_bytree=0.85,
-            random_state=42,
-            n_jobs=-1
-        )
-        self.xgb_model.fit(X_train, y_train)
-
-        # 2. Train LightGBM Model
-        self.lgb_model = LGBMRegressor(
-            n_estimators=180,
-            learning_rate=0.04,
-            max_depth=6,
-            num_leaves=31,
-            subsample=0.85,
-            colsample_bytree=0.85,
-            random_state=42,
-            n_jobs=-1,
-            verbose=-1
-        )
-        self.lgb_model.fit(X_train, y_train)
-
-        # 3. Train Regularized Linear Baseline (ElasticNet)
-        self.elastic_model = ElasticNet(alpha=0.1, l1_ratio=0.5, max_iter=5000, random_state=42)
-        self.elastic_model.fit(X_train, y_train)
-
-        # Evaluate individual models to compute optimal dynamic weights
-        xgb_preds = self.xgb_model.predict(X_test)
-        lgb_preds = self.lgb_model.predict(X_test)
-        ela_preds = self.elastic_model.predict(X_test)
-
-        y_test_arr = np.asarray(y_test, dtype=float)
-        xgb_metrics = compute_evaluation_metrics(y_test_arr, xgb_preds)
-        lgb_metrics = compute_evaluation_metrics(y_test_arr, lgb_preds)
-        ela_metrics = compute_evaluation_metrics(y_test_arr, ela_preds)
-
-        # Dynamic Inverse-MAPE Weighting
-        inv_xgb = 1.0 / max(xgb_metrics["mape_pct"], 0.01)
-        inv_lgb = 1.0 / max(lgb_metrics["mape_pct"], 0.01)
-        inv_ela = 1.0 / max(ela_metrics["mape_pct"], 0.01)
-        total_inv = inv_xgb + inv_lgb + inv_ela
-
-        self.model_weights = {
-            "xgboost": round(inv_xgb / total_inv, 3),
-            "lightgbm": round(inv_lgb / total_inv, 3),
-            "elasticnet": round(inv_ela / total_inv, 3)
-        }
-
-        # 4. Train Quantile Regressors for 80% Confidence Intervals
-        self.model_upper = GradientBoostingRegressor(
-            loss="quantile", alpha=0.90, n_estimators=120, max_depth=4, random_state=42
-        )
-        self.model_upper.fit(X_train, y_train)
-
-        self.model_lower = GradientBoostingRegressor(
-            loss="quantile", alpha=0.10, n_estimators=120, max_depth=4, random_state=42
-        )
-        self.model_lower.fit(X_train, y_train)
-
-        # 5. Build SHAP Explainer on XGBoost model
-        try:
-            self.shap_explainer = shap.TreeExplainer(self.xgb_model)
-        except Exception:
-            self.shap_explainer = None
-
-        # Compute Ensemble Test Predictions & Benchmark Comparison
-        ensemble_preds = (
-            self.model_weights["xgboost"] * xgb_preds +
-            self.model_weights["lightgbm"] * lgb_preds +
-            self.model_weights["elasticnet"] * ela_preds
-        )
-        self.metrics = {
-            "ensemble": compute_evaluation_metrics(y_test_arr, ensemble_preds),
-            "xgboost": xgb_metrics,
-            "lightgbm": lgb_metrics,
-            "elasticnet": ela_metrics,
-            "dynamic_weights": self.model_weights
-        }
-
-        self.model = self.xgb_model if self.model_type == "xgboost" else None
-        return self.metrics
-
-    def predict_point(self, features: pd.DataFrame) -> np.ndarray:
-        """Computes point predictions using selected model architecture or ensemble."""
-        if self.model_type == "xgboost":
-            return self.xgb_model.predict(features)
-        elif self.model_type == "lightgbm":
-            return self.lgb_model.predict(features)
-        else:
-            # Ensemble
-            p_xgb = self.xgb_model.predict(features)
-            p_lgb = self.lgb_model.predict(features)
-            p_ela = self.elastic_model.predict(features)
-            return (
-                self.model_weights["xgboost"] * p_xgb +
-                self.model_weights["lightgbm"] * p_lgb +
-                self.model_weights["elasticnet"] * p_ela
-            )
 
     def predict_future(
         self,
@@ -281,20 +152,6 @@ class FreightMLForecaster:
             }
         }
 
-    def save_model(self, filepath: str = "models/freight_xgb_model.joblib"):
-        """Serializes all model weights, quantile regressors, benchmark metrics, and the fitted scaler."""
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        joblib.dump({
-            "xgb_model": self.xgb_model,
-            "lgb_model": self.lgb_model,
-            "elastic_model": self.elastic_model,
-            "model_upper": self.model_upper,
-            "model_lower": self.model_lower,
-            "scaler": self.scaler,
-            "feature_names": self.feature_names,
-            "metrics": self.metrics,
-            "model_weights": self.model_weights
-        }, filepath)
 
     def load_model(self, filepath: str = "models/freight_xgb_model.joblib"):
         """Deserializes trained models, scaler, and metadata from joblib file."""
@@ -304,8 +161,7 @@ class FreightMLForecaster:
         self.elastic_model = checkpoint.get("elastic_model")
         self.model_upper = checkpoint["model_upper"]
         self.model_lower = checkpoint["model_lower"]
-        self.scaler = checkpoint.get("scaler", StandardScaler())
-        self._scaler_fitted = True
+        self.scaler = checkpoint.get("scaler")
         self.feature_names = checkpoint["feature_names"]
         self.metrics = checkpoint["metrics"]
         self.model_weights = checkpoint.get("model_weights", {"xgboost": 0.5, "lightgbm": 0.5, "elasticnet": 0.0})
@@ -313,6 +169,7 @@ class FreightMLForecaster:
         if self.xgb_model is not None:
             self.model = self.xgb_model
             try:
+                import shap
                 self.shap_explainer = shap.TreeExplainer(self.xgb_model)
             except Exception:
                 self.shap_explainer = None

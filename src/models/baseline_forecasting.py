@@ -1,14 +1,11 @@
 """
-Baseline Time-Series Forecasting Models and Evaluation Metrics.
-Includes Naive, Simple Moving Average (SMA), Exponential Smoothing (EMA),
-and Auto-Regressive baselines with evaluation metrics (RMSE, MAE, MAPE, Directional Accuracy).
+Freight Forecast Evaluation Metrics.
+Provides RMSE, MAE, MAPE, Directional Accuracy, and R² scoring.
 """
 
-import numpy as np
-import pandas as pd
-
-
 from typing import Any
+
+import numpy as np
 
 
 def compute_evaluation_metrics(y_true: Any, y_pred: Any) -> dict[str, float]:
@@ -49,37 +46,3 @@ def compute_evaluation_metrics(y_true: Any, y_pred: Any) -> dict[str, float]:
         "r2_score": round(float(r2), 4)
     }
 
-
-class BaselineForecaster:
-    """Statistical & Naive baseline models for dry bulk freight rate benchmarking."""
-
-    def __init__(self, method: str = "ema", window: int = 4, alpha: float = 0.3):
-        self.method = method
-        self.window = window
-        self.alpha = alpha
-
-    def fit_predict(self, series: pd.Series, horizon_steps: int = 4) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Generates in-sample fitted values and out-of-sample forward forecast.
-        """
-        values = series.values.astype(float)
-        n = len(values)
-
-        if self.method == "naive":
-            in_sample = np.roll(values, 1)
-            in_sample[0] = values[0]
-            forecast = np.full(horizon_steps, values[-1])
-
-        elif self.method == "sma":
-            in_sample = pd.Series(values).rolling(window=self.window, min_periods=1).mean().values
-            forecast = np.full(horizon_steps, np.mean(values[-self.window:]))
-
-        elif self.method == "ema":
-            ema_series = pd.Series(values).ewm(alpha=self.alpha, adjust=False).mean().values
-            in_sample = ema_series
-            forecast = np.full(horizon_steps, ema_series[-1])
-
-        else:
-            raise ValueError(f"Unknown baseline method: {self.method}")
-
-        return in_sample, forecast

@@ -154,7 +154,6 @@ class DeepLearningFreightForecaster:
         self.feature_engineer = FreightFeatureEngineer()
         self.feature_names = self.feature_engineer.get_feature_columns()
         self.scaler_X = StandardScaler()
-        self.scaler_y = StandardScaler()
 
         if HAS_TORCH:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -282,15 +281,22 @@ class DeepLearningFreightForecaster:
         self.metrics = compute_evaluation_metrics(val_trues, val_preds)
         return self.metrics
 
-    def predict_future(self, route_df: pd.DataFrame, horizon_weeks: int = 12) -> dict[str, Any]:
+    def predict_future(
+        self,
+        route_df: pd.DataFrame,
+        horizon_weeks: int = 12,
+        feat_df: pd.DataFrame | None = None
+    ) -> dict[str, Any]:
         """
         Iterative recursive deep multi-horizon forecasting with neural quantile heads.
+        Reuses pre-computed feature DataFrame if provided to avoid duplicate pipeline work.
         """
         if self.model is None:
             raise ValueError("Deep Learning Model is not fitted.")
 
         self.model.eval()
-        feat_df = self.feature_engineer.create_features(route_df).sort_values("date")
+        if feat_df is None:
+            feat_df = self.feature_engineer.create_features(route_df).sort_values("date")
         latest_row = feat_df.iloc[-1:].copy()
 
         current_date = pd.to_datetime(latest_row["date"].values[0])

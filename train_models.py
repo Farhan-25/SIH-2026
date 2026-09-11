@@ -32,11 +32,9 @@ import pandas as pd
 from src.data.real_data_collector import build_real_market_dataset
 from src.models.deep_learning_forecaster import DeepLearningFreightForecaster
 from src.models.feature_engineering import FreightFeatureEngineer
-from src.models.ml_forecasting import FreightMLForecaster
 
 MODELS_DIR = "models"
 PROCESSED_CSV = "data/processed/unified_freight_timeseries.csv"
-RAW_CACHE_CSV = "data/processed/real_market_signals.csv"   # real signals cache
 
 
 def print_banner(text: str):
@@ -49,23 +47,6 @@ def save_json(data: dict, path: str):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     print(f"      ✅ Saved: {path}")
-
-
-def patch_ml_forecaster_hyperparams(forecaster: FreightMLForecaster):
-    """Monkey-patch to train larger models (500 estimators instead of 180)."""
-    forecaster._xgb_params = {
-        "n_estimators": 500, "learning_rate": 0.03, "max_depth": 6,
-        "subsample": 0.8, "colsample_bytree": 0.8, "min_child_weight": 3,
-        "gamma": 0.1, "reg_alpha": 0.05, "reg_lambda": 1.0,
-        "random_state": 42, "n_jobs": -1
-    }
-    forecaster._lgb_params = {
-        "n_estimators": 500, "learning_rate": 0.03, "max_depth": 7,
-        "num_leaves": 63, "subsample": 0.8, "colsample_bytree": 0.8,
-        "min_child_samples": 20, "reg_alpha": 0.05, "reg_lambda": 1.0,
-        "random_state": 42, "n_jobs": -1, "verbose": -1
-    }
-    return forecaster
 
 
 def train_tree_ensemble_big(df: pd.DataFrame, test_size: float = 0.15):

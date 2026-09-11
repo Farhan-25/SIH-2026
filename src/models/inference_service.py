@@ -20,6 +20,7 @@ Usage:
 import json
 import logging
 import os
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -32,11 +33,6 @@ from src.models.feature_engineering import FreightFeatureEngineer
 logger = logging.getLogger(__name__)
 
 MODELS_DIR = "models"
-ENSEMBLE_PATH = os.path.join(MODELS_DIR, "freight_xgb_model.joblib")
-DEEP_PATH = os.path.join(MODELS_DIR, "freight_deep_lstm.pt")
-METRICS_PATH = os.path.join(MODELS_DIR, "metrics.json")
-FEATURE_SCHEMA_PATH = os.path.join(MODELS_DIR, "feature_schema.json")
-MODEL_CARD_PATH = os.path.join(MODELS_DIR, "model_card.json")
 
 
 class FreightModelService:
@@ -54,6 +50,8 @@ class FreightModelService:
         self.models_dir = models_dir
         self.feature_engineer = FreightFeatureEngineer()
         self._ready = False
+        self._forecast_cache: dict[tuple, tuple[float, dict[str, Any]]] = {}
+        self._cache_ttl = 300  # 5 minutes
 
         # Tree ensemble artifacts
         self.xgb_model = None
@@ -68,7 +66,6 @@ class FreightModelService:
 
         # Deep learning artifacts (optional)
         self.deep_model = None
-        self.deep_scaler = None
         self.deep_metrics: dict[str, Any] = {}
         self._has_deep = False
 
@@ -152,6 +149,7 @@ class FreightModelService:
 
     def reload(self):
         """Forces reload of all serialized model artifacts and metadata from disk."""
+        self._forecast_cache.clear()
         self._load_artifacts()
 
     def _predict_ensemble(self, features: pd.DataFrame) -> dict[str, float]:
@@ -228,6 +226,14 @@ class FreightModelService:
         if not self.is_ready:
             raise RuntimeError("FreightModelService is not ready — run python train_models.py first.")
 
+        # Check in-memory forecast cache
+        cache_key = (route_id, vessel_class, horizon_weeks)
+        now_ts = time.time()
+        if cache_key in self._forecast_cache:
+            entry_ts, cached_result = self._forecast_cache[cache_key]
+            if (now_ts - entry_ts) < self._cache_ttl:
+                return dict(cached_result)
+
         # Resolve input data slice
         route_sub = df_timeseries[
             (df_timeseries["route_id"] == route_id) &
@@ -275,15 +281,15 @@ class FreightModelService:
         latest_actual = float(feat_df["freight_rate_usd_per_mt"].iloc[-1])
         latest_date = str(feat_df["date"].iloc[-1])[:10]
 
-        # Deep model predictions (if available)
+        # Deep model predictions (if available, reuse already computed feat_df)
         deep_result = None
         if self._has_deep and self.deep_model is not None:
             try:
-                deep_result = self.deep_model.predict_future(route_sub, horizon_weeks=horizon_weeks)
+                deep_result = self.deep_model.predict_future(route_sub, horizon_weeks=horizon_weeks, feat_df=feat_df)
             except Exception as e:
                 logger.warning("Deep model prediction skipped: %s", e)
 
-        return {
+        forecast_payload = {
             "route_id": route_id,
             "vessel_class": vessel_class,
             "horizon_weeks": horizon_weeks,
@@ -312,6 +318,14 @@ class FreightModelService:
             "model_card_version": self.model_card.get("version", "2.0.0"),
             "inference_timestamp": datetime.now(timezone.utc).isoformat()
         }
+
+        # Cache response
+        self._forecast_cache[cache_key] = (now_ts, forecast_payload)
+        if len(self._forecast_cache) > 200:
+            oldest_key = min(self._forecast_cache.keys(), key=lambda k: self._forecast_cache[k][0])
+            self._forecast_cache.pop(oldest_key, None)
+
+        return forecast_payload
 
     def get_model_info(self) -> dict[str, Any]:
         """Returns model registry metadata for the health and status endpoints."""
