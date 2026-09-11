@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 from src.api.copilot_engine import MaritimeCopilotEngine
 from src.data.aisstream_client import AISPortCongestionTracker
+from src.data.background_worker import get_background_worker
 from src.data.db_manager import FreightDBManager
 from src.data.fleet_sync import sync_fleet_from_apis
 from src.data.gfw_client import GFWClient
@@ -94,33 +95,85 @@ async def startup_event():
         logger.info("Cleared port_congestion_cache for live-AIS recount")
     except Exception as e:
         logger.warning("Could not clear congestion cache: %s", e)
-    # Sync active_fleet with real vessels from AIS APIs
-    try:
-        sync_result = await asyncio.to_thread(sync_fleet_from_apis, db_manager)
-        logger.info("Fleet sync: %s real vessels upserted from AIS APIs", sync_result.get("upserted", 0))
-    except Exception as e:
-        logger.warning("Fleet sync failed (using existing fleet data): %s", e)
+
+    # Sync active_fleet asynchronously in background so server listens immediately
+    async def _bg_sync_fleet():
+        try:
+            sync_result = await asyncio.to_thread(sync_fleet_from_apis, db_manager)
+            logger.info("Fleet sync: %s real vessels upserted from AIS APIs", sync_result.get("upserted", 0))
+        except Exception as e:
+            logger.warning("Fleet sync failed (using existing fleet data): %s", e)
+
+    asyncio.create_task(_bg_sync_fleet())
+
     logger.info("Starting multi-source AIS tracker (AISStream + Open Waters)...")
     asyncio.create_task(ais_tracker.start_background_vessel_tracker())
+
+    # Pre-warm essential caches in background for instant UI response
+    async def _prewarm_caches():
+        try:
+            await asyncio.to_thread(get_cached_timeseries_df)
+            _build_route_norm_map()
+            await asyncio.to_thread(get_cached_fred_data)
+            await asyncio.to_thread(commodity_tracker.get_detailed_commodity_snapshot)
+            df_ts = get_cached_timeseries_df()
+            if df_ts is not None and model_service.is_ready:
+                for r_id, v_cls in [("AU_NEW_TO_IN_PRT", "Panamax"), ("AU_HAY_TO_IN_VTZ", "Capesize"), ("ID_KLT_TO_IN_DHM", "Supramax")]:
+                    try:
+                        await asyncio.to_thread(model_service.predict_route_forecast, df_ts, r_id, v_cls, 12)
+                    except Exception:
+                        pass
+            logger.info("Startup cache pre-warming completed.")
+        except Exception as e:
+            logger.info("Cache pre-warming notice: %s", e)
+
+    asyncio.create_task(_prewarm_caches())
+
+    # Start periodic background fleet, bunker & weather worker
+    if os.environ.get("ENABLE_BACKGROUND_WORKER", "true").lower() in ("true", "1", "yes"):
+        worker = get_background_worker()
+        worker.start()
+        logger.info("Background Fleet & Market Worker started.")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    worker = get_background_worker()
+    await worker.stop()
 
 # ── Inference Service: loads pre-trained model registry from models/ ──
 # All /forecast endpoint calls go through this service — zero API dependency.
 model_service = FreightModelService()
 
-# Legacy model instances retained for backwards compat with admin/test endpoints
+# Legacy model instances share pre-loaded weights from model_service (zero duplicate deserialization)
 ml_forecaster = FreightMLForecaster()
-if os.path.exists("models/freight_xgb_model.joblib"):
+if model_service.xgb_model is not None:
+    ml_forecaster.xgb_model = model_service.xgb_model
+    ml_forecaster.model = model_service.xgb_model
+    ml_forecaster.lgb_model = model_service.lgb_model
+    ml_forecaster.elastic_model = model_service.elastic_model
+    ml_forecaster.model_upper = model_service.model_upper
+    ml_forecaster.model_lower = model_service.model_lower
+    ml_forecaster.scaler = model_service.scaler
+    ml_forecaster.feature_names = model_service.feature_names
+    ml_forecaster.metrics = model_service.tree_metrics
+    ml_forecaster.model_weights = model_service.model_weights
+    ml_forecaster.shap_explainer = model_service.shap_explainer
+elif os.path.exists("models/freight_xgb_model.joblib"):
     try:
         ml_forecaster.load_model("models/freight_xgb_model.joblib")
     except Exception as e:
         logger.warning("Legacy ml_forecaster load error: %s", e)
 
-deep_forecaster = DeepLearningFreightForecaster()
-if os.path.exists("models/freight_deep_lstm.pt"):
-    try:
-        deep_forecaster.load_checkpoint("models/freight_deep_lstm.pt")
-    except Exception as e:
-        logger.warning("Legacy deep_forecaster load error: %s", e)
+if model_service.deep_model is not None:
+    deep_forecaster = model_service.deep_model
+else:
+    deep_forecaster = DeepLearningFreightForecaster()
+    if os.path.exists("models/freight_deep_lstm.pt"):
+        try:
+            deep_forecaster.load_checkpoint("models/freight_deep_lstm.pt")
+        except Exception as e:
+            logger.warning("Legacy deep_forecaster load error: %s", e)
 
 from pathlib import Path
 
@@ -518,8 +571,6 @@ def get_freight_forecast(req: ForecastRequest):
         timing_insight = timing_engine.evaluate_strategy(
             current_spot_rate=result["latest_actual_rate_usd_per_mt"],
             forecast_rates=result["predictions_usd_per_mt"],
-            forecast_lower=result["lower_bound_80pct"],
-            forecast_upper=result["upper_bound_80pct"],
             target_volume_mt=75000.0
         )
         result["market_timing"] = timing_insight
@@ -527,9 +578,8 @@ def get_freight_forecast(req: ForecastRequest):
         result["market_timing"] = None
 
     response_payload = dict(result)
-    response_payload["forecast"] = result  # Backwards compat with frontend without circular self-reference
+    response_payload["forecast"] = result  # Backwards compat with frontend (no circular self-reference)
     return response_payload
-
 
 
 @app.post("/api/v1/recommend-vessel")
@@ -564,10 +614,7 @@ def assess_risk(req: RiskAssessRequest):
 def evaluate_market_timing(req: MarketTimingRequest):
     """Evaluate spot vs contract strategy based on actual model forward forecast."""
     try:
-        data_path = "data/processed/unified_freight_timeseries.csv"
         forecast_rates = []
-        lower = []
-        upper = []
 
         df_raw = get_cached_timeseries_df()
         if df_raw is not None:
@@ -575,21 +622,15 @@ def evaluate_market_timing(req: MarketTimingRequest):
             if not v_sub.empty:
                 fc = ml_forecaster.predict_future(v_sub, horizon_weeks=12)
                 forecast_rates = fc.get("predictions_usd_per_mt", [])
-                lower = fc.get("lower_bound_80pct", [])
-                upper = fc.get("upper_bound_80pct", [])
 
         if not forecast_rates:
             # Deterministic calculation based on current spot rate and trend projection
             base = req.current_spot_rate
             forecast_rates = [round(base * (1.0 + 0.008 * (i + 1)), 2) for i in range(12)]
-            lower = [round(r * 0.94, 2) for r in forecast_rates]
-            upper = [round(r * 1.06, 2) for r in forecast_rates]
 
         return timing_engine.evaluate_strategy(
             current_spot_rate=req.current_spot_rate,
             forecast_rates=forecast_rates,
-            forecast_lower=lower,
-            forecast_upper=upper,
             target_volume_mt=req.target_volume_mt,
         )
     except Exception as e:
@@ -673,8 +714,6 @@ def run_full_scenario_analysis(req: ScenarioPlanRequest):
     timing_res = timing_engine.evaluate_strategy(
         current_spot_rate=latest_spot,
         forecast_rates=forecast_res.get("predictions_usd_per_mt", [latest_spot] * req.horizon_weeks),
-        forecast_lower=forecast_res.get("lower_bound_80pct", [latest_spot * 0.94] * req.horizon_weeks),
-        forecast_upper=forecast_res.get("upper_bound_80pct", [latest_spot * 1.06] * req.horizon_weeks),
         target_volume_mt=req.cargo_parcel_mt
     )
 
@@ -753,14 +792,22 @@ def get_cached_fred_data() -> dict[str, Any]:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(fetch_fred, label, s_id) for label, s_id in series_map]
-            for future in concurrent.futures.as_completed(futures):
-                label, data = future.result()
-                if data:
-                    fred_data[label] = data
+            try:
+                for future in concurrent.futures.as_completed(futures, timeout=3.0):
+                    label, data = future.result()
+                    if data:
+                        fred_data[label] = data
+            except Exception:
+                pass
 
-        _FRED_CACHE = {"timestamp": now_ts, "data": fred_data}
+        if fred_data:
+            _FRED_CACHE = {"timestamp": now_ts, "data": fred_data}
+        elif _FRED_CACHE:
+            return _FRED_CACHE.get("data", {})
     except Exception as e:
         print(f"FRED fetch notice: {e}")
+        if _FRED_CACHE:
+            return _FRED_CACHE.get("data", {})
 
     return fred_data
 
@@ -823,8 +870,7 @@ def get_dashboard_data():
         pass
 
     # --- 3. OGD Port Turnaround ---
-    import random
-    avg_port_wait = round(random.uniform(3.2, 4.5), 1)
+    avg_port_wait = 3.8
     port_wait_trend = ""
     try:
         port_df = get_cached_ogd_df()
@@ -883,7 +929,6 @@ def get_dashboard_data():
     try:
         sea_state = weather_client.get_sea_state(lat=20.26, lon=86.67)
         wave_height_m = sea_state.get("wave_height_m", 1.4)
-        risk_score = sea_state.get("sea_condition_risk_score", 0.2)
         alert_text = sea_state.get("weather_alert", "")
         
         if wave_height_m >= 4.5:
@@ -1413,6 +1458,24 @@ def admin_save_risk_weights(weights: dict[str, float]):
         raise HTTPException(status_code=400, detail="Weights dictionary cannot be empty")
     db_manager.save_risk_scoring_weights(weights)
     return {"status": "success", "normalized_weights": db_manager.get_risk_scoring_weights()}
+
+
+@app.get("/api/v1/system/worker/status", tags=["System"])
+def get_worker_status():
+    """Returns health, execution metrics, and last summary for the background fleet & market worker."""
+    return get_background_worker().get_status()
+
+
+@app.post("/api/v1/system/worker/trigger", tags=["System"])
+async def trigger_worker_sync():
+    """Forces an immediate background refresh cycle for fleet, bunker prices, and sea state."""
+    worker = get_background_worker()
+    asyncio.create_task(worker.run_cycle())
+    return {
+        "status": "triggered",
+        "message": "Background sync cycle initiated",
+        "worker_status": worker.get_status(),
+    }
 
 
 @app.get("/api/vessels")

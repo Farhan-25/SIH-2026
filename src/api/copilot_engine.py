@@ -176,7 +176,7 @@ class MaritimeCopilotEngine:
         haldia_wait = state.get("haldia_wait", 2.8)
 
         briefing_text = (
-            "### 🚢 Maritime Intelligence Briefing\n\n"
+            "### 🚢 FreightIQ Maritime Intelligence Briefing\n\n"
             f"• **Market Sentiment:** Currently **{sentiment_label.upper()} ({sentiment_score:+.2f})** across major dry bulk supply routes.\n"
             f"• **Energy & Commodities:** VLSFO bunker at **${vlsfo_val:.2f}/MT** (Brent **${brent_val:.2f}**), Newcastle Coal at **${coal_newcastle:.2f}/MT**, USD/INR at **₹{usd_inr:.2f}**.\n"
             f"• **Chokepoint Disruption:** Red Sea index at **{red_sea_risk:.2f}** and Suez at **{suez_risk:.2f}**, maintaining Cape diversions.\n"
@@ -185,6 +185,20 @@ class MaritimeCopilotEngine:
             "Ask a question or select a prompt below to explore live predictions."
         )
 
+        key_insights = [
+            f"Market Sentiment: {sentiment_label} ({sentiment_score:+.2f})",
+            f"VLSFO Bunker Fuel: ${vlsfo_val:.2f}/MT (Brent ${brent_val:.2f})",
+            f"Red Sea Risk Index: {red_sea_risk:.2f}",
+            f"Odisha Port Turnaround: {paradip_wait:.1f}d (Paradip) vs {haldia_wait:.1f}d (Haldia)"
+        ]
+
+        suggested_actions = [
+            "Explain Newcastle → Paradip rate drivers & SHAP factors",
+            "Assess Red Sea disruption impact on Cape routing",
+            "Recommend vessel for 75,000 MT Coal to Dhamra",
+            "Compare Spot vs 12-Week Forward Chartering Strategy"
+        ]
+
         if not self.gemini_api_key:
             self.gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
 
@@ -192,8 +206,8 @@ class MaritimeCopilotEngine:
             "briefing": briefing_text,
             "sentiment_score": sentiment_score,
             "sentiment_label": sentiment_label,
-            "key_insights": [],
-            "suggested_actions": [],
+            "key_insights": key_insights,
+            "suggested_actions": suggested_actions,
             "ai_active": bool(self.gemini_api_key),
             "ai_model": "Gemini AI" if self.gemini_api_key else None,
             "timestamp": datetime.now(timezone.utc).isoformat()

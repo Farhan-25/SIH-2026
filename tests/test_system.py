@@ -3,17 +3,16 @@ Automated Unit and Integration Test Suite for SIH26006.
 Verifies all 4 analytical engines, constraint optimization, database queries, and API endpoints.
 """
 
-import pytest
 import pandas as pd
+import pytest
 from fastapi.testclient import TestClient
 
+from src.api.main import app
 from src.data.db_manager import FreightDBManager
 from src.models.ml_forecasting import FreightMLForecaster
-from src.models.feature_engineering import FreightFeatureEngineer
-from src.optimization.vessel_optimizer import VesselConstraintOptimizer
 from src.optimization.market_timing import MarketTimingEngine
+from src.optimization.vessel_optimizer import VesselConstraintOptimizer
 from src.risk.risk_engine import RiskAndDisruptionEngine
-from src.api.main import app
 
 
 @pytest.fixture
@@ -102,8 +101,6 @@ def test_market_timing_bullish_contract_signal(timing_engine):
     res = timing_engine.evaluate_strategy(
         current_spot_rate=spot,
         forecast_rates=rising_forecast,
-        forecast_lower=[r * 0.9 for r in rising_forecast],
-        forecast_upper=[r * 1.1 for r in rising_forecast],
         target_volume_mt=75000
     )
     assert res["recommended_action"] == "ENTER_NOW_TERM_CONTRACT"
