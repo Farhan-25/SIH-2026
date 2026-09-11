@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
     exclude: ['maplibre-gl'],
+    include: ['react-plotly.js', 'plotly.js'],
   },
   server: {
     host: '127.0.0.1',
@@ -14,6 +15,8 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        timeout: 60000,
+        proxyTimeout: 60000,
       },
     },
   },

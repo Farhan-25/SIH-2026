@@ -21,6 +21,7 @@
     "mapbox-gl": "^3.29.0",
     "maplibre-gl": "^6.6.0",
     "plotly.js": "^4.0.0",
+    "plotly.js-basic-dist": "^4.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-icons": "^5.7.0",

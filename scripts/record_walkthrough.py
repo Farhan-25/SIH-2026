@@ -1,11 +1,10 @@
 import asyncio
-import os
-import sys
-import time
 import subprocess
+import time
 from pathlib import Path
-from playwright.async_api import async_playwright
+
 import imageio_ffmpeg
+from playwright.async_api import async_playwright
 
 TOTAL_DURATION = 152.0  # seconds (matches 151.89s voiceover)
 AUDIO_FILE = r"C:\Users\Farhan\Downloads\WhatsApp Audio 2026-09-04 at 01.58.57.mp4"
