@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import Plot from 'react-plotly.js'
+import Plotly from 'plotly.js-basic-dist'
+import createPlotlyComponent from 'react-plotly.js/factory'
+const Plot = createPlotlyComponent(Plotly)
 import {
   MdWarning, MdWaves, MdAnchor, MdTrendingUp,
   MdPublic, MdSecurity, MdSpeed,

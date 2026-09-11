@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MdMap, MdPublic, MdDirectionsBoat, MdWarning, MdRefresh, MdMyLocation,
-  MdWaves, MdTrendingUp, MdAnchor, MdSignalWifi4Bar, MdSignalWifiOff,
-  MdLocalShipping, MdCloud, MdClose, MdNavigation, MdAttachMoney,
+  MdWaves, MdAnchor, MdClose, MdNavigation, MdAttachMoney,
   MdEco, MdSpeed, MdLocationOn, MdCheckCircle, MdScience,
   MdArrowForward, MdSearch, MdStraighten, MdPause, MdPlayArrow, MdLayers
 } from 'react-icons/md'
@@ -154,7 +153,6 @@ function MapboxMap({
   const vesselMarkersRef = useRef([])
   const portMarkersRef = useRef([])
   const weatherMarkersRef = useRef([])
-  const animationFrameRef = useRef(null)
 
   // Use refs so marker rebuilds aren't triggered by callback identity churn
   const onVesselClickRef = useRef(onVesselClick)

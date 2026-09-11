@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import Plot from 'react-plotly.js'
+import Plotly from 'plotly.js-basic-dist'
+import createPlotlyComponent from 'react-plotly.js/factory'
+const Plot = createPlotlyComponent(Plotly)
 import {
   MdDirectionsBoat, MdCheckCircle, MdCancel,
   MdWarning, MdPlayArrow, MdRefresh
