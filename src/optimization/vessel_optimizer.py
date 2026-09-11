@@ -130,7 +130,6 @@ class VesselConstraintOptimizer:
             design_draft = v_spec["design_draft_laden_m"]
             loa = v_spec["typical_loa_m"]
             beam = v_spec["typical_beam_m"]
-            is_geared = v_spec["geared"]
 
             rejection_reasons = []
             warnings = []
@@ -149,11 +148,9 @@ class VesselConstraintOptimizer:
             max_dest_draft = dest_port["max_permissible_draft_m"]
             tide_draft = dest_port.get("max_draft_with_tides_m", max_dest_draft)
 
-            lighterage_needed = False
             lighterage_cost_per_mt = 0.0
 
             if dest_port.get("lighterage_required", False):
-                lighterage_needed = True
                 lighterage_cost_per_mt = 4.20  # Barge lighterage & transshipment fee at Sagar/Sandheads
                 warnings.append(
                     f"Destination {dest_port['port_name']} requires mandatory lighterage at {dest_port.get('lighterage_location', 'Sagar Roads')}."

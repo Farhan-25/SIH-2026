@@ -16,8 +16,6 @@ class MarketTimingEngine:
         self,
         current_spot_rate: float,
         forecast_rates: list[float],
-        forecast_lower: list[float],
-        forecast_upper: list[float],
         target_volume_mt: float
     ) -> dict[str, Any]:
         """
@@ -26,6 +24,9 @@ class MarketTimingEngine:
         """
         if not forecast_rates:
             return {"action": "ENTER_NOW_SPOT", "confidence_pct": 50.0}
+
+        if current_spot_rate <= 0:
+            current_spot_rate = float(forecast_rates[0]) if forecast_rates else 20.0
 
         avg_short_term = np.mean(forecast_rates[:4])  # Next 4 weeks
         avg_mid_term = np.mean(forecast_rates[:12])   # Next 12 weeks
@@ -51,8 +52,10 @@ class MarketTimingEngine:
             confidence = min(92.0, 75.0 + abs(pct_change_mid))
 
         elif pct_change_short < -5.0 and min_index <= 4:
-            action = f"WAIT_{min_index}_WEEKS"
-            headline = f"Market Softening: Defer Booking by {min_index} Week(s)"
+            unit = "WEEK" if min_index == 1 else "WEEKS"
+            unit_display = "Week" if min_index == 1 else "Weeks"
+            action = f"WAIT_{min_index}_{unit}"
+            headline = f"Market Softening: Defer Booking by {min_index} {unit_display}"
             strategy_recommendation = (
                 f"Rates are expected to bottom out around Week {min_index} at ~${min_forecast:.2f}/MT "
                 f"(a drop of {abs(pct_change_short):.1f}% from current spot). Defer procurement to capture the trough."
@@ -70,16 +73,20 @@ class MarketTimingEngine:
             estimated_cost_savings_usd = 0.0
             confidence = 80.0
 
+        conf_val = float(round(confidence, 1))
         return {
+            "action": action,
             "recommended_action": action,
             "headline": headline,
             "detailed_strategy": strategy_recommendation,
-            "confidence_score_pct": round(confidence, 1),
-            "current_spot_usd_per_mt": round(current_spot_rate, 2),
-            "projected_4w_avg_usd_per_mt": round(avg_short_term, 2),
-            "projected_12w_avg_usd_per_mt": round(avg_mid_term, 2),
-            "term_contract_estimated_rate_usd_per_mt": round(contract_rate_est, 2),
-            "estimated_cost_savings_usd": round(estimated_cost_savings_usd, 0),
+            "strategy_recommendation": strategy_recommendation,
+            "confidence_pct": conf_val,
+            "confidence_score_pct": conf_val,
+            "current_spot_usd_per_mt": float(round(current_spot_rate, 2)),
+            "projected_4w_avg_usd_per_mt": float(round(avg_short_term, 2)),
+            "projected_12w_avg_usd_per_mt": float(round(avg_mid_term, 2)),
+            "term_contract_estimated_rate_usd_per_mt": float(round(contract_rate_est, 2)),
+            "estimated_cost_savings_usd": float(round(estimated_cost_savings_usd, 0)),
             "idle_scenario_guidance": self._get_idle_scenario_repositioning(current_spot_rate, avg_mid_term)
         }
 

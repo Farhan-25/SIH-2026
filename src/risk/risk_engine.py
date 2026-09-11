@@ -12,7 +12,6 @@ Data Sources:
 from typing import Any
 
 from src.data.aisstream_client import AISPortCongestionTracker
-from src.data.gfw_client import GFWClient
 from src.data.openmeteo_client import OpenMeteoMarineClient
 
 
@@ -21,7 +20,6 @@ class RiskAndDisruptionEngine:
 
     def __init__(self):
         self.weather_client = OpenMeteoMarineClient()
-        self.gfw_client = GFWClient()
         self.ais_tracker = AISPortCongestionTracker()
 
     def get_blended_port_congestion(self, port_id: str, port_name: str = "") -> dict[str, Any]:
