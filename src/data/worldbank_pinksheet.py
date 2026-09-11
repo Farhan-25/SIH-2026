@@ -48,29 +48,86 @@ class CommodityPriceTracker:
             prices[key] = item.get("price", 100.0)
         return prices
 
-    def get_detailed_commodity_snapshot(self) -> dict[str, Any]:
+    def get_detailed_commodity_snapshot(self, force_refresh: bool = False) -> dict[str, Any]:
         """
         Returns structured real-time commodity and bunker spot pricing with source provenance,
         units, and percentage changes.
         """
         now_ts = time.time()
-        if CommodityPriceTracker._GLOBAL_CACHE and (now_ts - CommodityPriceTracker._GLOBAL_CACHE.get("timestamp", 0)) < self._cache_ttl:
+        if not force_refresh and CommodityPriceTracker._GLOBAL_CACHE and (now_ts - CommodityPriceTracker._GLOBAL_CACHE.get("timestamp", 0)) < self._cache_ttl:
             return CommodityPriceTracker._GLOBAL_CACHE.get("data", {})
 
         db_cached = self.db.get_market_indicators()
 
-        # 1. Real-time Crude Oil (Brent & WTI) from TwelveData / Yahoo Finance / SQLite
-        brent_res = self.twelvedata.get_brent_crude_proxy()
-        brent_price = float(brent_res.get("price", db_cached.get("BRENT", {}).get("price", 82.50)))
+        # Concurrently fetch external market signals with strict per-task timeouts
+        import concurrent.futures
 
-        wti_res = self.twelvedata.get_wti_crude_proxy()
+        def _fetch_brent():
+            try:
+                return self.twelvedata.get_brent_crude_proxy()
+            except Exception:
+                return {}
+
+        def _fetch_wti():
+            try:
+                return self.twelvedata.get_wti_crude_proxy()
+            except Exception:
+                return {}
+
+        def _fetch_inr():
+            try:
+                return self.twelvedata.get_exchange_rate("USD/INR")
+            except Exception:
+                return {}
+
+        def _fetch_aud():
+            try:
+                return self.twelvedata.get_exchange_rate("USD/AUD")
+            except Exception:
+                return {}
+
+        def _fetch_fred():
+            if self.fred:
+                try:
+                    return self.fred.get_latest_market_snapshot()
+                except Exception:
+                    pass
+            return {}
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            fut_brent = executor.submit(_fetch_brent)
+            fut_wti = executor.submit(_fetch_wti)
+            fut_inr = executor.submit(_fetch_inr)
+            fut_aud = executor.submit(_fetch_aud)
+            fut_fred = executor.submit(_fetch_fred)
+
+            try:
+                brent_res = fut_brent.result(timeout=2.5)
+            except Exception:
+                brent_res = {}
+            try:
+                wti_res = fut_wti.result(timeout=2.5)
+            except Exception:
+                wti_res = {}
+            try:
+                usd_inr_res = fut_inr.result(timeout=2.5)
+            except Exception:
+                usd_inr_res = {}
+            try:
+                usd_aud_res = fut_aud.result(timeout=2.5)
+            except Exception:
+                usd_aud_res = {}
+            try:
+                fred_snap = fut_fred.result(timeout=2.5)
+            except Exception:
+                fred_snap = {}
+
+        # 1. Real-time Crude Oil (Brent & WTI) from TwelveData / Yahoo Finance / SQLite
+        brent_price = float(brent_res.get("price", db_cached.get("BRENT", {}).get("price", 82.50)))
         wti_price = float(wti_res.get("price", db_cached.get("WTI", {}).get("price", 78.40)))
 
         # 2. Real-time Forex (USD/INR, USD/AUD) from TwelveData / Yahoo Finance / SQLite
-        usd_inr_res = self.twelvedata.get_exchange_rate("USD/INR")
         usd_inr = float(usd_inr_res.get("price", db_cached.get("USD/INR", {}).get("price", 86.80)))
-
-        usd_aud_res = self.twelvedata.get_exchange_rate("USD/AUD")
         usd_aud = float(usd_aud_res.get("price", db_cached.get("USD/AUD", {}).get("price", 1.52)))
 
         # 3. World Bank / FRED Benchmarks (Newcastle Coal, Iron Ore)
@@ -80,9 +137,8 @@ class CommodityPriceTracker:
         iron_source = "FRED / Global Commodity Index"
         as_of_date = time.strftime("%Y-%m-%d")
 
-        if self.fred:
+        if fred_snap:
             try:
-                fred_snap = self.fred.get_latest_market_snapshot()
                 if "coal_australia_usd_per_mt" in fred_snap:
                     coal_newcastle = round(float(fred_snap["coal_australia_usd_per_mt"]["value"]), 2)
                     coal_source = "FRED / World Bank Pink Sheet"
@@ -330,15 +386,3 @@ class CommodityPriceTracker:
 
         return df
 
-
-if __name__ == "__main__":
-    tracker = CommodityPriceTracker()
-    print("\n=== DYNAMIC COMMODITY & BUNKER SPOT PRICES ===")
-    detailed = tracker.get_detailed_commodity_snapshot()
-    for k, item in detailed["benchmarks"].items():
-        print(f"  • {item['name']:<42} : {item['price']} {item['unit']} ({item['source']})")
-
-    print("\n=== TESTING DYNAMIC HISTORICAL SERIES GENERATION ===")
-    hist_df = tracker.generate_historical_commodity_series(start_date="2020-01-01", end_date="2026-08-25")
-    print("Shape:", hist_df.shape)
-    print(hist_df.tail(5))

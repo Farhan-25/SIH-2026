@@ -77,67 +77,10 @@ class AISPortCongestionTracker:
         self.last_error: str | None = None
         self.last_message_at: float | None = None
 
-    def get_port_bounding_box(self, lat: float, lon: float, radius_deg: float = 0.3) -> list[list[float]]:
-        """Creates bounding box [[lat_min, lon_min], [lat_max, lon_max]] around port coordinates."""
-        return [
-            [lat - radius_deg, lon - radius_deg],
-            [lat + radius_deg, lon + radius_deg]
-        ]
-
     def build_corridor_bounding_boxes(self, radius_deg: float = 1.2) -> list[list[list[float]]]:
         """Few large India tiles — many small boxes starve AISStream delivery."""
         return [list(b) for b in INDIA_REGION_BOXES]
 
-    def build_load_port_bounding_boxes(self, radius_deg: float = 0.5) -> list[list[list[float]]]:
-        """Optional smaller boxes around foreign load ports (not used for primary map feed)."""
-        ports_master = self.db.load_ports_master()
-        routes_master = self.db.load_routes_master()
-        routes_list = routes_master.get("trade_routes", []) if isinstance(routes_master, dict) else (routes_master or [])
-        wanted = {r.get("origin_port") for r in routes_list if r.get("origin_port")}
-        boxes = []
-        for port_id, port in (ports_master.get("global_load_ports") or {}).items():
-            if wanted and port_id not in wanted:
-                continue
-            coords = port.get("coordinates") or {}
-            lat, lon = coords.get("lat"), coords.get("lon")
-            if lat is None or lon is None:
-                continue
-            boxes.append(self.get_port_bounding_box(float(lat), float(lon), radius_deg))
-        return boxes
-
-    def point_in_interest_region(self, lat: float, lon: float, boxes: list | None = None) -> bool:
-        """True if lat/lon falls inside any ROI bounding box."""
-        boxes = boxes or self.build_corridor_bounding_boxes()
-        return any(_box_contains(box, lat, lon) for box in boxes)
-
-    async def sample_live_vessels(self, bounding_box: list[list[float]], duration_seconds: int = 5) -> list[dict[str, Any]]:
-        """Connect to AISStream WebSocket for N seconds and capture active vessels within bounding box."""
-        if not self.api_key:
-            return []
-
-        subscription_message = {
-            "APIKey": self.api_key,
-            "BoundingBoxes": [bounding_box],
-            "FilterMessageTypes": ["PositionReport", "ShipStaticData"]
-        }
-
-        vessels_seen = []
-        try:
-            async with websockets.connect(AISSTREAM_WS_URL, open_timeout=5, max_queue=64) as ws:
-                await ws.send(json.dumps(subscription_message))
-                end_time = asyncio.get_event_loop().time() + duration_seconds
-
-                while asyncio.get_event_loop().time() < end_time:
-                    try:
-                        message = await asyncio.wait_for(ws.recv(), timeout=2.0)
-                        data = json.loads(message)
-                        vessels_seen.append(data)
-                    except asyncio.TimeoutError:
-                        continue
-        except Exception as e:
-            logger.info(f"AISStream live connection notice: {e}")
-
-        return vessels_seen
 
     def fetch_openwaters_vessels(self, boxes: list[list[list[float]]] | None = None) -> list[dict[str, Any]]:
         """
@@ -158,14 +101,14 @@ class AISPortCongestionTracker:
                 resp = requests.get(
                     OPENWATERS_VESSELS_URL,
                     params={"bbox": bbox},
-                    timeout=20,
+                    timeout=4,
                 )
                 if resp.status_code != 200:
-                    logger.warning("Open Waters HTTP %s for bbox=%s", resp.status_code, bbox)
+                    logger.debug("Open Waters HTTP %s for bbox=%s", resp.status_code, bbox)
                     continue
                 features = (resp.json() or {}).get("features") or []
             except Exception as e:
-                logger.warning("Open Waters fetch failed (%s): %s", bbox, e)
+                logger.debug("Open Waters fetch failed (%s): %s", bbox, e)
                 continue
 
             for feat in features:

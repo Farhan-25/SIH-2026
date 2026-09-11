@@ -22,14 +22,13 @@ logger = logging.getLogger(__name__)
 
 OPENWATERS_VESSELS_URL = "https://ais.openwaters.io/v1/vessels"
 DIGITRAFFIC_VESSELS_URL = "https://meri.digitraffic.fi/api/ais/v1/vessels"
-API_TIMEOUT = 20
+API_TIMEOUT = 4
 
 # India maritime bounding box (wide enough for Bay of Bengal + Arabian Sea approaches)
 INDIA_BBOX = "5.0,65.0,25.0,100.0"
 
 # AIS ship type ranges
 CARGO_TYPE_RANGE = range(70, 80)   # 70-79 = Cargo
-TANKER_TYPE_RANGE = range(80, 90)  # 80-89 = Tanker (included for completeness)
 
 # Vessel class assignment thresholds based on dimensions (LOA in meters)
 _CLASS_BY_LOA: list[tuple[float, str]] = [

@@ -36,7 +36,6 @@ def build_unified_freight_dataset(
     db = db_manager or FreightDBManager(db_path=output_db)
 
     # 1. Load Master Reference Data from Relational Database
-    ports_data = db.load_ports_master()
     vessels_data = db.load_vessels_master().get("vessel_classes", {})
     routes_data = db.load_routes_master().get("trade_routes", [])
 

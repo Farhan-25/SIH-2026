@@ -925,21 +925,11 @@ class FreightDBManager:
                 now_iso
             ))
 
-        # Hard cap — drop oldest rows if table ballooned
-        if max_keep and max_keep > 0:
-            cursor.execute(
-                "SELECT vessel_id FROM vessels_live_tracking ORDER BY updated_at DESC LIMIT -1 OFFSET ?",
-                (max_keep,),
-            )
-            stale = [row[0] for row in cursor.fetchall()]
-            if stale:
-                cursor.executemany(
-                    "DELETE FROM vessels_live_tracking WHERE vessel_id = ?",
-                    [(vid,) for vid in stale],
-                )
-
         conn.commit()
         conn.close()
+
+        if max_keep and max_keep > 0:
+            self.prune_live_vessels(max_keep=max_keep)
 
     def prune_stale_live_vessels(self, max_age_minutes: int = 60) -> int:
         """Delete vessels not updated recently. Returns remaining count."""
