@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import Plot from 'react-plotly.js'
+import Plotly from 'plotly.js-basic-dist'
+import createPlotlyComponent from 'react-plotly.js/factory'
+const Plot = createPlotlyComponent(Plotly)
 import {
   MdShowChart,
   MdAutoGraph,
@@ -78,7 +80,7 @@ export default function ForecastPage() {
   const { currencyCode, axisCurrencyPrefix, formatMoney, convertMoney, chartTick, chartGrid } = usePreferences()
   const { filterRoutes, selectedRoutes: profileRoutes } = useUserProfile()
   const [routes, setRoutes] = useState(() => filterRoutes(BASELINE_ROUTES))
-  const [route, setRoute] = useState('AU_NEW_TO_IN_PRT')
+  const [route, setRoute] = useState(() => localStorage.getItem('freightiq_active_route') || 'AU_NEW_TO_IN_PRT')
   const [vesselClass, setVesselClass] = useState('Panamax')
   const [allowedVessels, setAllowedVessels] = useState(ALL_VESSEL_CLASSES)
   const [horizon, setHorizon] = useState(12)
@@ -89,32 +91,11 @@ export default function ForecastPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [forecast, setForecast] = useState(null)
-  const [drivers, setDrivers] = useState(DEFAULT_DRIVERS)
-  const [metrics, setMetrics] = useState({
-    mape_pct: 3.90,
-    rmse_usd: 2.85,
-    mae_usd: 1.54,
-    r2_score: 0.9461,
-    mda_pct: 82.4
-  })
-  const [benchmarks, setBenchmarks] = useState({
-    ensemble: { mape_pct: 3.90, rmse_usd: 2.85, mae_usd: 1.54, r2_score: 0.9461 },
-    deep_learning: { mape_pct: 4.12, rmse_usd: 2.98, mae_usd: 1.62, r2_score: 0.9380 },
-    xgboost: { mape_pct: 4.25, rmse_usd: 3.10, mae_usd: 1.68, r2_score: 0.9320 },
-    lightgbm: { mape_pct: 4.18, rmse_usd: 3.04, mae_usd: 1.65, r2_score: 0.9350 }
-  })
-  const [modelWeights, setModelWeights] = useState({
-    xgboost: 0.251,
-    lightgbm: 0.252,
-    elasticnet: 0.497
-  })
-  const [marketTiming, setMarketTiming] = useState({
-    action: 'ENTER_NOW_SPOT',
-    headline: 'Stable Freight Trajectory: Execute Spot Charter',
-    strategy_recommendation: 'Corridor spot rate is in a balanced consolidation band. Immediate procurement offers low volatility risk.',
-    confidence_pct: 85.0,
-    estimated_cost_savings_usd: 0
-  })
+  const [drivers, setDrivers] = useState([])
+  const [metrics, setMetrics] = useState(null)
+  const [benchmarks, setBenchmarks] = useState(null)
+  const [modelWeights, setModelWeights] = useState(null)
+  const [marketTiming, setMarketTiming] = useState(null)
 
   // ─── Fetch Dynamic Routes Master ───
   useEffect(() => {
@@ -465,7 +446,10 @@ export default function ForecastPage() {
           <select
             className="form-control"
             value={route}
-            onChange={e => setRoute(e.target.value)}
+            onChange={e => {
+              setRoute(e.target.value)
+              localStorage.setItem('freightiq_active_route', e.target.value)
+            }}
             disabled={loadingRoutes}
           >
             {loadingRoutes ? (
@@ -615,11 +599,22 @@ export default function ForecastPage() {
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Optimal Market Strategy
             </div>
-            <div style={{ fontSize: 'var(--font-size-lg)', fontWeight: 700, color: 'var(--accent-emerald)', marginTop: 4 }}>
-              {(marketTiming.action || 'WAIT').replace(/_/g, ' ')}
+            <div
+              style={{
+                fontSize: 'var(--font-size-lg)',
+                fontWeight: 700,
+                color: (marketTiming?.recommended_action || marketTiming?.action)?.includes('WAIT')
+                  ? 'var(--accent-amber)'
+                  : (marketTiming?.recommended_action || marketTiming?.action)?.includes('TERM')
+                    ? 'var(--accent-ocean)'
+                    : 'var(--accent-emerald)',
+                marginTop: 4,
+              }}
+            >
+              {(marketTiming?.recommended_action || marketTiming?.action)?.replace(/_/g, ' ') || '—'}
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2, lineBreak: 'anywhere' }}>
-              {marketTiming.headline || 'Execute Charter on Optimal Timing Window'}
+              {marketTiming?.headline || '—'}
             </div>
           </div>
 
@@ -628,12 +623,14 @@ export default function ForecastPage() {
               Confidence & Cost Impact
             </div>
             <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent)', marginTop: 2 }}>
-              {marketTiming.confidence_pct ? `${marketTiming.confidence_pct.toFixed(0)}%` : '—'} Confidence
+              {(marketTiming?.confidence_pct ?? marketTiming?.confidence_score_pct) != null
+                ? `${Number(marketTiming.confidence_pct ?? marketTiming.confidence_score_pct).toFixed(0)}% Confidence`
+                : '—'}
             </div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
-              {marketTiming.estimated_cost_savings_usd > 0
+              {marketTiming?.estimated_cost_savings_usd > 0
                 ? `Est. Savings: ${formatMoney(marketTiming.estimated_cost_savings_usd, { compact: true, decimals: 1, showCode: true })}`
-                : 'Spot Procurement Advantage'}
+                : (marketTiming ? 'Spot Procurement Advantage' : '—')}
             </div>
           </div>
         </div>
@@ -715,20 +712,20 @@ export default function ForecastPage() {
               </div>
 
               <div style={{ display: 'flex', height: 12, borderRadius: 'var(--radius-full)', overflow: 'hidden', marginBottom: 'var(--space-sm)' }}>
-                <div style={{ width: `${(modelWeights.xgboost || 0) * 100}%`, background: 'var(--accent-emerald)' }} title="XGBoost" />
-                <div style={{ width: `${(modelWeights.lightgbm || 0) * 100}%`, background: 'var(--accent-amber)' }} title="LightGBM" />
-                <div style={{ width: `${(modelWeights.elasticnet || 0) * 100}%`, background: 'var(--accent-ocean)' }} title="ElasticNet" />
+                <div style={{ width: `${(modelWeights?.xgboost || 0) * 100}%`, background: 'var(--accent-emerald)' }} title="XGBoost" />
+                <div style={{ width: `${(modelWeights?.lightgbm || 0) * 100}%`, background: 'var(--accent-amber)' }} title="LightGBM" />
+                <div style={{ width: `${(modelWeights?.elasticnet || 0) * 100}%`, background: 'var(--accent-ocean)' }} title="ElasticNet" />
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--font-size-xs)' }}>
                 <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>
-                  ● XGBoost: {((modelWeights.xgboost || 0) * 100).toFixed(1)}%
+                  ● XGBoost: {modelWeights?.xgboost != null ? `${(modelWeights.xgboost * 100).toFixed(1)}%` : '—'}
                 </span>
                 <span style={{ color: 'var(--accent-amber)', fontWeight: 600 }}>
-                  ● LightGBM: {((modelWeights.lightgbm || 0) * 100).toFixed(1)}%
+                  ● LightGBM: {modelWeights?.lightgbm != null ? `${(modelWeights.lightgbm * 100).toFixed(1)}%` : '—'}
                 </span>
                 <span style={{ color: 'var(--accent-ocean)', fontWeight: 600 }}>
-                  ● ElasticNet: {((modelWeights.elasticnet || 0) * 100).toFixed(1)}%
+                  ● ElasticNet: {modelWeights?.elasticnet != null ? `${(modelWeights.elasticnet * 100).toFixed(1)}%` : '—'}
                 </span>
               </div>
             </div>
@@ -766,7 +763,7 @@ export default function ForecastPage() {
                       { name: 'LightGBM Regressor', key: 'lightgbm', color: 'var(--accent-amber)' },
                       { name: 'XGBoost Regressor', key: 'xgboost', color: 'var(--accent-emerald)' },
                     ].map((arch, i) => {
-                      const m = benchmarks[arch.key] || metrics
+                      const m = benchmarks?.[arch.key] || (arch.isPrimary ? metrics : null)
                       return (
                         <tr
                           key={i}
@@ -779,16 +776,16 @@ export default function ForecastPage() {
                             {arch.name} {arch.isPrimary && '★'}
                           </td>
                           <td style={{ padding: '10px 6px', fontWeight: 600 }}>
-                            {(m.mape_pct ?? m.mape ?? 3.9).toFixed(2)}%
+                            {m?.mape_pct != null ? `${m.mape_pct.toFixed(2)}%` : '—'}
                           </td>
                           <td style={{ padding: '10px 6px' }}>
-                            {formatMoney(m.rmse_usd ?? m.rmse ?? 2.85)}
+                            {m?.rmse_usd != null ? formatMoney(m.rmse_usd) : '—'}
                           </td>
                           <td style={{ padding: '10px 6px' }}>
-                            {formatMoney(m.mae_usd ?? m.mae ?? 1.54)}
+                            {m?.mae_usd != null ? formatMoney(m.mae_usd) : '—'}
                           </td>
                           <td style={{ padding: '10px 6px', fontWeight: 600, color: 'var(--accent-emerald)' }}>
-                            {(m.r2_score ?? m.r2 ?? 0.946).toFixed(4)}
+                            {m?.r2_score != null ? m.r2_score.toFixed(4) : '—'}
                           </td>
                         </tr>
                       )
@@ -820,7 +817,7 @@ export default function ForecastPage() {
                 </h2>
               </div>
               <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 }}>
-                {marketTiming.strategy_recommendation}
+                {marketTiming?.detailed_strategy || marketTiming?.strategy_recommendation || '—'}
               </p>
             </div>
           </div>
