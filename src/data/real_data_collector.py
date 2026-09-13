@@ -141,9 +141,9 @@ def fetch_commodity_prices(start: str = START_DATE, end: str = END_DATE) -> pd.D
                 if col_data is not None and not col_data.empty:
                     weekly = col_data.resample("W-MON").mean().reindex(weekly_dates, method="nearest")
                     price_data[name] = weekly.values
-                    logger.info(f"  ✅ {name} ({ticker}): {col_data.dropna().shape[0]} daily points")
+                    logger.info(f"  [OK] {name} ({ticker}): {col_data.dropna().shape[0]} daily points")
             except Exception as ex:
-                logger.warning(f"  ⚠️  {name} ({ticker}) extraction failed: {ex}")
+                logger.warning(f"  [WARN] {name} ({ticker}) extraction failed: {ex}")
     except Exception as e:
         logger.warning(f"yfinance batch download failed: {e}")
 

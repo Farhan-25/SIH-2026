@@ -11,11 +11,11 @@ import { usePreferences } from '../context/PreferencesContext'
 import ReactMarkdown from 'react-markdown'
 
 const QUICK_PROMPTS = [
-  { label: '📈 Newcastle → Paradip Drivers', query: 'Why are freight rates rising for Newcastle to Paradip?' },
-  { label: '🛡️ Red Sea & Suez Crisis Impact', query: 'Assess Red Sea disruption impact on Cape routing and landed costs' },
-  { label: '🚢 Optimum Bulker for 75k MT Coal', query: 'Recommend the best vessel class for importing 75,000 MT Coal to Dhamra vs Haldia' },
-  { label: '📊 Spot vs Forward Decision', query: 'Should we fix spot or lock forward contracts for East Coast India imports?' },
-  { label: '⚓ Port Queue & Demurrage Check', query: 'What are current port waiting days and demurrage risks across Odisha ports?' }
+  { label: 'Newcastle → Paradip Drivers', query: 'Why are freight rates rising for Newcastle to Paradip?' },
+  { label: 'Red Sea & Suez Crisis Impact', query: 'Assess Red Sea disruption impact on Cape routing and landed costs' },
+  { label: 'Optimum Bulker for 75k MT Coal', query: 'Recommend the best vessel class for importing 75,000 MT Coal to Dhamra vs Haldia' },
+  { label: 'Spot vs Forward Decision', query: 'Should we fix spot or lock forward contracts for East Coast India imports?' },
+  { label: 'Port Queue & Demurrage Check', query: 'What are current port waiting days and demurrage risks across Odisha ports?' }
 ]
 
 export default function CopilotPage() {
@@ -147,7 +147,7 @@ export default function CopilotPage() {
               <span style={{ color: 'var(--text-muted)' }}>• Active Context: Australia, Indonesia, Odisha Ports</span>
             </div>
             <span style={{ fontSize: '0.75rem', color: overview?.ai_active ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
-              {overview?.ai_active ? `⚡ ${overview.ai_model || 'Gemini'} Online` : 'v2.0 XAI Mode'}
+              {overview?.ai_active ? `${overview.ai_model || 'Gemini'} Online` : 'v2.0 XAI Mode'}
             </span>
           </div>
 
@@ -176,7 +176,7 @@ export default function CopilotPage() {
                     fontSize: '0.75rem',
                     color: 'var(--text-muted)'
                   }}>
-                    <span>{isUser ? 'Procurement Lead' : '🤖 FreightIQ Copilot'}</span>
+                    <span>{isUser ? 'Procurement Lead' : 'FreightIQ Copilot'}</span>
                     <span>•</span>
                     <span>{msg.timestamp}</span>
                   </div>

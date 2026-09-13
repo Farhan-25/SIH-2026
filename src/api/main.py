@@ -351,7 +351,7 @@ def _run_retrain_task():
         _TRAINING_STATE["status"] = "running"
         _TRAINING_STATE["started_at"] = datetime.now().isoformat()
         _TRAINING_STATE["ended_at"] = None
-        _TRAINING_STATE["logs"] = ["🚀 Initiating model retraining pipeline (train_models.py)..."]
+        _TRAINING_STATE["logs"] = ["Initiating model retraining pipeline (train_models.py)..."]
         _TRAINING_STATE["error"] = None
 
     try:
@@ -384,21 +384,21 @@ def _run_retrain_task():
         with _TRAINING_LOCK:
             if return_code == 0:
                 _TRAINING_STATE["status"] = "completed"
-                _TRAINING_STATE["logs"].append("✅ Model training completed successfully! Reloading registry...")
+                _TRAINING_STATE["logs"].append("Model training completed successfully! Reloading registry...")
                 _TS_CACHE = None
                 _TS_CACHE_TS = 0
                 model_service.reload()
-                _TRAINING_STATE["logs"].append("🎉 Model registry reloaded and active for inference.")
+                _TRAINING_STATE["logs"].append("Model registry reloaded and active for inference.")
             else:
                 _TRAINING_STATE["status"] = "failed"
                 _TRAINING_STATE["error"] = f"train_models.py exited with code {return_code}"
-                _TRAINING_STATE["logs"].append(f"❌ Retraining failed with exit code {return_code}.")
+                _TRAINING_STATE["logs"].append(f"Retraining failed with exit code {return_code}.")
             _TRAINING_STATE["ended_at"] = datetime.now().isoformat()
     except Exception as e:
         with _TRAINING_LOCK:
             _TRAINING_STATE["status"] = "failed"
             _TRAINING_STATE["error"] = str(e)
-            _TRAINING_STATE["logs"].append(f"❌ Retraining exception: {e}")
+            _TRAINING_STATE["logs"].append(f"Retraining exception: {e}")
             _TRAINING_STATE["ended_at"] = datetime.now().isoformat()
 
 

@@ -306,7 +306,7 @@ export default function LandingPage() {
                 </div>
                 {sandboxResult.vessel_optimization?.recommended_evaluation?.requires_lighterage && (
                   <div className="lighterage-tag text-amber">
-                    ⚠️ Mandatory Lighterage Required at Sagar
+                    Mandatory Lighterage Required at Sagar
                   </div>
                 )}
               </div>
@@ -391,7 +391,7 @@ export default function LandingPage() {
                 </div>
                 <div className="tab-pane-graphic">
                   <div className="graphic-placeholder">
-                    <div className="graphic-header">📈 Freight Horizon Model</div>
+                    <div className="graphic-header">Freight Horizon Model</div>
                     <div className="graphic-bar-group">
                       <div className="bar-label">4-Week Projection: <strong>{formatMoney(16.50, { suffix: '/MT' })}</strong></div>
                       <div className="bar-fill" style={{ width: '65%', background: 'var(--accent-ocean)' }}></div>
@@ -428,11 +428,11 @@ export default function LandingPage() {
                 </div>
                 <div className="tab-pane-graphic">
                   <div className="graphic-placeholder">
-                    <div className="graphic-header">🚢 Berth Compatibility Solver</div>
+                    <div className="graphic-header">Berth Compatibility Solver</div>
                     <div className="vessel-badge-row">
-                      <span className="badge badge-success">Capesize (175k MT) — Gangavaram ✅</span>
-                      <span className="badge badge-warning">Panamax (75k MT) — Haldia (Lighterage Required ⚠️)</span>
-                      <span className="badge badge-danger">Capesize (175k MT) — Haldia (Rejected: Exceeds Draft ❌)</span>
+                      <span className="badge badge-success">Capesize (175k MT) — Gangavaram </span>
+                      <span className="badge badge-warning">Panamax (75k MT) — Haldia (Lighterage Required)</span>
+                      <span className="badge badge-danger">Capesize (175k MT) — Haldia (Rejected: Exceeds Draft)</span>
                     </div>
                   </div>
                 </div>
@@ -457,7 +457,7 @@ export default function LandingPage() {
                 </div>
                 <div className="tab-pane-graphic">
                   <div className="graphic-placeholder">
-                    <div className="graphic-header">🎯 Market Timing Evaluator</div>
+                    <div className="graphic-header">Market Timing Evaluator</div>
                     <div className="strategy-preview-box">
                       <div className="strategy-signal text-emerald">ENTER_NOW_TERM_CONTRACT</div>
                       <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
@@ -487,7 +487,7 @@ export default function LandingPage() {
                 </div>
                 <div className="tab-pane-graphic">
                   <div className="graphic-placeholder">
-                    <div className="graphic-header">⚠️ Risk & Congestion Monitor</div>
+                    <div className="graphic-header">Risk & Congestion Monitor</div>
                     <div className="risk-gauge-preview">
                       <div className="gauge-val text-amber">42.5 / 100</div>
                       <div className="gauge-lbl">Moderate Operational Risk</div>
@@ -512,7 +512,7 @@ export default function LandingPage() {
 
         <div className="comparison-grid">
           <div className="comparison-card traditional glass-panel">
-            <div className="comp-title text-rose">❌ Traditional Procurement</div>
+            <div className="comp-title text-rose">Traditional Procurement</div>
             <ul className="comp-list">
               <li>Relies on daily reactive spot-market quotes from brokers.</li>
               <li>High risk of entering market during rate spikes.</li>
@@ -523,7 +523,7 @@ export default function LandingPage() {
           </div>
 
           <div className="comparison-card freightiq glass-panel">
-            <div className="comp-title text-emerald">✅ FreightIQ Ecosystem</div>
+            <div className="comp-title text-emerald">FreightIQ Ecosystem</div>
             <ul className="comp-list">
               <li>24-week multi-horizon ML predictions with 80% & 90% confidence bands.</li>
               <li>Automated timing signals (`ENTER_NOW_SPOT`, `ENTER_NOW_TERM_CONTRACT`, `WAIT`).</li>

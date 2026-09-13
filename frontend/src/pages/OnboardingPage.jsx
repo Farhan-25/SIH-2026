@@ -335,7 +335,7 @@ export default function OnboardingPage({ onComplete }) {
 
       {/* Top-left branding */}
       <div style={{ position: 'absolute', top: 'var(--space-xl)', left: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-        <div style={{ fontSize: '28px' }}>🚢</div>
+        <div style={{ fontSize: '28px' }}></div>
         <h2 style={{ margin: 0, fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--text-primary)' }}>FreightIQ</h2>
       </div>
 
