@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import Plotly from 'plotly.js-basic-dist'
+import Plotly from 'plotly.js/dist/plotly-basic'
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly)
 import { MdTrendingUp, MdCompareArrows } from 'react-icons/md'
