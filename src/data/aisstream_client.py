@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Any
 
@@ -22,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 AISSTREAM_WS_URL = "wss://stream.aisstream.io/v0/stream"
 OPENWATERS_VESSELS_URL = "https://ais.openwaters.io/v1/vessels"
-# Snapshot cap — denser India coverage without going worldwide
-MAX_TRACKED_VESSELS = 700
+# Snapshot cap — India + trade-lane AIS
+MAX_TRACKED_VESSELS = 1200
 # Live AIS for ROI ports — set AISSTREAM_LIVE_TRACKING=0 to disable
 AIS_LIVE_TRACKING_ENABLED = os.getenv("AISSTREAM_LIVE_TRACKING", "1").strip().lower() not in ("0", "false", "no", "off")
 OPENWATERS_POLL_SECONDS = int(os.getenv("OPENWATERS_POLL_SECONDS", "45") or 45)
@@ -50,10 +51,53 @@ def _ship_type_label(ais_type: int) -> str:
 
 
 def _is_freight_relevant(ais_type: int) -> bool:
-    # Keep cargo/tanker/unknown/other; drop pleasure craft noise
-    if ais_type in (36, 37):
-        return False
-    return True
+    """Dry-bulk map: cargo + unknown type. Drop pleasure, fishing, tankers."""
+    if ais_type in (0,):
+        return True
+    return 70 <= ais_type <= 79
+
+
+def _clean_ais_name(raw: str | None, mmsi: str) -> str:
+    name = " ".join(str(raw or "").split())
+    if not name:
+        return f"MMSI {mmsi}"
+    upper = name.upper()
+    if upper in ("UNKNOWN", "NONE", "N/A", mmsi, f"MV LIVE {mmsi}"):
+        return f"MMSI {mmsi}"
+    return name
+
+
+def build_trade_lane_boxes(db_manager: FreightDBManager | None = None, pad_deg: float = 2.2, max_boxes: int = 22) -> list[list[list[float]]]:
+    """Open Waters tiles along published trade-route waypoints (not AISStream)."""
+    db = db_manager or FreightDBManager()
+    try:
+        routes_data = db.load_routes_master()
+    except Exception:
+        return []
+    routes_list = routes_data.get("trade_routes", []) if isinstance(routes_data, dict) else routes_data
+    boxes: list[list[list[float]]] = []
+    seen: set[tuple[int, int]] = set()
+    samples: list[tuple[float, float]] = []
+    for route in routes_list or []:
+        wps = route.get("waypoints") or []
+        if len(wps) < 2:
+            continue
+        for lon, lat in wps:
+            samples.append((float(lat), float(lon)))
+        for i in range(len(wps) - 1):
+            lon1, lat1 = float(wps[i][0]), float(wps[i][1])
+            lon2, lat2 = float(wps[i + 1][0]), float(wps[i + 1][1])
+            if abs(lon2 - lon1) > 7 or abs(lat2 - lat1) > 7:
+                samples.append(((lat1 + lat2) / 2.0, (lon1 + lon2) / 2.0))
+    for lat, lon in samples:
+        key = (int(round(lat / pad_deg)), int(round(lon / pad_deg)))
+        if key in seen:
+            continue
+        seen.add(key)
+        boxes.append([[lat - pad_deg, lon - pad_deg], [lat + pad_deg, lon + pad_deg]])
+        if len(boxes) >= max_boxes:
+            break
+    return boxes
 
 
 def _box_contains(box, lat: float, lon: float) -> bool:
@@ -81,17 +125,64 @@ class AISPortCongestionTracker:
         """Few large India tiles — many small boxes starve AISStream delivery."""
         return [list(b) for b in INDIA_REGION_BOXES]
 
+    def build_openwaters_bounding_boxes(self) -> list[list[list[float]]]:
+        """India ROI plus tiles along East Coast India trade lanes."""
+        boxes = self.build_corridor_bounding_boxes()
+        boxes.extend(build_trade_lane_boxes(self.db))
+        return boxes
+
+    def _parse_openwaters_features(self, features: list, now_iso: str, by_mmsi: dict[str, dict[str, Any]]) -> None:
+        for feat in features:
+            props = feat.get("properties") or {}
+            geom = feat.get("geometry") or {}
+            coords = geom.get("coordinates") or []
+            if len(coords) < 2:
+                continue
+            lon, lat = float(coords[0]), float(coords[1])
+            mmsi = str(props.get("mmsi") or "").strip()
+            if not mmsi:
+                continue
+            try:
+                ais_type = int(props.get("type") or 0)
+            except (TypeError, ValueError):
+                ais_type = 0
+            if not _is_freight_relevant(ais_type):
+                continue
+            sog = float(props.get("sog") or 0)
+            if sog > 25:
+                continue
+            heading = props.get("heading")
+            if heading in (None, 511):
+                heading = props.get("cog") or 0
+            dest = (props.get("destination") or props.get("dest") or "").strip()
+            origin = (props.get("origin") or "").strip()
+            by_mmsi[mmsi] = {
+                "id": f"live_{mmsi}",
+                "name": _clean_ais_name(props.get("name"), mmsi),
+                "class": _ship_type_label(ais_type),
+                "mmsi": mmsi,
+                "lat": lat,
+                "lon": lon,
+                "speed": sog,
+                "heading": float(heading or 0),
+                "origin": origin or "Unknown (Live)",
+                "dest": dest or "Unknown (Live)",
+                "cargo": "Dry Bulk / Cargo",
+                "status": "Underway" if sog > 0.5 else "At Anchor",
+                "progress_pct": 50,
+                "wait_time_hours": 0.0,
+                "near_india": is_near_india(lat, lon),
+                "source": f"openwaters:{(props.get('source') or 'ais')}",
+                "last_update": now_iso,
+            }
 
     def fetch_openwaters_vessels(self, boxes: list[list[list[float]]] | None = None) -> list[dict[str, Any]]:
-        """
-        Pull latest India-ROI positions from Open Waters (AISHub + open feeds).
-        No API key required — complements sparse AISStream coverage.
-        """
-        boxes = boxes or self.build_corridor_bounding_boxes()
+        """Pull cargo AIS from Open Waters across India + trade-lane tiles."""
+        boxes = boxes or self.build_openwaters_bounding_boxes()
         by_mmsi: dict[str, dict[str, Any]] = {}
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        for box in boxes:
+        def _fetch_box(box):
             (lat_a, lon_a), (lat_b, lon_b) = box[0], box[1]
             bbox = ",".join(
                 str(round(x, 4))
@@ -101,64 +192,29 @@ class AISPortCongestionTracker:
                 resp = requests.get(
                     OPENWATERS_VESSELS_URL,
                     params={"bbox": bbox},
-                    timeout=4,
+                    timeout=6,
                 )
                 if resp.status_code != 200:
                     logger.debug("Open Waters HTTP %s for bbox=%s", resp.status_code, bbox)
-                    continue
-                features = (resp.json() or {}).get("features") or []
+                    return []
+                return (resp.json() or {}).get("features") or []
             except Exception as e:
                 logger.debug("Open Waters fetch failed (%s): %s", bbox, e)
-                continue
+                return []
 
-            for feat in features:
-                props = feat.get("properties") or {}
-                geom = feat.get("geometry") or {}
-                coords = geom.get("coordinates") or []
-                if len(coords) < 2:
-                    continue
-                lon, lat = float(coords[0]), float(coords[1])
-                mmsi = str(props.get("mmsi") or "").strip()
-                if not mmsi:
-                    continue
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = [pool.submit(_fetch_box, box) for box in boxes]
+            for fut in as_completed(futures):
                 try:
-                    ais_type = int(props.get("type") or 0)
-                except (TypeError, ValueError):
-                    ais_type = 0
-                if not _is_freight_relevant(ais_type):
+                    self._parse_openwaters_features(fut.result() or [], now_iso, by_mmsi)
+                except Exception:
                     continue
-                sog = float(props.get("sog") or 0)
-                if sog > 25:
-                    continue
-                heading = props.get("heading")
-                if heading in (None, 511):
-                    heading = props.get("cog") or 0
-                name = (props.get("name") or "").strip() or f"MV LIVE {mmsi}"
-                by_mmsi[mmsi] = {
-                    "id": f"live_{mmsi}",
-                    "name": name,
-                    "class": _ship_type_label(ais_type),
-                    "mmsi": mmsi,
-                    "lat": lat,
-                    "lon": lon,
-                    "speed": sog,
-                    "heading": float(heading or 0),
-                    "origin": "Unknown (Live)",
-                    "dest": "Unknown (Live)",
-                    "cargo": "Unknown",
-                    "status": "Underway" if sog > 0.5 else "At Anchor",
-                    "progress_pct": 50,
-                    "wait_time_hours": 0.0,
-                    "near_india": is_near_india(lat, lon),
-                    "source": f"openwaters:{(props.get('source') or 'ais')}",
-                    "last_update": now_iso,
-                }
 
         return list(by_mmsi.values())
 
     async def _poll_openwaters_loop(self, bounding_boxes=None):
         """Periodic REST snapshot from Open Waters → upsert into vessels_live_tracking."""
-        boxes = bounding_boxes or self.build_corridor_bounding_boxes()
+        boxes = bounding_boxes or self.build_openwaters_bounding_boxes()
         while True:
             try:
                 ships = await asyncio.to_thread(self.fetch_openwaters_vessels, boxes)
@@ -170,7 +226,7 @@ class AISPortCongestionTracker:
                     self.connected = True
                     if self.last_error and "openwaters" in (self.last_error or "").lower():
                         self.last_error = None
-                    logger.info("Open Waters upserted %s India-ROI ships", len(ships))
+                    logger.info("Open Waters upserted %s cargo ships (India + trade lanes)", len(ships))
             except Exception as e:
                 logger.error("Open Waters poll error: %s", e)
                 if not self.api_key:
@@ -237,7 +293,7 @@ class AISPortCongestionTracker:
                             if sog > 25:
                                 continue
 
-                            ship_name = (meta.get("ShipName") or meta.get("shipName") or "").strip() or f"MV LIVE {mmsi}"
+                            ship_name = _clean_ais_name(meta.get("ShipName") or meta.get("shipName"), mmsi)
 
                             vessel_buffer[mmsi] = {
                                 "id": f"live_{mmsi}",
@@ -293,15 +349,17 @@ class AISPortCongestionTracker:
             self.last_error = "disabled"
             return
 
-        boxes = bounding_boxes or self.build_corridor_bounding_boxes()
+        india_boxes = bounding_boxes or self.build_corridor_bounding_boxes()
+        ow_boxes = self.build_openwaters_bounding_boxes()
         logger.info(
-            "Starting multi-source AIS tracker (AISStream=%s, Open Waters poll=%ss).",
+            "Starting multi-source AIS tracker (AISStream=%s, Open Waters poll=%ss, lane tiles=%s).",
             "yes" if self.api_key else "no",
             OPENWATERS_POLL_SECONDS,
+            max(0, len(ow_boxes) - len(india_boxes)),
         )
         await asyncio.gather(
-            self._poll_openwaters_loop(boxes),
-            self._run_aisstream_loop(boxes),
+            self._poll_openwaters_loop(ow_boxes),
+            self._run_aisstream_loop(india_boxes),
         )
 
     def get_port_congestion_estimate(self, port_id: str, historical_avg_waiting: float = 2.5) -> dict[str, Any]:

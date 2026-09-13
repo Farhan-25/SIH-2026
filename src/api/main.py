@@ -82,8 +82,8 @@ import asyncio
 async def startup_event():
     # Clear ballooned AIS history, then stream only ROI port regions
     try:
-        kept = ais_tracker.db.prune_live_vessels(max_keep=700)
-        logger.info("Pruned vessels_live_tracking → %s rows (India-heavy ROI cap)", kept)
+        kept = ais_tracker.db.prune_live_vessels(max_keep=1200)
+        logger.info("Pruned vessels_live_tracking → %s rows", kept)
     except Exception as e:
         logger.warning("Could not prune live vessels on startup: %s", e)
     # Drop stale congestion cache (old logic invented ship counts)

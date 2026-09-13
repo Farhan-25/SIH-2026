@@ -21,16 +21,38 @@ from src.data.db_manager import FreightDBManager
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-# If fewer than this many live AIS fixes exist in India ROI, add corridor demos
-CORRIDOR_FALLBACK_THRESHOLD = int(os.getenv("VESSEL_CORRIDOR_FALLBACK_THRESHOLD", "8") or 8)
-# Target map density for demos — live AIS first, then labeled modeled fill
-DEMO_FLEET_TARGET = int(os.getenv("VESSEL_DEMO_FLEET_TARGET", "55") or 55)
+# If a trade lane has fewer than this many live AIS ships, add named fleet fill
+CORRIDOR_FALLBACK_THRESHOLD = int(os.getenv("VESSEL_CORRIDOR_FALLBACK_THRESHOLD", "2") or 2)
 # Port proximity for congestion badges (~20–25 nm)
 PORT_RADIUS_DEG = float(os.getenv("VESSEL_PORT_RADIUS_DEG", "0.40") or 0.40)
+# Match live AIS to a published lane if within ~150 nm of the polyline
+CORRIDOR_MATCH_DEG = float(os.getenv("VESSEL_CORRIDOR_MATCH_DEG", "2.4") or 2.4)
 
 
 def _dist_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return math.hypot(lat1 - lat2, lon1 - lon2)
+
+
+def _point_to_segment_deg(lon: float, lat: float, p1: list, p2: list) -> float:
+    x, y = lon, lat
+    x1, y1 = float(p1[0]), float(p1[1])
+    x2, y2 = float(p2[0]), float(p2[1])
+    dx, dy = x2 - x1, y2 - y1
+    if dx == 0 and dy == 0:
+        return math.hypot(x - x1, y - y1)
+    t = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy)))
+    return math.hypot(x - (x1 + t * dx), y - (y1 + t * dy))
+
+
+def _point_to_polyline_deg(lon: float, lat: float, waypoints: list) -> float:
+    if not waypoints:
+        return 1e9
+    if len(waypoints) == 1:
+        return math.hypot(lon - float(waypoints[0][0]), lat - float(waypoints[0][1]))
+    best = 1e9
+    for i in range(len(waypoints) - 1):
+        best = min(best, _point_to_segment_deg(lon, lat, waypoints[i], waypoints[i + 1]))
+    return best
 
 
 def vessels_near_port(
@@ -69,7 +91,30 @@ class GFWClient:
         self.cache_ttl = 30  # seconds — fleet should feel live
         self._vessels_cache = None
         self._last_fetch_time = 0.0
+        self._routes_cache = None
         self.db = db_manager or FreightDBManager()
+
+    def _trade_routes(self) -> list[dict[str, Any]]:
+        if self._routes_cache is None:
+            data = self.db.load_routes_master()
+            self._routes_cache = data.get("trade_routes", []) if isinstance(data, dict) else (data or [])
+        return self._routes_cache
+
+    def _assign_route(self, lon: float, lat: float, dest_hint: str = "") -> dict[str, Any] | None:
+        """Attach the nearest published trade lane to a live AIS fix."""
+        hint = (dest_hint or "").lower()
+        best = None
+        best_d = CORRIDOR_MATCH_DEG
+        for route in self._trade_routes():
+            wps = route.get("waypoints") or []
+            d = _point_to_polyline_deg(lon, lat, wps)
+            dest_name = str(route.get("destination_name") or "")
+            orig_name = str(route.get("origin_name") or "")
+            if hint and (dest_name.lower().split("(")[0].strip() in hint or orig_name.lower().split("(")[0].strip() in hint):
+                d *= 0.55
+            if d < best_d:
+                best, best_d = route, d
+        return best
 
     def _interpolate_corridor_position(self, waypoints: list[list[float]], progress_ratio: float) -> tuple:
         """Interpolates lon, lat, heading along route waypoints (0.0–1.0 progress)."""
@@ -150,7 +195,7 @@ class GFWClient:
                 "eta_days": round(max(0.2, (1.0 - progress_ratio) * sailing_days), 1) if not is_anchor else 0.0,
                 "wait_time_hours": wait_time_hours,
                 "source": "modeled_corridor",
-                "source_label": "Modeled corridor",
+                "source_label": "Named fleet",
                 "last_update": datetime.now(timezone.utc).isoformat(),
             })
 
@@ -251,9 +296,8 @@ class GFWClient:
 
     def get_live_cargo_vessels(self, limit: int | None = 700) -> list[dict[str, Any]]:
         """
-        Hybrid fleet for maps/APIs:
-          1. Live AIS in India ROI (AISStream + Open Waters → SQLite) — primary
-          2. Labeled modeled corridor + anchorage fill when live coverage is thin
+        Live AIS (India + trade lanes) tagged onto published corridors.
+        Named fleet fill is used only for lanes that still have no live ships.
         """
         from src.data.aisstream_client import is_near_india
 
@@ -262,9 +306,10 @@ class GFWClient:
         if self._vessels_cache and (current_time - self._last_fetch_time < self.cache_ttl):
             return self._vessels_cache[:lim]
 
-        live_rows = self.db.get_live_vessels(limit=max(lim * 2, 1400))
-        india_ships: list[dict[str, Any]] = []
+        live_rows = self.db.get_live_vessels(limit=max(lim * 3, 1800))
+        fleet: list[dict[str, Any]] = []
         seen = set()
+        live_by_route: dict[str, int] = {}
 
         for v in live_rows:
             try:
@@ -273,39 +318,57 @@ class GFWClient:
                 continue
             if not lat and not lon:
                 continue
-            if not is_near_india(lat, lon):
+            dest_hint = str(v.get("dest") or v.get("destination") or "")
+            route = self._assign_route(lon, lat, dest_hint)
+            if route is None and not is_near_india(lat, lon):
                 continue
             vid = v.get("id") or v.get("mmsi")
             if not vid or vid in seen:
                 continue
             seen.add(vid)
             vv = dict(v)
+            name = str(vv.get("name") or "").strip()
+            if not name or name.upper().startswith("MV LIVE"):
+                mmsi = str(vv.get("mmsi") or vid)
+                vv["name"] = f"MMSI {mmsi}"
             vv["source"] = "ais_live"
             vv["source_label"] = "Live AIS"
+            if route:
+                dest_ok = dest_hint and "unknown" not in dest_hint.lower()
+                orig_ok = str(vv.get("origin") or "") and "unknown" not in str(vv.get("origin")).lower()
+                vv["route_id"] = route.get("route_id")
+                if not orig_ok:
+                    vv["origin"] = route.get("origin_name")
+                if not dest_ok:
+                    vv["dest"] = route.get("destination_name")
+                if not vv.get("cargo") or str(vv.get("cargo")).lower() in ("unknown", ""):
+                    vv["cargo"] = route.get("primary_cargo")
+                cls = str(vv.get("class") or "")
+                if "live ais" in cls.lower() or cls in ("", "Unknown"):
+                    typical = route.get("typical_vessel_classes") or ["Panamax"]
+                    vv["class"] = typical[0]
+                live_by_route[vv["route_id"]] = live_by_route.get(vv["route_id"], 0) + 1
             if float(vv.get("speed") or 0) <= 0.5:
                 vv["status"] = "At Anchor"
             elif (vv.get("status") or "") in ("En Route", "Underway", ""):
                 vv["status"] = "Underway"
-            india_ships.append(vv)
+            fleet.append(vv)
 
-        live_count = len(india_ships)
-        need_fill = live_count < max(CORRIDOR_FALLBACK_THRESHOLD, DEMO_FLEET_TARGET)
+        live_count = len(fleet)
 
         def _absorb(candidates: list[dict[str, Any]]):
             for v in candidates:
-                if len(india_ships) >= lim:
+                if len(fleet) >= lim:
                     break
                 try:
                     lat, lon = float(v.get("lat") or 0), float(v.get("lon") or 0)
                 except (TypeError, ValueError):
                     continue
-                if not is_near_india(lat, lon):
-                    continue
                 vid = v.get("id")
                 if not vid or vid in seen:
                     continue
                 too_close = False
-                for live_v in india_ships:
+                for live_v in fleet:
                     if live_v.get("source") != "ais_live":
                         continue
                     if abs(float(live_v["lat"]) - lat) < 0.035 and abs(float(live_v["lon"]) - lon) < 0.035:
@@ -316,22 +379,32 @@ class GFWClient:
                 seen.add(vid)
                 if not v.get("source_label"):
                     src = v.get("source") or "modeled"
-                    v["source_label"] = "Modeled" if str(src).startswith("modeled") else "Live AIS"
-                india_ships.append(v)
+                    v["source_label"] = "Named fleet" if str(src).startswith("modeled") else "Live AIS"
+                fleet.append(v)
 
-        if need_fill:
+        missing_routes = [
+            r for r in self._trade_routes()
+            if live_by_route.get(r.get("route_id"), 0) < CORRIDOR_FALLBACK_THRESHOLD
+        ]
+        if missing_routes:
+            named_fill = [
+                v for v in self._generate_dynamic_fleet_positions()
+                if v.get("route_id") in {r.get("route_id") for r in missing_routes}
+            ]
+            _absorb(named_fill)
+
+        if live_count < 8:
             _absorb(self._generate_modeled_anchorage_fill())
-            _absorb(self._generate_dynamic_fleet_positions())
 
-        india_ships.sort(key=lambda v: 0 if v.get("source") == "ais_live" else 1)
-        self._vessels_cache = india_ships[:lim]
+        fleet.sort(key=lambda v: 0 if v.get("source") == "ais_live" else 1)
+        self._vessels_cache = fleet[:lim]
         self._last_fetch_time = current_time
         modeled_n = sum(1 for v in self._vessels_cache if str(v.get("source") or "").startswith("modeled"))
         logger.info(
-            "Fleet ready: %s ships (%s live AIS, %s modeled, target=%s)",
+            "Fleet ready: %s ships (%s live AIS, %s named-lane fill, lanes=%s)",
             len(self._vessels_cache),
             live_count,
             modeled_n,
-            DEMO_FLEET_TARGET,
+            len(live_by_route),
         )
         return self._vessels_cache
