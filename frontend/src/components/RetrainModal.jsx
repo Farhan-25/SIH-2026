@@ -219,9 +219,9 @@ export default function RetrainModal({ isOpen, onClose, onTrainingSuccess }) {
           ) : (
             statusState.logs.map((log, index) => {
               let color = '#cbd5e1'
-              if (log.includes('🚀') || log.includes('Initiating')) color = '#38bdf8'
-              if (log.includes('✅') || log.includes('Saved') || log.includes('completed')) color = '#4ade80'
-              if (log.includes('❌') || log.includes('failed') || log.includes('error')) color = '#f87171'
+              if (log.includes('Initiating')) color = '#38bdf8'
+              if (log.includes('Saved') || log.includes('completed')) color = '#4ade80'
+              if (log.includes('failed') || log.includes('error')) color = '#f87171'
               if (log.includes('Epoch') || log.includes('Estimator')) color = '#facc15'
 
               return (

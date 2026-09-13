@@ -5,7 +5,7 @@ import {
   MdMap, MdPublic, MdDirectionsBoat, MdWarning, MdRefresh, MdMyLocation,
   MdWaves, MdAnchor, MdClose, MdNavigation, MdAttachMoney,
   MdEco, MdSpeed, MdLocationOn, MdCheckCircle, MdScience,
-  MdArrowForward, MdSearch, MdStraighten, MdPause, MdPlayArrow, MdLayers
+  MdArrowForward, MdSearch, MdStraighten, MdLayers
 } from 'react-icons/md'
 import mapboxgl, { getMapStyle, MAP_STYLE_ORDER, MAP_STYLES, vesselPopupHTML, vesselMarkerColor, vesselHeadingDeg, portsToFeatureCollection, PORT_CIRCLE_PAINT, PORT_HALO_PAINT, upsertVesselArrowLayers } from '../lib/maplibre'
 import { Canvas } from '@react-three/fiber'
@@ -142,7 +142,6 @@ function MapboxMap({
   filterStatus,
   showWeather,
   showAnchorageZones,
-  timeOffsetHours,
   rulerActive,
   rulerPoints,
   onRulerClick,
@@ -164,7 +163,7 @@ function MapboxMap({
     return vessels.find(v => v.id === selectedVessel)
   }, [vessels, selectedVessel])
 
-  // Build realistic maritime sea-lane trajectory (Past Wake + Future Projected Course)
+  // Build maritime sea-lane trajectory (past wake + remaining route)
   const activeVesselTrackGeoJSON = useMemo(() => {
     if (!activeVesselObj || !activeVesselObj.lat || !activeVesselObj.lon) {
       return { type: 'FeatureCollection', features: [] }
@@ -201,7 +200,7 @@ function MapboxMap({
         },
         {
           type: 'Feature',
-          properties: { type: 'projected', color: '#f59e0b' },
+          properties: { type: 'ahead', color: '#f59e0b' },
           geometry: { type: 'LineString', coordinates: futureWaypoints }
         }
       ]
@@ -241,7 +240,7 @@ function MapboxMap({
   useEffect(() => { vesselsRef.current = vessels }, [vessels])
   useEffect(() => { showAnchorageRef.current = showAnchorageZones }, [showAnchorageZones])
 
-  const vesselsToGeoJSON = useCallback((list, filter = 'all', offsetH = 0) => {
+  const vesselsToGeoJSON = useCallback((list, filter = 'all') => {
     const features = []
     for (const vessel of list || []) {
       if (filter === 'underway' && vessel.status === 'At Anchor') continue
@@ -249,16 +248,6 @@ function MapboxMap({
       const lat = Number(vessel.lat)
       const lon = Number(vessel.lon)
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue
-
-      let projectedLat = lat
-      let projectedLon = lon
-      if (vessel.status !== 'At Anchor' && offsetH) {
-        const speedKnots = vessel.speed || 12.0
-        const distanceNMTravelled = speedKnots * offsetH
-        const headingRad = (vessel.heading || 315) * Math.PI / 180
-        projectedLat = lat + (distanceNMTravelled * Math.cos(headingRad)) / 60
-        projectedLon = lon + (distanceNMTravelled * Math.sin(headingRad)) / (60 * Math.cos(lat * Math.PI / 180))
-      }
 
       features.push({
         type: 'Feature',
@@ -274,7 +263,7 @@ function MapboxMap({
           color: vesselMarkerColor(vessel),
           source: vessel.source_label || vessel.source || 'Live AIS',
         },
-        geometry: { type: 'Point', coordinates: [projectedLon, projectedLat] },
+        geometry: { type: 'Point', coordinates: [lon, lat] },
       })
     }
     return { type: 'FeatureCollection', features }
@@ -333,7 +322,7 @@ function MapboxMap({
           'line-color': ['get', 'color'],
           'line-width': 3,
           'line-opacity': 0.95,
-          'line-dasharray': ['case', ['==', ['get', 'type'], 'projected'], ['literal', [2, 2]], ['literal', [1, 0]]],
+          'line-dasharray': ['case', ['==', ['get', 'type'], 'ahead'], ['literal', [2, 2]], ['literal', [1, 0]]],
         },
       })
     } else {
@@ -474,11 +463,22 @@ function MapboxMap({
       container: mapContainer.current,
       style: styleUrl,
       center: [83, 16],
-      zoom: 4.2,
+      zoom: 1.5,
       pitch: 20,
       bearing: 0,
+      projection: 'globe',
       antialias: true,
     })
+    
+    map.current.on('style.load', () => {
+      map.current.setFog({
+        'color': 'rgb(10, 15, 25)', 
+        'high-color': 'rgb(20, 25, 40)',
+        'horizon-blend': 0.02,
+        'space-color': 'rgb(5, 5, 10)',
+        'star-intensity': 0.15
+      });
+    });
 
     map.current.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right')
@@ -596,14 +596,14 @@ function MapboxMap({
   // Country flag helper
   const getPortFlag = (country = '') => {
     const c = country.toLowerCase()
-    if (c.includes('india')) return '🇮🇳'
-    if (c.includes('australia')) return '🇦🇺'
-    if (c.includes('indonesia')) return '🇮🇩'
-    if (c.includes('mozambique')) return '🇲🇿'
-    if (c.includes('south africa')) return '🇿🇦'
-    if (c.includes('usa') || c.includes('united states')) return '🇺🇸'
-    if (c.includes('russia')) return '🇷🇺'
-    return '🌐'
+    if (c.includes('india')) return 'IN'
+    if (c.includes('australia')) return 'AU'
+    if (c.includes('indonesia')) return 'ID'
+    if (c.includes('mozambique')) return 'MZ'
+    if (c.includes('south africa')) return 'ZA'
+    if (c.includes('usa') || c.includes('united states')) return 'US'
+    if (c.includes('russia')) return 'RU'
+    return ''
   }
 
   // GPU dots for every port; HTML location pins only for the user's chosen desk
@@ -635,7 +635,7 @@ function MapboxMap({
         el.innerHTML = `
           <div class="port-pin-wrapper">
             <div class="port-pin-icon pin-desk" style="background: ${color}; box-shadow: 0 0 22px ${color}cc;">
-              <span class="pin-symbol">📍</span>
+              <span class="pin-symbol"></span>
             </div>
             <div class="port-pin-badge" style="border-color: ${color};">
               <span class="port-flag">${flag}</span>
@@ -674,7 +674,7 @@ function MapboxMap({
     const ready = () => {
       const src = map.current.getSource('vessels-live-src')
       if (src) {
-        src.setData(vesselsToGeoJSON(vessels, filterStatus, timeOffsetHours))
+        src.setData(vesselsToGeoJSON(vessels, filterStatus))
       }
 
       vesselMarkersRef.current.forEach(m => m.remove())
@@ -710,7 +710,7 @@ function MapboxMap({
 
     if (map.current.isStyleLoaded()) ready()
     else map.current.once('load', ready)
-  }, [vessels, selectedVessel, filterStatus, timeOffsetHours, vesselsToGeoJSON])
+  }, [vessels, selectedVessel, filterStatus, vesselsToGeoJSON])
 
   // Marine Weather Layer
   useEffect(() => {
@@ -731,7 +731,7 @@ function MapboxMap({
           display: flex; align-items: center; gap: 4px; backdrop-filter: blur(8px);
           cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         `
-        el.innerHTML = `<span>🌊</span><span>${wx.wave_height_m}m</span>`
+        el.innerHTML = `<span>${wx.wave_height_m}m</span>`
 
         const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([wx.lon, wx.lat])
@@ -813,7 +813,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
           </div>
           <h2 className="fr24-vessel-name">{vessel.name}</h2>
           <div className="fr24-flag-row">
-            <span className="fr24-flag">⚓ {vessel.operator || 'Bulk Carrier Live Fleet'}</span>
+            <span className="fr24-flag">{vessel.operator || 'Bulk Carrier Live Fleet'}</span>
           </div>
         </div>
         <button onClick={onClose} className="fr24-btn-close" title="Close Vessel Card">
@@ -905,7 +905,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
 
             <div className="fr24-cargo-box">
               <div className="cargo-header">
-                <span className="cargo-title">📦 Cargo Consignment</span>
+                <span className="cargo-title">Cargo Consignment</span>
                 <span className="cargo-amount">{vessel.materials_transferred ? Number(vessel.materials_transferred).toLocaleString() : '107,062'} MT</span>
               </div>
               <p className="cargo-desc">{vessel.cargo || 'Manganese Ore & Premium Hard Coking Coal'}</p>
@@ -989,7 +989,7 @@ function FlightRadarSideCard({ vessel, onClose, onCenter, allPorts }) {
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
                 {isHaldiaLighterage
-                  ? '⚠️ Mandatory lighterage transfer required at Sagar Anchorage before entering Haldia dock basin.'
+                  ? 'Mandatory lighterage transfer required at Sagar Anchorage before entering Haldia dock basin.'
                   : isDraftFeasible
                     ? `Vessel draft of ${vesselDraft}m satisfies the tidal draft clearance at ${destName}.`
                     : `Vessel requires partial deballasting or lightering.`}
@@ -1029,7 +1029,7 @@ function PortInfoDrawer({ port, onClose }) {
     >
       <div className="fr24-card-header">
         <div className="fr24-port-avatar" style={{ background: color }}>
-          ⚓
+          <MdAnchor size={22} />
         </div>
         <div className="fr24-vessel-meta">
           <span className="fr24-badge-class" style={{ color }}>{port.congestion_status || 'MODERATE QUEUE'}</span>
@@ -1062,7 +1062,7 @@ function PortInfoDrawer({ port, onClose }) {
 
       <div className="fr24-cargo-box" style={{ marginTop: 14 }}>
         <div className="cargo-header">
-          <span className="cargo-title">🚢 Primary Cargo Handled</span>
+          <span className="cargo-title">Primary Cargo Handled</span>
         </div>
         <p className="cargo-desc">{(port.primary_cargoes || ['Thermal Coal', 'Coking Coal', 'Iron Ore']).join(', ')}</p>
         {port.lighterage_required && (
@@ -1177,8 +1177,6 @@ export default function RouteMapPage() {
   const [filterStatus, setFilterStatus] = useState('all')
   const [showWeather, setShowWeather] = useState(false)
   const [showAnchorageZones, setShowAnchorageZones] = useState(true)
-  const [timeOffsetHours, setTimeOffsetHours] = useState(0) // Time Scrubbing Slider (+0h, +24h, +48h, +72h)
-  const [isPlayingScrubber, setIsPlayingScrubber] = useState(false)
   const [rulerActive, setRulerActive] = useState(false)
   const [rulerPoints, setRulerPoints] = useState([])
   const [lastUpdated, setLastUpdated] = useState(null)
@@ -1224,17 +1222,6 @@ export default function RouteMapPage() {
     const id = setInterval(() => fetchMapIntelligence(false), 90000)
     return () => clearInterval(id)
   }, [fetchMapIntelligence])
-
-  // Time scrubber auto-play loop
-  useEffect(() => {
-    let interval = null
-    if (isPlayingScrubber) {
-      interval = setInterval(() => {
-        setTimeOffsetHours(prev => (prev >= 72 ? 0 : prev + 6))
-      }, 1200)
-    }
-    return () => clearInterval(interval)
-  }, [isPlayingScrubber])
 
   // Handle Ruler Point Click
   const handleRulerClick = useCallback((coord) => {
@@ -1290,7 +1277,6 @@ export default function RouteMapPage() {
             filterStatus={filterStatus}
             showWeather={showWeather}
             showAnchorageZones={showAnchorageZones}
-            timeOffsetHours={timeOffsetHours}
             rulerActive={rulerActive}
             rulerPoints={rulerPoints}
             onRulerClick={handleRulerClick}
@@ -1339,7 +1325,7 @@ export default function RouteMapPage() {
                     }}
                     className="dropdown-item"
                   >
-                    <div className="item-title">🚢 {v.name}</div>
+                    <div className="item-title">{v.name}</div>
                     <div className="item-sub">{v.class} • {v.cargo} → {v.dest}</div>
                   </div>
                 ))}
@@ -1495,36 +1481,6 @@ export default function RouteMapPage() {
             />
           )}
         </AnimatePresence>
-
-        {/* ──── FlightRadar24 Voyage Time Scrubber Bar ──── */}
-        <div className="fr24-scrubber-bar glass-panel">
-          <button
-            onClick={() => setIsPlayingScrubber(p => !p)}
-            className="scrubber-play-btn"
-            title={isPlayingScrubber ? 'Pause Scrubber' : 'Play Future Voyage Projection'}
-          >
-            {isPlayingScrubber ? <MdPause size={18} /> : <MdPlayArrow size={18} />}
-          </button>
-          <div className="scrubber-label">
-            <span>Projection:</span>
-            <strong>{timeOffsetHours === 0 ? 'Live Real-Time' : `+${timeOffsetHours}h Future Position`}</strong>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="72"
-            step="6"
-            value={timeOffsetHours}
-            onChange={(e) => setTimeOffsetHours(Number(e.target.value))}
-            className="scrubber-slider"
-          />
-          <div className="scrubber-ticks">
-            <span className={timeOffsetHours === 0 ? 'active' : ''} onClick={() => setTimeOffsetHours(0)}>Now</span>
-            <span className={timeOffsetHours === 24 ? 'active' : ''} onClick={() => setTimeOffsetHours(24)}>+24h</span>
-            <span className={timeOffsetHours === 48 ? 'active' : ''} onClick={() => setTimeOffsetHours(48)}>+48h</span>
-            <span className={timeOffsetHours === 72 ? 'active' : ''} onClick={() => setTimeOffsetHours(72)}>+72h</span>
-          </div>
-        </div>
       </div>
     </motion.div>
   )

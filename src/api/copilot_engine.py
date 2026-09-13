@@ -176,7 +176,7 @@ class MaritimeCopilotEngine:
         haldia_wait = state.get("haldia_wait", 2.8)
 
         briefing_text = (
-            "### 🚢 FreightIQ Maritime Intelligence Briefing\n\n"
+            "### Maritime Intelligence Briefing\n\n"
             f"• **Market Sentiment:** Currently **{sentiment_label.upper()} ({sentiment_score:+.2f})** across major dry bulk supply routes.\n"
             f"• **Energy & Commodities:** VLSFO bunker at **${vlsfo_val:.2f}/MT** (Brent **${brent_val:.2f}**), Newcastle Coal at **${coal_newcastle:.2f}/MT**, USD/INR at **₹{usd_inr:.2f}**.\n"
             f"• **Chokepoint Disruption:** Red Sea index at **{red_sea_risk:.2f}** and Suez at **{suez_risk:.2f}**, maintaining Cape diversions.\n"
@@ -184,7 +184,6 @@ class MaritimeCopilotEngine:
             f"• **Strategy:** Prioritize Capesize/Kamsarmax at deep-water berths (Dhamra/Gangavaram) and evaluate forward hedging.\n\n"
             "Ask a question or select a prompt below to explore live predictions."
         )
-
         key_insights = [
             f"Market Sentiment: {sentiment_label} ({sentiment_score:+.2f})",
             f"VLSFO Bunker Fuel: ${vlsfo_val:.2f}/MT (Brent ${brent_val:.2f})",
@@ -254,7 +253,7 @@ class MaritimeCopilotEngine:
         system_context = (
             "You are FreightIQ Copilot, an AI maritime logistics and chartering advisor for dry bulk freight.\n"
             "IMPORTANT STYLE RULES:\n"
-            "- Answer directly and naturally. Do NOT include robotic boilerplate headers like '### 🤖 FreightIQ Intelligence Response' or 'Regarding \"...\"'.\n"
+            "- Answer directly and naturally. Do NOT include robotic boilerplate headers like '### FreightIQ Intelligence Response' or 'Regarding \"...\"'.\n"
             "- For casual greetings (e.g., 'hi', 'how are you?'), reply in 1-2 friendly, natural sentences without dumping stats unless asked.\n"
             "- For queries about models, accuracy, weights, SHAP, or predictions, cite our exact trained model parameters below.\n"
             "- Keep answers concise, clear, and focused on dry bulk chartering (coal, iron ore to Indian ports like Paradip, Dhamra, Haldia, Vizag).\n\n"
@@ -367,7 +366,7 @@ class MaritimeCopilotEngine:
             deep_met = self.model_metrics.get("models", {}).get("deep_bilstm_attention", {}).get("metrics", {"mape_pct": 22.86})
 
             response_text = (
-                f"### 🧠 FreightIQ Trained ML Model Registry\n\n"
+                f"### FreightIQ Trained ML Model Registry\n\n"
                 f"Our forecasts are powered by models trained on **{records:,} weekly records** ({date_range}) across 12 dry bulk trade routes with a strict chronological 85/15 train/test split:\n\n"
                 f"1. **Primary Production Ensemble (Inverse-MAPE Weighted):**\n"
                 f"   • **MAPE:** **{tree_met.get('mape_pct', 5.8):.1f}%** | **MAE:** **${tree_met.get('mae_usd', 1.803):.2f}/MT** | **R² Score:** **{tree_met.get('r2_score', 0.9642):.4f}**\n"
@@ -391,7 +390,7 @@ class MaritimeCopilotEngine:
         # 1. Rate Drivers / SHAP / Forecast Query
         if any(w in q_lower for w in ["forecast", "rate driver", "shap", "why", "freight", "price", "rising", "cost driver"]):
             response_text = (
-                f"### 📈 Freight Rate Drivers & SHAP Factor Breakdown\n\n"
+                f"### Freight Rate Drivers & SHAP Factor Breakdown\n\n"
                 f"Based on our trained gradient-boosted ensemble (5.8% MAPE) and real-time inputs:\n\n"
                 f"1. **Bunker Fuel Push:** Singapore VLSFO is at **${vlsfo_val:.2f}/MT** (Brent **${brent_val:.2f}/bbl**), accounting for ~28–32% of voyage landed cost.\n"
                 f"2. **Commodity Benchmark & FX:** Newcastle Coal is at **${coal_price:.2f}/MT** with USD/INR at **₹{usd_inr:.2f}**, supporting dry bulk charter premiums.\n"
@@ -407,7 +406,7 @@ class MaritimeCopilotEngine:
         # 2. Geopolitical / Chokepoint / Red Sea Query
         if any(w in q_lower for w in ["red sea", "suez", "malacca", "chokepoint", "geopolitic", "houthi", "diversion", "cape"]):
             response_text = (
-                f"### 🌍 Geopolitical Disruption & Chokepoint Status\n\n"
+                f"### Geopolitical Disruption & Chokepoint Status\n\n"
                 f"• **Red Sea / Bab el-Mandeb:** Disruption score **{red_sea_r:.2f}** ({'CRITICAL' if red_sea_r >= 0.75 else 'ELEVATED'}). "
                 f"Carriers continue diverting bulk tonnage via the Cape of Good Hope (+3,200 NM).\n"
                 f"• **Suez Canal:** Disruption score **{suez_r:.2f}**, transit volumes remain constrained.\n"
@@ -423,7 +422,7 @@ class MaritimeCopilotEngine:
         # 3. Vessel Selection / Draft / Port Constrained Query
         if any(w in q_lower for w in ["vessel", "capesize", "panamax", "supramax", "dhamra", "haldia", "draft", "lighterage", "paradip", "vizag"]):
             response_text = (
-                "### 🚢 Port Constraints & Vessel Optimization\n\n"
+                "### Port Constraints & Vessel Optimization\n\n"
                 "1. **Deep-Water Ports (Paradip, Dhamra, Gangavaram):**\n"
                 "   • **Permissible Draft:** 17.5m – 19.5m\n"
                 "   • **Recommendation:** Fully laden **Capesize (120k–180k MT)** or **Kamsarmax (75k–82k MT)**.\n"
@@ -442,7 +441,7 @@ class MaritimeCopilotEngine:
         # 4. Market Entry Timing / Spot vs Contract Query
         if any(w in q_lower for w in ["spot", "forward", "timing", "strategy", "lock", "contract", "charter", "when"]):
             response_text = (
-                f"### 📊 Freight Procurement & Market Timing\n\n"
+                f"### Freight Procurement & Market Timing\n\n"
                 f"• **Current Sentiment:** {sent_label} ({sent_score:+.2f})\n"
                 f"• **Bunker Baseline:** VLSFO at **${vlsfo_val:.2f}/MT** (Brent ${brent_val:.2f})\n"
                 f"• **Recommendation:** **Weighted Forward Lock (60% Forward / 40% Spot)**\n\n"
