@@ -1,9 +1,9 @@
 import * as maplibregl from 'maplibre-gl'
-import { setWorkerUrl } from 'maplibre-gl'
-import 'maplibre-gl/dist/maplibre-gl.css'
-import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 
-setWorkerUrl(workerUrl)
+import 'maplibre-gl/dist/maplibre-gl.css'
+
+
+
 
 /** Carto basemap styles via MapLibre (no Mapbox token required) */
 export const MAP_STYLES = {

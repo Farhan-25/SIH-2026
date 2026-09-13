@@ -160,20 +160,9 @@ export default function DashboardPage() {
       container: mapContainer.current,
       style: getMapStyle('dark').url,
       center: [85.0, 16.0],
-      zoom: 1.5,
-      projection: 'globe',
+      zoom: 4.2,
       attributionControl: false,
     })
-    
-    m.on('style.load', () => {
-      m.setFog({
-        'color': 'rgb(10, 15, 25)', 
-        'high-color': 'rgb(20, 25, 40)',
-        'horizon-blend': 0.02,
-        'space-color': 'rgb(5, 5, 10)',
-        'star-intensity': 0.15
-      });
-    });
     m.addControl(new mapboxgl.NavigationControl({ showCompass: false, showZoom: true }), 'top-right')
     mapInstance.current = m
     popupRef.current = new mapboxgl.Popup({

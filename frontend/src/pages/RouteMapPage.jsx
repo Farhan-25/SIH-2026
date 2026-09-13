@@ -463,22 +463,11 @@ function MapboxMap({
       container: mapContainer.current,
       style: styleUrl,
       center: [83, 16],
-      zoom: 1.5,
+      zoom: 4.2,
       pitch: 20,
       bearing: 0,
-      projection: 'globe',
       antialias: true,
     })
-    
-    map.current.on('style.load', () => {
-      map.current.setFog({
-        'color': 'rgb(10, 15, 25)', 
-        'high-color': 'rgb(20, 25, 40)',
-        'horizon-blend': 0.02,
-        'space-color': 'rgb(5, 5, 10)',
-        'star-intensity': 0.15
-      });
-    });
 
     map.current.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right')
