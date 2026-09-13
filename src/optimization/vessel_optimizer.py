@@ -116,7 +116,47 @@ class VesselConstraintOptimizer:
 
         results = []
 
-        fleet_to_evaluate = live_fleet if live_fleet is not None else self.active_fleet
+        known_classes = set(self.vessels.keys())
+
+        def _class_from_dwt(dwt) -> str | None:
+            try:
+                d = float(dwt)
+            except (TypeError, ValueError):
+                return None
+            if d >= 200000:
+                return "Newcastlemax"
+            if d >= 120000:
+                return "Capesize"
+            if d >= 80000:
+                return "Kamsarmax"
+            if d >= 65000:
+                return "Panamax"
+            if d >= 60000:
+                return "Ultramax"
+            if d >= 50000:
+                return "Supramax"
+            if d >= 20000:
+                return "Handysize"
+            return None
+
+        classified_live: list[dict[str, Any]] = []
+        for vessel in live_fleet or []:
+            vclass_name = vessel.get("class") or vessel.get("vessel_class")
+            if vclass_name not in known_classes:
+                vclass_name = _class_from_dwt(vessel.get("dwt"))
+            if vclass_name not in known_classes:
+                continue
+            classified_live.append({
+                **vessel,
+                "vessel_class": vclass_name,
+                "class": vclass_name,
+                "vessel_name": vessel.get("name") or vessel.get("vessel_name"),
+                "name": vessel.get("name") or vessel.get("vessel_name"),
+            })
+
+        fleet_to_evaluate = classified_live if classified_live else self.active_fleet
+        if classified_live and len(classified_live) < 6:
+            fleet_to_evaluate = classified_live + list(self.active_fleet)
 
         for vessel in fleet_to_evaluate:
             vclass_name = vessel.get("class", vessel.get("vessel_class"))

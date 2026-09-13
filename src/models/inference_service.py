@@ -234,21 +234,28 @@ class FreightModelService:
             if (now_ts - entry_ts) < self._cache_ttl:
                 return dict(cached_result)
 
-        # Resolve input data slice
+        # Resolve input data slice — never mix unrelated corridors into the forecast
         route_sub = df_timeseries[
             (df_timeseries["route_id"] == route_id) &
             (df_timeseries["vessel_class"] == vessel_class)
-        ]
+        ].copy()
+        used_class = vessel_class
         if route_sub.empty:
-            route_sub = df_timeseries[df_timeseries["route_id"] == route_id]
+            route_sub = df_timeseries[df_timeseries["route_id"] == route_id].copy()
+            if not route_sub.empty:
+                used_class = str(route_sub["vessel_class"].iloc[-1])
+                logger.info("Forecast class %s missing on %s — using %s", vessel_class, route_id, used_class)
         if route_sub.empty:
-            route_sub = df_timeseries[df_timeseries["vessel_class"] == vessel_class]
-        if route_sub.empty:
-            route_sub = df_timeseries
+            raise ValueError(f"No training rows for route {route_id}. Retrain models or pick another corridor.")
 
         # Build features
         feat_df = self.feature_engineer.create_features(route_sub).sort_values("date")
+        if feat_df.empty:
+            raise ValueError(f"Could not build features for {route_id} / {used_class}.")
         latest_row = feat_df.iloc[-1:].copy()
+        missing = [c for c in self.feature_names if c not in latest_row.columns]
+        if missing:
+            raise ValueError(f"Feature schema mismatch: missing {missing[:6]}")
 
         current_date = pd.to_datetime(latest_row["date"].values[0])
         forecast_dates = [current_date + pd.Timedelta(weeks=w) for w in range(1, horizon_weeks + 1)]
@@ -276,10 +283,17 @@ class FreightModelService:
 
         # Historical tail for chart continuity (last 36 weeks)
         hist_tail = feat_df.tail(36)
-        historical_dates = hist_tail["date"].dt.strftime("%Y-%m-%d").tolist() if "date" in hist_tail.columns else []
-        historical_rates = hist_tail["freight_rate_usd_per_mt"].round(2).tolist() if "freight_rate_usd_per_mt" in hist_tail.columns else []
+        historical_dates: list[str] = []
+        historical_rates: list[float] = []
+        if "date" in hist_tail.columns and "freight_rate_usd_per_mt" in hist_tail.columns:
+            parsed_dates = pd.to_datetime(hist_tail["date"], errors="coerce")
+            for d, rate in zip(parsed_dates, hist_tail["freight_rate_usd_per_mt"]):
+                if pd.isna(d) or pd.isna(rate):
+                    continue
+                historical_dates.append(pd.Timestamp(d).strftime("%Y-%m-%d"))
+                historical_rates.append(round(float(rate), 2))
         latest_actual = float(feat_df["freight_rate_usd_per_mt"].iloc[-1])
-        latest_date = str(feat_df["date"].iloc[-1])[:10]
+        latest_date = str(pd.to_datetime(feat_df["date"].iloc[-1]))[:10]
 
         # Deep model predictions (if available, reuse already computed feat_df)
         deep_result = None
@@ -291,7 +305,7 @@ class FreightModelService:
 
         forecast_payload = {
             "route_id": route_id,
-            "vessel_class": vessel_class,
+            "vessel_class": used_class,
             "horizon_weeks": horizon_weeks,
             "latest_actual_rate_usd_per_mt": round(latest_actual, 2),
             "latest_actual_date": latest_date,

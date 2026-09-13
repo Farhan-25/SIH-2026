@@ -260,4 +260,22 @@ def test_copilot_engine_briefing_and_chat(api_client, db):
     assert "Haldia" in res2["response"]
 
 
+def test_ais_name_cleaner():
+    from src.data.aisstream_client import _clean_ais_name
+
+    assert _clean_ais_name("CAPE PULA", "219000123") == "CAPE PULA"
+    assert _clean_ais_name("", "219000123") == "MMSI 219000123"
+    assert _clean_ais_name("UNKNOWN", "219000123") == "MMSI 219000123"
+
+
+def test_live_ais_tagged_to_trade_lane():
+    from src.data.gfw_client import GFWClient
+
+    gfw = GFWClient()
+    tagged = gfw._assign_route(90.0, 9.0)
+    assert tagged is not None
+    assert tagged.get("route_id")
+    assert tagged.get("waypoints")
+
+
 
