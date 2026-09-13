@@ -38,14 +38,15 @@ Currently, charterers and procurement managers rely on **daily reactive spot-mar
 flowchart TD
     subgraph Data_Layer ["📡 Live & Historical Data Ingestion"]
         D1[data.gov.in OGD Port Output]
-        D2[AISStream.io Live Anchorage Queues]
-        D3[Open-Meteo Marine Weather API]
-        D4[TwelveData & World Bank Commodity Feeds]
-        D5[Master Port & Vessel Databases]
+        D2[AISStream.io WebSocket — Bay of Bengal + East Coast]
+        D3[Open Waters REST — Cargo vessel snapshots]
+        D4[Open-Meteo Marine Weather API]
+        D5[TwelveData & World Bank Commodity Feeds]
+        D6[Master Port, Vessel & Route Databases]
     end
 
     subgraph Core_Engines ["⚙️ Core Intelligence Engines"]
-        M1["Module A: Multi-Factor ML Forecaster<br/>(XGBoost / Quantile Cones / SHAP)"]
+        M1["Module A: Multi-Factor ML Forecaster<br/>(XGBoost / LightGBM / BiLSTM / Quantile Cones / SHAP)"]
         M2["Module B: Vessel & Port Constraint Solver<br/>(Draft, LOA, Beam, Lighterage, Landed Cost)"]
         M3["Module C: Market Timing & Strategy<br/>(Spot vs COA vs Defer Evaluator)"]
         M4["Module D: Corridor Risk & Disruption Monitor<br/>(Anchorage Queue + Cyclone Season Risk)"]
@@ -66,14 +67,17 @@ flowchart TD
 ## ⚙️ Core Engines
 
 ### 1. 📈 Module A: Freight Rate ML Forecaster
+- **Dynamic ensemble** of XGBoost, LightGBM, ElasticNet, and BiLSTM — weights auto-adjusted by rolling backtest MAPE.
 - **Multi-horizon recursive predictions** (4, 8, 12, 16, 24 weeks forward) in USD/MT.
 - **80% & 90% Quantile Confidence Cones** to capture freight market volatility.
 - **SHAP Feature Attribution** explaining key cost drivers (bunker fuel, BDI index, FX rates, port queues).
+- Dedicated `FreightModelService` with 5-minute forecast cache; no external API calls in the serving path.
 
 ### 2. 🚢 Module B: Vessel & Port Constraint Solver
 - Solves physical berth compatibility for **Handysize, Supramax, Ultramax, Panamax, Kamsarmax, and Capesize** vessels.
 - Evaluates **maximum permissible draft, LOA, beam, and tidal windows** across 7 Indian East Coast ports (Paradip, Vizag, Gangavaram, Gopalpur, Dhamra, Sagar, Haldia).
 - Computes **Total Landed Logistics Cost** ($\text{Freight} + \text{Port Dues} + \text{Mandatory Lighterage at Sagar} + \text{Demurrage Risk}$).
+- DB-backed with JSON master fallback — no hard file-path dependency at runtime.
 
 ### 3. 🎯 Module C: Market Timing & Contract Strategy
 - Evaluates instantaneous spot rates against forward multi-voyage contracts (COA).
@@ -81,7 +85,8 @@ flowchart TD
 - Evaluates idle time and triangular repositioning guidance to minimize ballast legs.
 
 ### 4. ⚠️ Module D: Corridor Risk & Disruption Monitor
-- Real-time **AIS anchorage density** and turnaround wait estimates.
+- **Dual AIS ingestion**: AISStream.io WebSocket streaming to SQLite + Open Waters REST polling (default 45 s interval).
+- Automatic reconnect with exponential back-off; last-known-good SQLite data rendered while socket is down.
 - **Marine sea state & wave height monitoring** in the Bay of Bengal and Malacca Strait.
 - Composite risk index (0–100) with automatic operational alerts.
 
@@ -94,11 +99,12 @@ The interactive UI is built with **React + Vite** and features a modern dark gla
 | Module Page | Description |
 | :--- | :--- |
 | **Command Center** | Live KPI summary cards, active risk alerts, recent scenarios table, system status bar. |
-| **Forecast Analytics** | Interactive Plotly.js time-series charts with confidence cones, horizon toggles, and SHAP drivers. |
+| **Forecast Analytics** | Interactive time-series charts with confidence cones, model-mode toggles (ensemble / XGB / LGB / BiLSTM), and SHAP drivers. |
 | **Vessel Optimization** | Physical compatibility checker, landed cost rankings, and stacked cost component breakdowns. |
-| **Route Intelligence** | Leaflet dark maritime map with animated trade routes and port congestion heatmap markers. |
+| **Route Intelligence** | MapLibre dark maritime map — trade route polylines, live AIS fleet, port/route filter sidebar, time scrubber with auto-play, vessel side panel. |
 | **Risk Monitor** | Radial composite risk gauge, 30-day volatility trends, and marine disruption alerts. |
 | **Strategy & Timing** | Visual timing signal indicators, forward freight curves, and contract cost comparison matrices. |
+| **AI Copilot** | Gemini-backed / rule-based briefing chat for on-demand procurement guidance. |
 
 ---
 
@@ -147,24 +153,27 @@ All architecture specifications, engineering blueprints, and hackathon requireme
 Below is the active task list for scaling this prototype to a national hackathon-winning production platform:
 
 ### 🧠 1. Machine Learning & Model Training Pipeline
-- [x] **Train Deep Time-Series Models**: Implement Temporal Fusion Transformer (TFT) and LSTM deep learning models alongside XGBoost for multi-horizon attention.
-- [x] **Dynamic Ensemble Engine**: Build an automated model selector that dynamically weights XGBoost, LightGBM, and ElasticNet based on rolling backtest MAPE.
-- [ ] **Automated Model Retraining Job**: Add scheduled pipeline to re-fit models weekly as new OGD port and commodity data arrives.
+- [x] **Train Deep Time-Series Models**: BiLSTM deep learning model alongside XGBoost/LightGBM for multi-horizon prediction.
+- [x] **Dynamic Ensemble Engine**: Automated model selector that dynamically weights XGBoost, LightGBM, and ElasticNet based on rolling backtest MAPE.
+- [x] **Inference Service**: `FreightModelService` with 5-minute forecast cache and zero external API dependency in the serving path.
+- [ ] **Automated Model Retraining Job**: Scheduled pipeline to re-fit models weekly as new OGD port and commodity data arrives.
 - [ ] **SHAP Interactive Visualizer**: Expose raw SHAP force plot JSON directly to the frontend for interactive node drill-downs.
 
 ### 🎨 2. UI/UX & Design Polish
-- [ ] **Generic / Executive View**: Add a simplified high-level view for senior procurement executives with 1-click summary insights.
-- [ ] **Light / Dark Theme Toggle**: Implement accessible light mode palette alongside current dark glassmorphism theme.
-- [ ] **Multi-Language Localization**: Add Hindi/English language toggle for national procurement accessibility.
+- [x] **Route Map Filter Sidebar**: Port and route multi-select filters with `visibleRoutes` / `visibleVessels` memoized views.
+- [x] **Time Scrubber**: 0–72 h forecast offset slider with auto-play loop on the Route Map.
+- [ ] **Generic / Executive View**: Simplified high-level view for senior procurement executives with 1-click summary insights.
+- [ ] **Light / Dark Theme Toggle**: Accessible light mode palette alongside current dark glassmorphism theme.
+- [ ] **Multi-Language Localization**: Hindi/English language toggle for national procurement accessibility.
 - [ ] **Scenario Export**: 1-click **Download PDF / Excel** procurement briefing for management review.
 
 ### 🚢 3. Advanced Optimization & Fleet Management
-- [ ] **Multi-Parcel Fleet Scheduler**: Implement Genetic Algorithm (NSGA-II) for scheduling multiple cargo parcels across multi-port discharge itineraries.
+- [ ] **Multi-Parcel Fleet Scheduler**: Genetic Algorithm (NSGA-II) for scheduling multiple cargo parcels across multi-port discharge itineraries.
 - [ ] **Carbon Emission (EEXI / CII) Calculator**: Estimate voyage fuel burn and carbon intensity rating per vessel class.
 - [ ] **Port Tariff Engine**: Dynamic tariff computation based on vessel Gross Tonnage (GT) and cargo handling productivity.
 
 ### 📰 4. NLP Market Sentiment & Macro Shocks
-- [x] **Maritime News Sentiment Tracker**: Scrape and analyze global shipping headlines (Baltic Exchange, TradeWinds, Platts) with FinBERT to compute market sentiment scores (News links added, sentiment WIP).
+- [x] **Maritime News Sentiment Tracker**: Scrape and analyze global shipping headlines (Baltic Exchange, TradeWinds, Platts) with FinBERT to compute market sentiment scores.
 - [ ] **Geopolitical & Chokepoint Alerts**: Event-driven flags for Red Sea / Suez / Malacca transit disruptions.
 
 ### 🐳 5. DevOps & Presentation Deliverables
@@ -181,7 +190,7 @@ Run the automated test suite:
 pytest tests/ -v
 ```
 
-All core unit tests verify master dataset integrity, draft/lighterage constraints (Haldia & Gangavaram), ML inference, and API endpoints.
+Tests cover: master dataset integrity, draft/lighterage constraints (Haldia & Gangavaram), ML inference pipeline, AIS/GFW client output shape, vessel optimizer rankings, and API endpoint health.
 
 ---
 

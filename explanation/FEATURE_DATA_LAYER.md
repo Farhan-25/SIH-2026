@@ -34,8 +34,8 @@ API timeseries cache TTL 10 minutes (`get_cached_timeseries_df`).
 | `twelvedata_client.py` | FX / energy if key set |
 | `fred_client.py` | Brent, USDINR, coal, iron, WTI for dashboard and map |
 | `openmeteo_client.py` | Wave/swell; no key |
-| `aisstream_client.py` | Live AIS + congestion |
-| `gfw_client.py` | Cargo vessel list for map and vessel optimizer fleet |
+| `aisstream_client.py` | Live AIS WebSocket → SQLite + Open Waters REST snapshots (45 s poll) |
+| `gfw_client.py` | **Reads `vessels_live_tracking` SQLite table** (the name is historical; it does NOT call the Global Fishing Watch API). Builds map/API payloads and corridor fallback fleet. |
 | `news_client.py` | RSS/GDELT + fallback headlines |
 
 `GET /api/v1/commodities` → `CommodityPriceTracker.get_detailed_commodity_snapshot()`.

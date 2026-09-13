@@ -9,15 +9,15 @@
 ## What the user sees
 
 - Carto basemaps via MapLibre (no Mapbox token): Dark Matter, Positron, Voyager  
-- Indian discharge + global load ports with congestion  
+- Indian discharge + global load ports with congestion badges  
 - Trade-lane polylines from `routes_master.json` `waypoints`  
-- Live / cached vessel markers (MMSI, class, speed, dest)  
+- Live / cached vessel markers (MMSI, class, speed, dest) — amber/cyan for live AIS, purple for modeled  
 - Per-route composite risk from Module D  
 - Marine weather at East Coast ports  
 - FRED snapshots (oil, FX, coal, iron ore)  
-- Side panel when a vessel is selected  
-
-Theme-aware map style follows light/dark preference where wired.
+- **Filter sidebar**: multi-select port and route filters — `visibleRoutes` and `visibleVessels` are memoized derived views, not separate fetches  
+- **Time scrubber**: 0–72 h offset slider with auto-play (steps +6 h every 1.2 s)  
+- **Vessel side panel**: opens on vessel click, shows full detail and route assignment
 
 ---
 
@@ -25,7 +25,7 @@ Theme-aware map style follows light/dark preference where wired.
 
 | Key | Source |
 | --- | --- |
-| `vessels` | `GFWClient.get_live_cargo_vessels(limit=700)` |
+| `vessels` | `GFWClient.get_live_cargo_vessels(limit=700)` — reads from `vessels_live_tracking` SQLite table, NOT Global Fishing Watch API |
 | `ports.indian` | Master JSON + AIS congestion blend |
 | `ports.global` | Master JSON + AIS estimate |
 | `marine_weather` | Open-Meteo per Indian port (thread pool) |
@@ -33,24 +33,31 @@ Theme-aware map style follows light/dark preference where wired.
 | `route_risks` | `evaluate_corridor_risk` per trade route + waypoints |
 | `api_status` | `gfw` / `ais` / `weather` / `fred` connected vs error |
 
-AIS status: `connected` if the websocket is up; `offline` if no API key; else reconnecting with last error. Congestion can still render from SQLite while the socket is down.
+AIS status: `connected` if the WebSocket is up; `offline` if no API key; else reconnecting with last error. Open Waters REST polls cargo snapshots every 45 s as a secondary fill. Congestion badges still render from SQLite while the socket is down.
 
 ---
 
 ## Vessel popups
 
-`vesselPopupHTML` shows name, source (Live AIS vs modeled), status, class, speed, dest, MMSI. Amber/cyan vs purple distinguishes modeled vs live.
+`vesselPopupHTML` (in `maplibre.js`) generates compact HTML for MapLibre popups shared across the Command Centre and Route Map. Shows name, source (Live AIS vs modeled), status, class, speed, dest, MMSI. Amber/cyan vs purple distinguishes live vs modeled.
+
+---
+
+## Filter sidebar logic
+
+`selectedRoutes` and `selectedPorts` are multi-select state arrays. `visibleRoutes` and `visibleVessels` are `useMemo` derived values — no extra API calls triggered by filtering. Vessel–port matching uses first-word tokenization of destination fields from `ALL_DESTINATION_PORTS`.
 
 ---
 
 ## Command Center overlap
 
-Dashboard map widgets reuse the same intelligence endpoint and popup helper so fleet state matches the Route Map.
+Dashboard map widgets reuse the same `/map-intelligence` endpoint and `vesselPopupHTML` helper so fleet state is consistent with the Route Map.
 
 ---
 
 ## Limits
 
-- UI **polls**; it does not subscribe to the AIS websocket directly.  
-- 3D ship models / predictive particles in `task.md` Phase 8 are not the current MapLibre implementation.  
+- UI **polls** every 90 s; it does not subscribe to the AIS WebSocket directly (server handles that).  
+- `CORRIDOR_MATCH_DEG` (default 2.4° ≈ 150 nm) controls live AIS → route assignment tolerance.  
+- `CORRIDOR_FALLBACK_THRESHOLD` (default 2) triggers named fleet fill when a lane has too few live ships.  
 - Worldwide coverage is intentionally **India-heavy ROI**, not global AIS.

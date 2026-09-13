@@ -34,8 +34,8 @@ The handler:
 
 1. Loads cached `data/processed/unified_freight_timeseries.csv`.
 2. Filters by route + class, then route, then class, then the whole panel.
-3. Calls `FreightMLForecaster.predict_future` (always the served path).
-4. Optionally `DeepLearningFreightForecaster.predict_future`.
+3. Delegates to `FreightModelService.predict_route_forecast` (the production inference path — 5-min cache, no external API calls).
+4. Optionally `DeepLearningFreightForecaster.predict_future` for the BiLSTM path.
 5. Runs `MarketTimingEngine.evaluate_strategy` on the ensemble path.
 6. Returns historical dates/rates, ensemble + per-model + deep traces, cones, SHAP, weights, benchmarks, timing.
 
@@ -47,10 +47,10 @@ If the CSV is missing → HTTP 503.
 
 | Mode | Series shown |
 | --- | --- |
-| `compare` | Ensemble + XGB + LGB + deep overlay |
+| `compare` | Ensemble + XGB + LGB + BiLSTM overlay |
 | `ensemble` | Inverse-MAPE blend only |
-| `deep_learning` | PyTorch path (`deep_predictions_usd_per_mt`) |
-| `xgboost` / `lightgbm` | That member’s recursive path |
+| `deep_learning` | BiLSTM path (`deep_predictions_usd_per_mt`) |
+| `xgboost` / `lightgbm` | That member's recursive path |
 
 Driver names are mapped in `FEATURE_NAME_MAP` (e.g. `target_lag_1` → “Prior Week Freight Rate”). If SHAP is empty, `DEFAULT_DRIVERS` fill the panel.
 
