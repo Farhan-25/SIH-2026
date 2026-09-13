@@ -807,7 +807,7 @@ export default function ForecastPage() {
                   color: 'var(--accent-ocean)',
                 }}
               >
-                ⚡ <strong>Multi-Model Superiority:</strong> The adaptive weighted ensemble delivers sub-4% MAPE, outperforming single-model baselines across varying market volatility regimes.
+                <strong>Multi-Model Superiority:</strong> The adaptive weighted ensemble delivers sub-4% MAPE, outperforming single-model baselines across varying market volatility regimes.
               </div>
             </div>
 

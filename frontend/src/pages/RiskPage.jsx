@@ -121,7 +121,7 @@ export default function RiskPage() {
       <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <span style={{ fontSize: '1.4rem' }}>🌐</span>
+            <span style={{ fontSize: '1.4rem' }}></span>
             <h1 style={{ margin: 0 }}>Maritime Market Intelligence & Geopolitical Risk Engine</h1>
           </div>
           <p>NLP-driven FinBERT sentiment analysis, chokepoint anomaly tracking, and operational corridor risk</p>
@@ -412,19 +412,19 @@ export default function RiskPage() {
               <h3 style={{ fontSize: '0.95rem', marginBottom: 12 }}>Top Sentiment Triggers</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.82rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>🚀 Red Sea Security Attacks</span>
+                  <span>Red Sea Security Attacks</span>
                   <span className="badge badge-danger">Impact: -0.92</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>⚓ Cape of Good Hope Diversions</span>
+                  <span>Cape of Good Hope Diversions</span>
                   <span className="badge badge-danger">Impact: -0.85</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>⛽ Bunker Fuel Price Hikes</span>
+                  <span>Bunker Fuel Price Hikes</span>
                   <span className="badge badge-warning">Impact: -0.65</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>🏗️ Dhamra Rapid Berth Expansion</span>
+                  <span>Dhamra Rapid Berth Expansion</span>
                   <span className="badge badge-success">Impact: +0.70</span>
                 </div>
               </div>
@@ -556,12 +556,12 @@ export default function RiskPage() {
                     <div style={{ display: 'flex', gap: 6 }}>
                       {art.entities?.cargo_types?.map((c, i) => (
                         <span key={i} style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>
-                          📦 {c}
+                          {c}
                         </span>
                       ))}
                       {art.entities?.vessel_classes?.map((v, i) => (
                         <span key={i} style={{ background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 4 }}>
-                          🚢 {v}
+                          {v}
                         </span>
                       ))}
                       <a

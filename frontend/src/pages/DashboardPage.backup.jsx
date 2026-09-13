@@ -243,7 +243,7 @@ export default function DashboardPage() {
               align-items: center;
               justify-content: center;
               font-size: 9px;
-            ">🚢</div>
+            "></div>
           </div>
         `
 
@@ -283,7 +283,7 @@ export default function DashboardPage() {
           align-items: center;
           gap: 4px;
         `
-        pEl.innerHTML = `<span style="color:${pColor}; font-size:11px;">⚓</span><span>${p.name?.split(' ')[0]}</span><span style="color:${pColor};">(${p.anchored_vessels || 0})</span>`
+        pEl.innerHTML = `<span style="color:${pColor}; font-size:11px;">O</span><span>${p.name?.split(' ')[0]}</span><span style="color:${pColor};">(${p.anchored_vessels || 0})</span>`
 
         const portMarker = new mapboxgl.Marker({ element: pEl, anchor: 'bottom' })
           .setLngLat([p.lon, p.lat])
@@ -462,7 +462,7 @@ export default function DashboardPage() {
                 gap: 4
               }}
             >
-              🤖 LAUNCH FULL COPILOT CHAT &gt;
+              LAUNCH FULL COPILOT CHAT &gt;
             </button>
           </div>
         </div>

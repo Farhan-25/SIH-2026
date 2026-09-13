@@ -41,14 +41,14 @@ RAW_CACHE_CSV = "data/processed/real_market_signals.csv"   # real signals cache
 
 def print_banner(text: str):
     line = "=" * 80
-    print(f"\n{line}\n  🚀 {text}\n{line}")
+    print(f"\n{line}\n  {text}\n{line}")
 
 
 def save_json(data: dict, path: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    print(f"      ✅ Saved: {path}")
+    print(f"      Saved: {path}")
 
 
 def patch_ml_forecaster_hyperparams(forecaster: FreightMLForecaster):
@@ -103,7 +103,7 @@ def train_tree_ensemble_big(df: pd.DataFrame, test_size: float = 0.15):
     X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
     y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
 
-    print(f"      📐 Training samples: {len(X_train):,}  |  Test samples: {len(X_test):,}")
+    print(f"      Training samples: {len(X_train):,}  |  Test samples: {len(X_test):,}")
 
     # XGBoost — 500 estimators
     print("         Training XGBoost (500 estimators)...")
@@ -206,7 +206,7 @@ def main():
     os.makedirs(MODELS_DIR, exist_ok=True)
 
     # ─── Step 1: Fetch Real Market Data & Build Dataset ───────────────────────
-    print("\n[1/6] 🌐 Fetching Real Market Data (BDI, Commodities, FX from Yahoo Finance / World Bank)...")
+    print("\n[1/6] Fetching Real Market Data (BDI, Commodities, FX from Yahoo Finance / World Bank)...")
     t0 = time.time()
     df_raw = build_real_market_dataset(
         start_date="2015-01-01",
@@ -214,20 +214,20 @@ def main():
         output_csv=PROCESSED_CSV
     )
     t_data = time.time() - t0
-    print(f"\n      ✅ Dataset Built in {t_data:.1f}s")
-    print(f"      ✅ Total Records  : {len(df_raw):,}")
-    print(f"      ✅ Date Range     : {df_raw['date'].min().date()} → {df_raw['date'].max().date()}")
-    print(f"      ✅ Trade Corridors: {df_raw['route_id'].nunique()}")
-    print(f"      ✅ Vessel Classes : {df_raw['vessel_class'].nunique()}")
+    print(f"\n      Dataset Built in {t_data:.1f}s")
+    print(f"      Total Records  : {len(df_raw):,}")
+    print(f"      Date Range     : {df_raw['date'].min().date()} → {df_raw['date'].max().date()}")
+    print(f"      Trade Corridors: {df_raw['route_id'].nunique()}")
+    print(f"      Vessel Classes : {df_raw['vessel_class'].nunique()}")
     routes_list = df_raw['route_id'].unique().tolist()
     vessels_list = df_raw['vessel_class'].unique().tolist()
 
     # Unique BDI range check
     if "bdi_index" in df_raw.columns:
-        print(f"      ✅ BDI Range      : {int(df_raw['bdi_index'].min())} – {int(df_raw['bdi_index'].max())} (real market data)")
+        print(f"      BDI Range      : {int(df_raw['bdi_index'].min())} – {int(df_raw['bdi_index'].max())} (real market data)")
 
     # ─── Step 2: Feature Schema ───────────────────────────────────────────────
-    print("\n[2/6] 📋 Writing Feature Schema Registry...")
+    print("\n[2/6] Writing Feature Schema Registry...")
     fe = FreightFeatureEngineer()
     feature_schema = {
         "version": "3.0",
@@ -278,15 +278,15 @@ def main():
     save_json(feature_schema, f"{MODELS_DIR}/feature_schema.json")
 
     # ─── Step 3: Train Big Tree Ensemble ─────────────────────────────────────
-    print("\n[3/6] 🌲 Training Big Tree Ensemble (XGBoost 500est + LightGBM 500est + Quantiles)...")
+    print("\n[3/6] Training Big Tree Ensemble (XGBoost 500est + LightGBM 500est + Quantiles)...")
     t1 = time.time()
     tree_metrics, tree_weights, feature_names = train_tree_ensemble_big(df_raw, test_size=0.15)
     t_tree = time.time() - t1
     size_kb = os.path.getsize(f"{MODELS_DIR}/freight_xgb_model.joblib") / 1024
-    print(f"      ✅ Tree Ensemble saved ({size_kb:.1f} KB) in {t_tree:.1f}s")
+    print(f"      Tree Ensemble saved ({size_kb:.1f} KB) in {t_tree:.1f}s")
 
     # ─── Step 4: Train Large PyTorch Deep Model ───────────────────────────────
-    print("\n[4/6] 🧠 Training PyTorch BiLSTM + Attention (hidden=128, 100 Epochs)...")
+    print("\n[4/6] Training PyTorch BiLSTM + Attention (hidden=128, 100 Epochs)...")
     t2 = time.time()
     deep_forecaster = DeepLearningFreightForecaster(
         epochs=100,
@@ -299,10 +299,10 @@ def main():
     deep_forecaster.save_checkpoint(f"{MODELS_DIR}/freight_deep_lstm.pt")
     t_deep = time.time() - t2
     deep_size_kb = os.path.getsize(f"{MODELS_DIR}/freight_deep_lstm.pt") / 1024
-    print(f"      ✅ Deep Model saved ({deep_size_kb:.1f} KB) in {t_deep:.1f}s")
+    print(f"      Deep Model saved ({deep_size_kb:.1f} KB) in {t_deep:.1f}s")
 
     # ─── Step 5: Write Model Registry Metadata ───────────────────────────────
-    print("\n[5/6] 📊 Writing Model Registry (metrics.json, model_card.json)...")
+    print("\n[5/6] Writing Model Registry (metrics.json, model_card.json)...")
 
     metrics_registry = {
         "version": "3.0",
@@ -399,7 +399,7 @@ def main():
         ("xgboost", "XGBoost (500 est)"),
         ("lightgbm", "LightGBM (500 est)"),
         ("elasticnet", "ElasticNet (Baseline)"),
-        ("ensemble", "Dynamic Ensemble ★")
+        ("ensemble", "Dynamic Ensemble")
     ]:
         row = tree_metrics.get(m_key, {})
         if row:
@@ -423,7 +423,7 @@ def main():
     print(pd.DataFrame(rows).to_string(index=False))
 
     # Sample forecast verification
-    print("\n[6/6] 🔍 Verification Forecast (AU_NEW→Paradip, Panamax, 12 weeks)...")
+    print("\n[6/6] Verification Forecast (AU_NEW→Paradip, Panamax, 12 weeks)...")
     from src.models.inference_service import FreightModelService
     svc = FreightModelService()
     if svc.is_ready:
@@ -434,14 +434,14 @@ def main():
             d = result["deep_predictions_usd_per_mt"]
             print(f"      • Deep:      ${d[0]:.2f} → ${d[-1]:.2f}/MT")
         print(f"      • 80% Cone:  [${result['lower_bound_80pct'][-1]:.2f} – ${result['upper_bound_80pct'][-1]:.2f}/MT]")
-        print("\n      🎯 Top SHAP Drivers:")
+        print("\n      Top SHAP Drivers:")
         for feat, imp in list(result["top_driving_factors"].items())[:6]:
             print(f"         - {feat:<30} {imp * 100:.1f}%")
 
     elapsed = time.time() - start_time
     print_banner(f"MODEL REGISTRY v3.0 COMPLETE IN {elapsed:.1f}s")
 
-    print("\n  📦 Model Registry Contents:")
+    print("\n  Model Registry Contents:")
     for fn in sorted(os.listdir(MODELS_DIR)):
         fpath = os.path.join(MODELS_DIR, fn)
         if os.path.isfile(fpath):

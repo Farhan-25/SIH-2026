@@ -39,8 +39,8 @@ function PageFallback() {
 const navItems = [
   { to: '/', icon: <MdHome />, label: 'Product Landing', section: 'Overview' },
   { to: '/dashboard', icon: <MdDashboard />, label: 'Command Center', section: 'Overview' },
-  { to: '/copilot', icon: <MdSmartToy />, label: 'AI Copilot', section: 'Analytics' },
   { to: '/forecast', icon: <MdShowChart />, label: 'Forecast', section: 'Analytics' },
+  { to: '/copilot', icon: <MdSmartToy />, label: 'AI Copilot', section: 'Analytics' },
   { to: '/vessels', icon: <MdDirectionsBoat />, label: 'Vessels', section: 'Analytics' },
   { to: '/routes', icon: <MdMap />, label: 'Route Map', section: 'Analytics' },
   { to: '/risk', icon: <MdSecurity />, label: 'Risk Monitor', section: 'Operations' },

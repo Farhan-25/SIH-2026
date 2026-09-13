@@ -303,7 +303,7 @@ class GeopoliticalRiskEngine:
                 alerts.append({
                     "id": f"warning_{chk_key}",
                     "severity": "WARNING",
-                    "title": f"⚠️ ELEVATED TRANSIT RISK — {data['name']}",
+                    "title": f"ELEVATED TRANSIT RISK — {data['name']}",
                     "region": data["name"],
                     "risk_score": r_score,
                     "news_surge": f"+{inc_pct}%",
