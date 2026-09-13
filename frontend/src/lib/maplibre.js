@@ -120,12 +120,28 @@ export function upsertVesselArrowLayers(map, sourceId, ids) {
         'icon-allow-overlap': true,
         'icon-ignore-placement': true,
         'icon-anchor': 'center',
+        'text-field': ['get', 'name'],
+        'text-size': [
+          'interpolate', ['linear'], ['zoom'],
+          3, 0,
+          5, 9,
+          8, 12,
+        ],
+        'text-offset': [0, 1.35],
+        'text-anchor': 'top',
+        'text-optional': true,
+        'text-allow-overlap': false,
+        'text-max-width': 10,
       },
       paint: {
         'icon-color': ['get', 'color'],
         'icon-halo-color': '#061018',
         'icon-halo-width': 1.15,
         'icon-opacity': 0.96,
+        'text-color': '#e2e8f0',
+        'text-halo-color': '#061018',
+        'text-halo-width': 1.2,
+        'text-opacity': ['interpolate', ['linear'], ['zoom'], 4.5, 0, 5.2, 1],
       },
     })
   }

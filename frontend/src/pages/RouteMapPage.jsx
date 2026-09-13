@@ -13,7 +13,7 @@ import { OrbitControls, Tube } from '@react-three/drei'
 import * as THREE from 'three'
 import { getMapIntelligence } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
-import { useUserProfile } from '../context/UserProfileContext'
+import { useUserProfile, ALL_DESTINATION_PORTS } from '../context/UserProfileContext'
 
 /* ────────────────────────────────────────────────────────────
    Helper utilities
@@ -1169,7 +1169,7 @@ function GlobeScene({ indianPorts, globalPorts, selectedPortIds = [], routes, ve
    Main RouteMapPage Component
    ──────────────────────────────────────────────────────────── */
 export default function RouteMapPage() {
-  const { selectedPorts } = useUserProfile()
+  const { selectedPorts, selectedRoutes, filterRoutes } = useUserProfile()
   const [viewMode, setViewMode] = useState('map')
   const [selectedVessel, setSelectedVessel] = useState(null)
   const [selectedPort, setSelectedPort] = useState(null)
@@ -1223,6 +1223,35 @@ export default function RouteMapPage() {
     return () => clearInterval(id)
   }, [fetchMapIntelligence])
 
+  const visibleRoutes = useMemo(() => filterRoutes(routes), [routes, filterRoutes])
+
+  const visibleVessels = useMemo(() => {
+    if (!selectedRoutes.length && !selectedPorts.length) return vessels
+    const destTokens = ALL_DESTINATION_PORTS
+      .filter((p) => !selectedPorts.length || selectedPorts.includes(p.id))
+      .map((p) => (p.name || '').toLowerCase().split('(')[0].trim().split(' ')[0])
+      .filter(Boolean)
+    return vessels.filter((v) => {
+      if (selectedRoutes.length && v.route_id && selectedRoutes.includes(v.route_id)) return true
+      const dest = String(v.dest || v.destination || '').toLowerCase()
+      if (destTokens.some((t) => t.length > 3 && dest.includes(t))) return true
+      if (!selectedRoutes.length) return true
+      return false
+    })
+  }, [vessels, selectedRoutes, selectedPorts])
+
+  // Time scrubber auto-play loop
+  useEffect(() => {
+    let interval = null
+    if (isPlayingScrubber) {
+      interval = setInterval(() => {
+        setTimeOffsetHours(prev => (prev >= 72 ? 0 : prev + 6))
+      }, 1200)
+    }
+    return () => clearInterval(interval)
+  }, [isPlayingScrubber])
+
+
   // Handle Ruler Point Click
   const handleRulerClick = useCallback((coord) => {
     setRulerPoints(prev => (prev.length >= 2 ? [coord] : [...prev, coord]))
@@ -1246,17 +1275,17 @@ export default function RouteMapPage() {
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return []
     const q = searchQuery.toLowerCase()
-    return vessels.filter(v =>
+    return visibleVessels.filter(v =>
       v.name?.toLowerCase().includes(q) ||
       v.dest?.toLowerCase().includes(q) ||
       v.cargo?.toLowerCase().includes(q) ||
       v.class?.toLowerCase().includes(q)
     ).slice(0, 5)
-  }, [searchQuery, vessels])
+  }, [searchQuery, visibleVessels])
 
   const activeVesselData = useMemo(() => {
-    return vessels.find(v => v.id === selectedVessel)
-  }, [vessels, selectedVessel])
+    return visibleVessels.find(v => v.id === selectedVessel)
+  }, [visibleVessels, selectedVessel])
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fr24-map-container">
@@ -1268,8 +1297,8 @@ export default function RouteMapPage() {
             globalPorts={globalPorts}
             selectedPortIds={selectedPorts}
             focusPort={selectedPort}
-            routes={routes}
-            vessels={vessels}
+            routes={visibleRoutes}
+            vessels={visibleVessels}
             weatherData={weatherData}
             selectedVessel={selectedVessel}
             onVesselClick={handleVesselClick}
@@ -1289,8 +1318,8 @@ export default function RouteMapPage() {
                 indianPorts={indianPorts}
                 globalPorts={globalPorts}
                 selectedPortIds={selectedPorts}
-                routes={routes}
-                vessels={vessels}
+                routes={visibleRoutes}
+                vessels={visibleVessels}
               />
               <OrbitControls enablePan={false} enableZoom minDistance={3.8} maxDistance={14} />
             </Canvas>
@@ -1335,21 +1364,21 @@ export default function RouteMapPage() {
 
           <div className="fr24-stats-pill-group">
             <div className="hud-pill" onClick={() => setFilterStatus('all')}>
-              <MdDirectionsBoat /> <span><strong>{vessels.length}</strong> Vessels</span>
+              <MdDirectionsBoat /> <span><strong>{visibleVessels.length}</strong> Vessels</span>
             </div>
             <div className="hud-pill text-emerald" onClick={() => setFilterStatus('underway')}>
-              <MdCheckCircle /> <span><strong>{vessels.filter(v => v.status !== 'At Anchor').length}</strong> Underway</span>
+              <MdCheckCircle /> <span><strong>{visibleVessels.filter(v => v.status !== 'At Anchor').length}</strong> Underway</span>
             </div>
             <div className="hud-pill text-amber" onClick={() => setFilterStatus('anchor')}>
-              <MdAnchor /> <span><strong>{vessels.filter(v => v.status === 'At Anchor').length}</strong> At Anchor</span>
+              <MdAnchor /> <span><strong>{visibleVessels.filter(v => v.status === 'At Anchor').length}</strong> At Anchor</span>
             </div>
             <div className="hud-pill text-rose">
               <MdWarning /> <span><strong>{indianPorts.filter(p => p.congestion_index >= 60).length}</strong> Congested Ports</span>
             </div>
           </div>
-          <div className="fr24-ais-legend glass-panel" title="Live AIS from AISStream/Open Waters; violet dots are modeled fill for demo density">
+          <div className="fr24-ais-legend glass-panel" title="Live AIS from AISStream/Open Waters; violet ships are named fleet fill on empty lanes">
             <span className="leg-item"><i className="leg-dot live" /> Live AIS</span>
-            <span className="leg-item"><i className="leg-dot modeled" /> Modeled</span>
+            <span className="leg-item"><i className="leg-dot modeled" /> Named fleet</span>
             <span className="leg-item"><i className="leg-dot anchor" /> At anchor</span>
             <span className="leg-item"><i className="leg-dot desk" /> Your desk</span>
           </div>

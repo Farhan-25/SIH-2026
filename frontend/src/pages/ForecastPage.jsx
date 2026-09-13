@@ -17,13 +17,11 @@ import {
   MdRefresh,
   MdWarning,
   MdTerminal,
-  MdTableChart
 } from 'react-icons/md'
 import { getForecast, getRoutes } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
 import { useUserProfile } from '../context/UserProfileContext'
 import RetrainModal from '../components/RetrainModal'
-import DatasetExplorer from '../components/DatasetExplorer'
 
 
 const FEATURE_NAME_MAP = {
@@ -44,15 +42,6 @@ const FEATURE_NAME_MAP = {
   cyclone_season_flag: { name: 'Cyclone Season Risk (Oct-Nov)', direction: '↑ Bay of Bengal depression volatility' },
   distance_nm: { name: 'Voyage Nautical Mile Distance', direction: '→ Corridor sailing distance baseline' }
 }
-
-const DEFAULT_DRIVERS = [
-  { feature: 'Prior Week Freight Rate', importance: 0.389, direction: '↑ Spot rate momentum & market inertia' },
-  { feature: '4-Week Moving Average', importance: 0.381, direction: '↑ Short-term corridor trend direction' },
-  { feature: '2-Week Lagged Freight Rate', importance: 0.085, direction: '↑ Two-week price autocorrelation' },
-  { feature: 'Monthly Lagged Freight Rate', importance: 0.042, direction: '↑ Monthly cyclical baseline' },
-  { feature: 'Bunker Fuel / Freight Ratio', importance: 0.031, direction: '↑ Fuel cost pass-through & voyage OPEX' },
-  { feature: 'Newcastle Coal Benchmark', importance: 0.016, direction: '↑ Global dry bulk cargo demand' },
-]
 
 const HORIZONS = [4, 8, 12, 16, 24]
 
@@ -85,7 +74,6 @@ export default function ForecastPage() {
   const [allowedVessels, setAllowedVessels] = useState(ALL_VESSEL_CLASSES)
   const [horizon, setHorizon] = useState(12)
   const [modelMode, setModelMode] = useState('compare')
-  const [activeViewTab, setActiveViewTab] = useState('analytics')
   const [isRetrainOpen, setIsRetrainOpen] = useState(false)
   const [loadingRoutes, setLoadingRoutes] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -177,12 +165,12 @@ export default function ForecastPage() {
           hist.push(+baseRate.toFixed(2))
         }
 
-        const predPoints = payload.predictions_usd_per_mt.map(v => +v.toFixed(2))
+        const predPoints = (payload.predictions_usd_per_mt || []).map(v => +v.toFixed(2))
         const deepPoints = result.deep_predictions_usd_per_mt ? result.deep_predictions_usd_per_mt.map(v => +v.toFixed(2)) : null
         const xgbPoints = result.xgb_predictions_usd_per_mt ? result.xgb_predictions_usd_per_mt.map(v => +v.toFixed(2)) : null
         const lgbPoints = result.lgb_predictions_usd_per_mt ? result.lgb_predictions_usd_per_mt.map(v => +v.toFixed(2)) : null
-        const upperPoints = payload.upper_bound_80pct.map(v => +v.toFixed(2))
-        const lowerPoints = payload.lower_bound_80pct.map(v => +v.toFixed(2))
+        const upperPoints = (payload.upper_bound_80pct || predPoints).map(v => +v.toFixed(2))
+        const lowerPoints = (payload.lower_bound_80pct || predPoints).map(v => +v.toFixed(2))
 
         const histPadding = Array(Math.max(0, dates.length - 1)).fill(null)
 
@@ -405,30 +393,6 @@ export default function ForecastPage() {
           </button>
         </div>
       </div>
-
-      {/* ─── View Tabs ─── */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: 'var(--space-md)' }}>
-        <button
-          onClick={() => setActiveViewTab('analytics')}
-          className={`btn ${activeViewTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '8px 18px', borderRadius: '8px' }}
-        >
-          <MdShowChart style={{ fontSize: '16px' }} /> Forecast Analytics & Drivers
-        </button>
-        <button
-          onClick={() => setActiveViewTab('dataset')}
-          className={`btn ${activeViewTab === 'dataset' ? 'btn-primary' : 'btn-secondary'}`}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '8px 18px', borderRadius: '8px' }}
-        >
-          <MdTableChart style={{ fontSize: '16px' }} /> Dataset Explorer & Provenance
-        </button>
-      </div>
-
-      {activeViewTab === 'dataset' ? (
-        <DatasetExplorer />
-      ) : (
-        <>
-
 
       {/* ─── Controls & Filters ─── */}
       <div
@@ -822,8 +786,6 @@ export default function ForecastPage() {
             </div>
           </div>
         </div>
-      )}
-        </>
       )}
 
       <RetrainModal
