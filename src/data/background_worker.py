@@ -5,6 +5,8 @@ Periodically refreshes:
   1. Live AIS Fleet: Syncs active bulk carrier fleet from Open Waters & Digitraffic APIs.
   2. Bunker & Commodity Spot Rates: Refreshes Singapore VLSFO/MGO, Brent, USD/INR, Coal & Iron Ore.
   3. Marine Weather / Sea State: Pre-warms cache for key Indian destination ports & strategic chokepoints.
+  4. Weekly Model Retraining: Re-fits XGBoost/LightGBM/BiLSTM ensemble as new OGD port and
+     commodity data arrives (fires once every 7 days via RETRAIN_INTERVAL_DAYS env var).
 
 Can run:
   - Inside FastAPI application via startup background task
@@ -23,6 +25,10 @@ from src.data.db_manager import FreightDBManager
 from src.data.fleet_sync import sync_fleet_from_apis
 from src.data.openmeteo_client import OpenMeteoMarineClient
 from src.data.worldbank_pinksheet import CommodityPriceTracker
+
+# Retraining cadence: default 7 days, overridable via env var
+_RETRAIN_INTERVAL_DAYS = int(os.environ.get("RETRAIN_INTERVAL_DAYS", "7"))
+_RETRAIN_INTERVAL_SECONDS = _RETRAIN_INTERVAL_DAYS * 86400
 
 logger = logging.getLogger("freightiq.worker")
 
@@ -63,6 +69,11 @@ class BackgroundFleetAndMarketWorker:
         self.run_count: int = 0
         self.last_error: str | None = None
         self.last_summary: dict[str, Any] = {}
+
+        # Weekly retraining state
+        self._last_retrain_ts: float = 0.0   # unix timestamp of last completed retrain
+        self._retrain_task: asyncio.Task | None = None
+        self.model_service: Any | None = None  # injected by main.py after startup
 
     async def run_cycle(self) -> dict[str, Any]:
         """Executes one complete refresh cycle across fleet, bunker, and weather."""
@@ -148,7 +159,60 @@ class BackgroundFleetAndMarketWorker:
         self._is_refreshing = False
 
         logger.info("✨ Background sync cycle #%s complete in %ss", self.run_count, elapsed)
+
+        # 4. Check if weekly model retraining is due
+        await self._maybe_trigger_retraining()
+
         return summary
+
+    async def _maybe_trigger_retraining(self) -> None:
+        """Fires the model retraining pipeline in a thread if the weekly window has elapsed."""
+        now = time.time()
+        elapsed_since_retrain = now - self._last_retrain_ts
+        if elapsed_since_retrain < _RETRAIN_INTERVAL_SECONDS:
+            next_retrain_in = round((_RETRAIN_INTERVAL_SECONDS - elapsed_since_retrain) / 3600, 1)
+            logger.debug(
+                "[Retraining] Next scheduled retrain in %.1f hours.", next_retrain_in
+            )
+            return
+
+        # Guard against concurrent retrain tasks
+        if self._retrain_task is not None and not self._retrain_task.done():
+            logger.info("[Retraining] Weekly retrain already in progress -- skipping.")
+            return
+
+        logger.info(
+            "[Retraining] Weekly retraining window reached (%.1f days since last run). "
+            "Launching pipeline in background thread...",
+            elapsed_since_retrain / 86400,
+        )
+        self._retrain_task = asyncio.create_task(self._run_retraining_thread())
+
+    async def _run_retraining_thread(self) -> None:
+        """Runs run_retraining_pipeline() in a thread pool to avoid blocking the event loop."""
+        try:
+            from src.models.retraining_pipeline import run_retraining_pipeline
+            result = await asyncio.to_thread(
+                run_retraining_pipeline,
+                "scheduler",
+                self.model_service,
+            )
+            if result.get("status") == "success":
+                self._last_retrain_ts = time.time()
+                logger.info(
+                    "[Retraining] Weekly retrain succeeded. "
+                    "Ensemble MAPE=%.2f%%  Duration=%.1fs",
+                    result.get("metrics_snapshot", {}).get("ensemble_mape_pct", 0),
+                    result.get("duration_seconds", 0),
+                )
+            else:
+                logger.warning(
+                    "[Retraining] Weekly retrain finished with status=%s: %s",
+                    result.get("status"),
+                    result.get("error", ""),
+                )
+        except Exception as e:
+            logger.error("[Retraining] Unexpected error in retrain thread: %s", e, exc_info=True)
 
     async def _loop(self):
         """Worker continuous loop with sleep interval."""
@@ -198,7 +262,15 @@ class BackgroundFleetAndMarketWorker:
         logger.info("Background worker stopped.")
 
     def get_status(self) -> dict[str, Any]:
-        """Returns worker health and last execution telemetry."""
+        """Returns worker health, last execution telemetry, and retraining schedule info."""
+        from src.models.retraining_pipeline import get_retrain_state
+        retrain_state = get_retrain_state()
+
+        seconds_since_retrain = time.time() - self._last_retrain_ts
+        next_retrain_in_hours = max(
+            0.0, round((_RETRAIN_INTERVAL_SECONDS - seconds_since_retrain) / 3600, 1)
+        ) if self._last_retrain_ts > 0 else None
+
         return {
             "running": self._running and (self._task is not None and not self._task.done()),
             "status": self.last_status,
@@ -208,6 +280,11 @@ class BackgroundFleetAndMarketWorker:
             "next_run_at": self.next_run_at,
             "last_error": self.last_error,
             "last_summary": self.last_summary,
+            "retraining": {
+                **retrain_state,
+                "interval_days": _RETRAIN_INTERVAL_DAYS,
+                "next_scheduled_retrain_in_hours": next_retrain_in_hours,
+            },
         }
 
 

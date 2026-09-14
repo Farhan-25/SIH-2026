@@ -132,6 +132,7 @@ async def startup_event():
     # Start periodic background fleet, bunker & weather worker
     if os.environ.get("ENABLE_BACKGROUND_WORKER", "true").lower() in ("true", "1", "yes"):
         worker = get_background_worker()
+        worker.model_service = model_service  # enable weekly retrain hot-reload
         worker.start()
         logger.info("Background Fleet & Market Worker started.")
 
@@ -1458,6 +1459,59 @@ def admin_save_risk_weights(weights: dict[str, float]):
         raise HTTPException(status_code=400, detail="Weights dictionary cannot be empty")
     db_manager.save_risk_scoring_weights(weights)
     return {"status": "success", "normalized_weights": db_manager.get_risk_scoring_weights()}
+
+
+@app.get("/api/v1/admin/retrain/status", tags=["Admin"])
+def get_retrain_status():
+    """
+    Returns the current state of the automated model retraining pipeline:
+    idle | running | success | failed, plus last metrics snapshot and schedule info.
+    """
+    from src.models.retraining_pipeline import get_retrain_state, RETRAIN_LOG_PATH
+    state = get_retrain_state()
+    worker = get_background_worker()
+    worker_status = worker.get_status()
+    return {
+        "pipeline": state,
+        "schedule": {
+            "interval_days": worker_status.get("retraining", {}).get("interval_days"),
+            "next_scheduled_retrain_in_hours": worker_status.get("retraining", {}).get("next_scheduled_retrain_in_hours"),
+        },
+        "log_path": RETRAIN_LOG_PATH,
+    }
+
+
+@app.get("/api/v1/admin/retrain/history", tags=["Admin"])
+def get_retrain_history_endpoint():
+    """Returns the last 52 retraining audit log entries (one per weekly run)."""
+    from src.models.retraining_pipeline import get_retrain_history
+    return {"history": get_retrain_history()}
+
+
+@app.post("/api/v1/admin/retrain/trigger", tags=["Admin"])
+async def trigger_model_retrain():
+    """
+    Manually triggers an immediate out-of-schedule model retraining cycle.
+    Runs asynchronously in a background thread — poll /admin/retrain/status for progress.
+    Returns 409 if a retraining run is already in progress.
+    """
+    from src.models.retraining_pipeline import get_retrain_state, run_retraining_pipeline
+    state = get_retrain_state()
+    if state["status"] == "running":
+        raise HTTPException(
+            status_code=409,
+            detail="Model retraining is already in progress. Poll /api/v1/admin/retrain/status for updates.",
+        )
+
+    async def _bg_retrain():
+        await asyncio.to_thread(run_retraining_pipeline, "manual_api", model_service)
+
+    asyncio.create_task(_bg_retrain())
+    return {
+        "status": "triggered",
+        "message": "Retraining pipeline started in background. Poll /api/v1/admin/retrain/status for progress.",
+        "triggered_at": datetime.now().isoformat(),
+    }
 
 
 @app.get("/api/v1/system/worker/status", tags=["System"])
