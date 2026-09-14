@@ -9,6 +9,8 @@ import {
 import { getCopilotOverview, askCopilot } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
 
 const QUICK_PROMPTS = [
   { label: 'Newcastle → Paradip Drivers', query: 'Why are freight rates rising for Newcastle to Paradip?' },
@@ -196,7 +198,7 @@ export default function CopilotPage() {
                       <div style={{ whiteSpace: 'pre-line' }}>{msg.text}</div>
                     ) : (
                       <div className="copilot-markdown">
-                        <ReactMarkdown>{msg.text}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{msg.text}</ReactMarkdown>
                       </div>
                     )}
 

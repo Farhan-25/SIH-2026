@@ -71,6 +71,7 @@ function AppShell() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showApiModal, setShowApiModal] = useState(false)
   const { currentUser, isAuthenticated, logout } = useAuth()
   const { isOnboarded, resetProfile, selectedPorts, selectedRoutes, selectedCargoes } = useUserProfile()
   const {
@@ -82,6 +83,19 @@ function AppShell() {
   } = usePreferences()
 
   const isLandingPage = location.pathname === '/'
+
+  const getCookieLang = () => {
+    const match = document.cookie.match(/googtrans=\/en\/(en|hi|bn|ta|te|or)/)
+    return match ? match[1] : 'en'
+  }
+  const [currentLang] = useState(getCookieLang())
+
+  const handleLanguageChange = (e) => {
+    const newLang = e.target.value
+    document.cookie = `googtrans=/en/${newLang}; path=/`
+    document.cookie = `googtrans=/en/${newLang}; domain=.${window.location.hostname}; path=/`
+    window.location.reload()
+  }
 
   // Group nav items by section
   const sections = navItems.reduce((acc, item) => {
@@ -193,6 +207,20 @@ function AppShell() {
         </div>
         <div className="header-actions">
           <div className="preference-toggle-group" aria-label="Display preferences">
+            <select
+              className="preference-toggle"
+              style={{ background: 'transparent', border: 'none', color: 'inherit', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', outline: 'none', padding: '4px 8px' }}
+              value={currentLang}
+              onChange={handleLanguageChange}
+              title="Select Language"
+            >
+              <option value="en" style={{ color: 'black' }}>English</option>
+              <option value="hi" style={{ color: 'black' }}>हिन्दी</option>
+              <option value="bn" style={{ color: 'black' }}>বাংলা</option>
+              <option value="ta" style={{ color: 'black' }}>தமிழ்</option>
+              <option value="te" style={{ color: 'black' }}>తెలుగు</option>
+              <option value="or" style={{ color: 'black' }}>ଓଡ଼ିଆ</option>
+            </select>
             <button
               className="preference-toggle"
               onClick={toggleTheme}
@@ -256,7 +284,7 @@ function AppShell() {
                 position: 'absolute', top: '100%', right: 0, marginTop: 'var(--space-xs)',
                 width: '280px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-md)', boxShadow: 'var(--glass-shadow)', padding: 'var(--space-md)',
-                zIndex: 100
+                zIndex: 100, backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)', paddingBottom: 'var(--space-sm)', borderBottom: '1px solid var(--border-subtle)', marginBottom: 'var(--space-sm)' }}>
                   <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent)', color: 'var(--text-inverse)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '18px' }}>
@@ -297,7 +325,7 @@ function AppShell() {
                     <span>Reconfigure Profile</span>
                   </button>
 
-                  <button style={{ background: 'none', border: 'none', color: 'var(--text-primary)', textAlign: 'left', cursor: 'pointer', padding: '8px', display: 'flex', gap: '12px', alignItems: 'center', borderRadius: '4px' }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-elevated)'} onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                  <button onClick={() => { setShowApiModal(true); setShowSettings(false) }} style={{ background: 'none', border: 'none', color: 'var(--text-primary)', textAlign: 'left', cursor: 'pointer', padding: '8px', display: 'flex', gap: '12px', alignItems: 'center', borderRadius: '4px', width: '100%' }} onMouseOver={e => e.currentTarget.style.background = 'var(--bg-elevated)'} onMouseOut={e => e.currentTarget.style.background = 'none'}>
                     <div style={{ background: 'var(--bg-elevated)', padding: '6px', borderRadius: '6px', display: 'flex' }}>
                        <MdSecurity size={16} color="var(--accent-rose)" />
                     </div>
@@ -313,6 +341,33 @@ function AppShell() {
           </button>
         </div>
       </header>
+
+      {showApiModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+          <div style={{ background: 'var(--bg-card)', padding: 'var(--space-lg)', borderRadius: 'var(--radius-lg)', width: 400, border: '1px solid var(--border-subtle)', boxShadow: 'var(--glass-shadow)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}>
+            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: 8 }}><MdSecurity color="var(--accent-rose)" /> API Integrations</h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 20, fontSize: '0.9rem' }}>Manage your external API keys and webhooks for data ingestion.</p>
+            
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Spire AIS Satellite Token</label>
+              <input type="password" placeholder="••••••••••••••••••••••••" style={{ width: '100%', padding: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', outline: 'none' }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Baltic Exchange API Key</label>
+              <input type="password" placeholder="••••••••••••••••••••••••" style={{ width: '100%', padding: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', outline: 'none' }} />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>OpenAI GPT-4o Token</label>
+              <input type="password" placeholder="••••••••••••••••••••••••" style={{ width: '100%', padding: '8px', background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)', outline: 'none' }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+              <button onClick={() => setShowApiModal(false)} className="btn btn-ghost" style={{ padding: '8px 16px' }}>Cancel</button>
+              <button onClick={() => setShowApiModal(false)} className="btn" style={{ padding: '8px 16px', background: 'var(--accent)', color: 'white' }}>Save Settings</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ──── Main Content ──── */}
       <main className="main-content">
