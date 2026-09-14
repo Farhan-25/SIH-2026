@@ -1,0 +1,25 @@
+[
+  {
+    "status": "success",
+    "triggered_by": "scheduler",
+    "triggered_at": "2026-09-14T04:45:54.514993+00:00",
+    "duration_seconds": 202.5,
+    "metrics_snapshot": {
+      "ensemble_mape_pct": 5.81,
+      "ensemble_r2": 0.9644,
+      "xgb_mape_pct": 8.98,
+      "lgb_mape_pct": 8.52,
+      "bilstm_mape_pct": 20.85,
+      "dynamic_weights": {
+        "xgboost": 0.251,
+        "lightgbm": 0.265,
+        "elasticnet": 0.484
+      },
+      "training_records": 16497,
+      "date_range": "2015-01-05 -> 2026-09-14"
+    },
+    "error": null,
+    "completed_at": "2026-09-14T04:49:16.988533+00:00",
+    "training_records": 16497
+  }
+]
