@@ -156,25 +156,25 @@ Below is the active task list for scaling this prototype to a national hackathon
 - [x] **Train Deep Time-Series Models**: BiLSTM deep learning model alongside XGBoost/LightGBM for multi-horizon prediction.
 - [x] **Dynamic Ensemble Engine**: Automated model selector that dynamically weights XGBoost, LightGBM, and ElasticNet based on rolling backtest MAPE.
 - [x] **Inference Service**: `FreightModelService` with 5-minute forecast cache and zero external API dependency in the serving path.
-- [ ] **Automated Model Retraining Job**: Scheduled pipeline to re-fit models weekly as new OGD port and commodity data arrives.
-- [ ] **SHAP Interactive Visualizer**: Expose raw SHAP force plot JSON directly to the frontend for interactive node drill-downs.
+- [x] **Automated Model Retraining Job**: Scheduled pipeline to re-fit models weekly as new OGD port and commodity data arrives.
+- [x] **SHAP Interactive Visualizer**: Expose raw SHAP force plot JSON directly to the frontend for interactive node drill-downs.
 
 ### 🎨 2. UI/UX & Design Polish
 - [x] **Route Map Filter Sidebar**: Port and route multi-select filters with `visibleRoutes` / `visibleVessels` memoized views.
 - [x] **Time Scrubber**: 0–72 h forecast offset slider with auto-play loop on the Route Map.
-- [ ] **Generic / Executive View**: Simplified high-level view for senior procurement executives with 1-click summary insights.
-- [ ] **Light / Dark Theme Toggle**: Accessible light mode palette alongside current dark glassmorphism theme.
-- [ ] **Multi-Language Localization**: Hindi/English language toggle for national procurement accessibility.
+
+- [x] **Light / Dark Theme Toggle**: Accessible light mode palette alongside current dark glassmorphism theme.
+- [x] **Multi-Language Localization**: Hindi/English language toggle for national procurement accessibility.
 - [ ] **Scenario Export**: 1-click **Download PDF / Excel** procurement briefing for management review.
 
 ### 🚢 3. Advanced Optimization & Fleet Management
 - [ ] **Multi-Parcel Fleet Scheduler**: Genetic Algorithm (NSGA-II) for scheduling multiple cargo parcels across multi-port discharge itineraries.
-- [ ] **Carbon Emission (EEXI / CII) Calculator**: Estimate voyage fuel burn and carbon intensity rating per vessel class.
+- [x] **Carbon Emission (EEXI / CII) Calculator**: Estimate voyage fuel burn and carbon intensity rating per vessel class.
 - [ ] **Port Tariff Engine**: Dynamic tariff computation based on vessel Gross Tonnage (GT) and cargo handling productivity.
 
 ### 📰 4. NLP Market Sentiment & Macro Shocks
 - [x] **Maritime News Sentiment Tracker**: Scrape and analyze global shipping headlines (Baltic Exchange, TradeWinds, Platts) with FinBERT to compute market sentiment scores.
-- [ ] **Geopolitical & Chokepoint Alerts**: Event-driven flags for Red Sea / Suez / Malacca transit disruptions.
+- [x] **Geopolitical & Chokepoint Alerts**: Event-driven flags for Red Sea / Suez / Malacca transit disruptions.
 
 ### 🐳 5. DevOps & Presentation Deliverables
 - [ ] **Docker Compose Setup**: Multi-container `docker-compose.yml` (FastAPI + Nginx React Frontend).
