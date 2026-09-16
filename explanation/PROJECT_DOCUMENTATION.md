@@ -100,7 +100,8 @@ Around those engines:
 - Hugging Face Transformers (news/NLP path)
 - SQLite via `FreightDBManager`
 - requests / websockets for live feeds
-- reportlab (report generation dependency; PDF export UI is still on the roadmap)
+- reportlab (report generation dependency)
+- pdfmake (client-side PDF generation)
 
 **Frontend**
 
@@ -564,7 +565,7 @@ State this clearly in pitches. Judges typically prefer that over claiming unpubl
 - Interactive SHAP force plots in the UI
 - Multi-parcel genetic fleet scheduler (NSGA-II)
 - EEXI/CII carbon calculator
-- PDF/Excel procurement briefing from the UI
+- Excel procurement briefing from the UI (PDF is implemented)
 - Docker Compose and GitHub Actions CI
 - Production-grade auth (passwords currently stored in localStorage)
 - True WebSocket push of AIS into the map (tracker runs on the backend; UI polls map-intelligence)

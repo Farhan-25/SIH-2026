@@ -65,7 +65,7 @@ The objective is to engineer an **Intelligent Freight Forecasting and Chartering
   - Route Map Visualization (origin $\rightarrow$ discharge with live congestion & weather overlays)
   - Interactive Forecast Time-Series Graphs (Historical + Forecast + Confidence Cone)
   - Vessel Feasibility & Cost Comparison Matrix
-  - Actionable Strategy Summary Card & Exportable PDF/Excel Procurement Briefing.
+  - Actionable Strategy Summary Card & Exportable Excel Procurement Briefing (PDF Export Implemented).
 
 ---
 

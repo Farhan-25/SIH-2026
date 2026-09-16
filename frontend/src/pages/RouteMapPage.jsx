@@ -1171,6 +1171,8 @@ export default function RouteMapPage() {
   const [lastUpdated, setLastUpdated] = useState(null)
   const [loading, setLoading] = useState(true)
   const [basemapStyleId, setBasemapStyleId] = useState('dark')
+  const [isPlayingScrubber, setIsPlayingScrubber] = useState(false)
+  const [timeOffsetHours, setTimeOffsetHours] = useState(0)
 
   // API State
   const [vessels, setVessels] = useState([])

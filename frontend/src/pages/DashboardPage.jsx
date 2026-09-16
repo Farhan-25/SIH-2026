@@ -4,8 +4,17 @@ import { AnimatePresence } from 'framer-motion'
 import {
   MdTrendingUp, MdTrendingDown, MdDirectionsBoat,
   MdLocalGasStation, MdMap, MdRefresh, MdShield,
-  MdShowChart, MdNewspaper, MdBolt, MdOpenInNew, MdLocationOn
+  MdShowChart, MdNewspaper, MdBolt, MdOpenInNew, MdLocationOn, MdPictureAsPdf
 } from 'react-icons/md'
+import pdfMake from 'pdfmake/build/pdfmake.js'
+import pdfFonts from 'pdfmake/build/vfs_fonts.js'
+
+if (pdfMake && pdfFonts && pdfFonts.pdfMake) {
+  pdfMake.vfs = pdfFonts.pdfMake.vfs
+} else if (pdfMake && window.pdfMake && window.pdfMake.vfs) {
+  pdfMake.vfs = window.pdfMake.vfs
+}
+
 import mapboxgl, { getMapStyle, vesselPopupHTML, vesselMarkerColor, vesselHeadingDeg, isLiveAisVessel, portsToFeatureCollection, PORT_CIRCLE_PAINT, PORT_HALO_PAINT, upsertVesselArrowLayers } from '../lib/maplibre'
 import VesselSidePanel from '../components/VesselSidePanel'
 import {
@@ -98,7 +107,9 @@ export default function DashboardPage() {
   const [lastRefresh, setLastRefresh] = useState(() => new Date())
   const [selectedVessel, setSelectedVessel] = useState(null)
   const [forecast, setForecast] = useState(null)
+  const [isExporting, setIsExporting] = useState(false)
 
+  const dashboardRef = useRef(null)
   const mapContainer = useRef(null)
   const mapInstance = useRef(null)
   const popupRef = useRef(null)
@@ -408,8 +419,79 @@ export default function DashboardPage() {
     || null
   const spark = preds.slice(0, 8)
 
+  const handleExportPdf = useCallback(() => {
+    setIsExporting(true)
+
+    try {
+      const docDefinition = {
+        content: [
+          { text: 'FreightIQ Executive Briefing', style: 'header' },
+          { text: `Generated on: ${new Date().toLocaleString()}`, style: 'subheader' },
+          { text: '\nMarket Overview', style: 'sectionHeader' },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['*', '*', '*', '*'],
+              body: [
+                ['Metric', 'Value', 'Trend', 'Direction'],
+                ...tickerItems.map(item => [
+                  item.label, 
+                  item.value, 
+                  item.trend || '-', 
+                  item.up ? 'Up' : (item.trend ? 'Down' : '-')
+                ])
+              ]
+            }
+          },
+          { text: '\nMarket Sentiment', style: 'sectionHeader' },
+          {
+            text: [
+              `Current sentiment: `, { text: sentLabel, bold: true }, ` (${Number(sentScore).toFixed(2)})\n`,
+              `Negative: ${negPct}% | Neutral: ${neuPct}% | Positive: ${posPct}%\n\n`
+            ]
+          },
+          { text: '\nDry Bulk Rates', style: 'sectionHeader' },
+          {
+            table: {
+              headerRows: 1,
+              widths: ['auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
+              body: [
+                ['Corridor', 'Cargo', 'Vessel', 'Spot', 'Fwd 4W', 'Congestion'],
+                ...(forecasts.length ? forecasts : corridorFallback.length ? corridorFallback : [{ route: `${primaryRoute.origin} → ${primaryRoute.destination}`, cargo: primaryRoute.cargo, vessel: 'Panamax', rate: 14.82, congestion: 42 }])
+                  .slice(0, 4).map((f, i) => {
+                  const rateVal = parseNum(f.rate, 15)
+                  const fwdVal = (i === 0 && fwd4 != null) ? fwd4 : (rateVal * 1.04)
+                  const cong = Number(f.congestion) || 0
+                  return [f.route, f.cargo, f.vessel, formatMoney(rateVal), formatMoney(fwdVal), `${cong}%`]
+                })
+              ]
+            }
+          },
+          { text: '\nIntelligence Brief', style: 'sectionHeader' },
+          {
+            ul: insights.map(line => typeof line === 'string' ? line.replace(/^\s*[•\-*]\s*/, '').replace(/\*\*/g, '') : line)
+          }
+        ],
+        styles: {
+          header: { fontSize: 18, bold: true },
+          subheader: { fontSize: 12, italics: true, color: 'gray' },
+          sectionHeader: { fontSize: 14, bold: true, margin: [0, 10, 0, 5] }
+        },
+        defaultStyle: {
+          fontSize: 10
+        }
+      }
+
+      pdfMake.createPdf(docDefinition).download('FreightIQ_Executive_Briefing.pdf')
+    } catch (err) {
+      console.error('PDF generation failed:', err)
+    } finally {
+      setIsExporting(false)
+    }
+  }, [tickerItems, sentLabel, sentScore, negPct, neuPct, posPct, forecasts, corridorFallback, primaryRoute, fwd4, insights, formatMoney])
+
   return (
-    <div className="cc-page">
+    <div className={`cc-page`} ref={dashboardRef}>
       <AnimatePresence>
         {selectedVessel && (
           <VesselSidePanel
@@ -438,7 +520,10 @@ export default function DashboardPage() {
           <span className="cc-utc">
             {lastRefresh.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
           </span>
-          <button type="button" className="cc-btn" onClick={loadAll}>
+          <button type="button" className="cc-btn cc-export-btn" onClick={handleExportPdf} disabled={isExporting}>
+            {isExporting ? 'Generating...' : <><MdPictureAsPdf size={16} /> Export PDF</>}
+          </button>
+          <button type="button" className="cc-btn cc-refresh-btn" onClick={loadAll}>
             <MdRefresh size={16} /> Refresh
           </button>
         </div>
