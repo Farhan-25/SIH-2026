@@ -165,7 +165,7 @@ Below is the active task list for scaling this prototype to a national hackathon
 
 - [x] **Light / Dark Theme Toggle**: Accessible light mode palette alongside current dark glassmorphism theme.
 - [x] **Multi-Language Localization**: Hindi/English language toggle for national procurement accessibility.
-- [ ] **Scenario Export**: 1-click **Download PDF / Excel** procurement briefing for management review.
+- [x] **Scenario Export**: 1-click **Download PDF** procurement briefing for management review.
 
 ### 🚢 3. Advanced Optimization & Fleet Management
 - [ ] **Multi-Parcel Fleet Scheduler**: Genetic Algorithm (NSGA-II) for scheduling multiple cargo parcels across multi-port discharge itineraries.

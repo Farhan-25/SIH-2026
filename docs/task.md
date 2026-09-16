@@ -81,7 +81,7 @@
 - [ ] Dynamic ensemble engine (XGBoost + LSTM + Prophet)
 - [ ] Genetic multi-objective optimizer (NSGA-II Pareto frontier)
 - [ ] NLP sentiment analyzer for shipping news
-- [ ] PDF/Excel procurement briefing export
+- [x] PDF procurement briefing export
 - [ ] WebSocket real-time freight rate push alerts
 - [ ] Docker Compose one-command deployment
 - [ ] GitHub Actions CI/CD pipeline
