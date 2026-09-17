@@ -225,4 +225,67 @@ export const PORT_HALO_PAINT = {
   'circle-blur': 0.7,
 }
 
+
+/** Great-circle distance between two lon/lat points in nautical miles. */
+export function haversineNm(lon1, lat1, lon2, lat2) {
+  const R = 3440.065 // Earth radius in nautical miles
+  const toRad = (x) => (x * Math.PI) / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLon = toRad(lon2 - lon1)
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+/** Minimum great-circle distance from a point to a line segment (all lon/lat). */
+function segDistNm(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  if (dx === 0 && dy === 0) return haversineNm(px, py, x1, y1)
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)))
+  return haversineNm(px, py, x1 + t * dx, y1 + t * dy)
+}
+
+/**
+ * Returns true if the point (lon, lat) is within `thresholdNm` nautical miles
+ * of any segment in the given waypoint polyline.
+ */
+export function vesselNearRoute(lon, lat, waypoints, thresholdNm = 120) {
+  if (!Array.isArray(waypoints) || waypoints.length < 2) return false
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const [x1, y1] = waypoints[i]
+    const [x2, y2] = waypoints[i + 1]
+    if (segDistNm(lon, lat, x1, y1, x2, y2) <= thresholdNm) return true
+  }
+  return false
+}
+
+/**
+ * Match each vessel to route corridors using two heuristics:
+ *   1. Destination name substring match (fast)
+ *   2. Spatial proximity to the route polyline (≤ thresholdNm)
+ *
+ * Returns { [route_id]: vessel[] }
+ */
+export function matchVesselsToRoutes(vessels, routeRisks, thresholdNm = 80) {
+  const result = {}
+  for (const route of routeRisks || []) {
+    const rid = route.route_id
+    if (!rid) continue
+    
+    result[rid] = (vessels || []).filter((v) => {
+      const lon = Number(v.lon)
+      const lat = Number(v.lat)
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) return false
+      
+      // A vessel MUST be physically near the route corridor to be considered on this route.
+      // We removed the destination 'fast path' bypass because it caused ships halfway across 
+      // the world to be matched to a route simply because they shared the same destination port.
+      return vesselNearRoute(lon, lat, route.waypoints, thresholdNm)
+    })
+  }
+  return result
+}
+
 export default maplibregl

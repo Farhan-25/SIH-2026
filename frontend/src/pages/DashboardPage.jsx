@@ -4,7 +4,7 @@ import { AnimatePresence } from 'framer-motion'
 import {
   MdTrendingUp, MdTrendingDown, MdDirectionsBoat,
   MdLocalGasStation, MdMap, MdRefresh, MdShield,
-  MdShowChart, MdNewspaper, MdBolt, MdOpenInNew, MdLocationOn, MdPictureAsPdf
+  MdShowChart, MdNewspaper, MdOpenInNew, MdLocationOn, MdPictureAsPdf
 } from 'react-icons/md'
 import pdfMake from 'pdfmake/build/pdfmake.js'
 import pdfFonts from 'pdfmake/build/vfs_fonts.js'
@@ -15,7 +15,7 @@ if (pdfMake && pdfFonts && pdfFonts.pdfMake) {
   pdfMake.vfs = window.pdfMake.vfs
 }
 
-import mapboxgl, { getMapStyle, vesselPopupHTML, vesselMarkerColor, vesselHeadingDeg, isLiveAisVessel, portsToFeatureCollection, PORT_CIRCLE_PAINT, PORT_HALO_PAINT, upsertVesselArrowLayers } from '../lib/maplibre'
+import mapboxgl, { getMapStyle, vesselPopupHTML, vesselMarkerColor, vesselHeadingDeg, isLiveAisVessel, portsToFeatureCollection, PORT_CIRCLE_PAINT, PORT_HALO_PAINT, upsertVesselArrowLayers, matchVesselsToRoutes } from '../lib/maplibre'
 import VesselSidePanel from '../components/VesselSidePanel'
 import {
   getDashboard,
@@ -49,17 +49,24 @@ function sentimentTone(label, score) {
   return 'neu'
 }
 
-function vesselsToFeatureCollection(list) {
+// routeMatchedIds: Set of vessel IDs on the active route corridor (null = show all equally)
+function vesselsToFeatureCollection(list, routeMatchedIds = null) {
   return {
     type: 'FeatureCollection',
     features: (list || []).flatMap((v) => {
       const lat = Number(v.lat)
       const lon = Number(v.lon)
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return []
+      const vid = String(v.id || v.mmsi || '')
+      const onRoute = routeMatchedIds === null || routeMatchedIds.has(vid)
+      
+      // If routes are selected, only show vessels perfectly matched to the route
+      if (routeMatchedIds !== null && !onRoute) return []
+
       return [{
         type: 'Feature',
         properties: {
-          id: String(v.id || v.mmsi || ''),
+          id: vid,
           name: v.name || v.mmsi || 'Vessel',
           status: v.status || 'Underway',
           class: v.class || '',
@@ -69,6 +76,7 @@ function vesselsToFeatureCollection(list) {
           heading: vesselHeadingDeg(v),
           source: v.source_label || v.source || 'Live AIS',
           color: vesselMarkerColor(v),
+          on_route: 1,
         },
         geometry: { type: 'Point', coordinates: [lon, lat] },
       }]
@@ -108,6 +116,7 @@ export default function DashboardPage() {
   const [selectedVessel, setSelectedVessel] = useState(null)
   const [forecast, setForecast] = useState(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [activeRouteId, setActiveRouteId] = useState(null)
 
   const dashboardRef = useRef(null)
   const mapContainer = useRef(null)
@@ -238,7 +247,7 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // Paint routes / ports / vessels when intel arrives
+  // Paint routes / ports / vessels when intel or active route changes
   useEffect(() => {
     const map = mapInstance.current
     if (!map || !mapIntel) return
@@ -246,29 +255,49 @@ export default function DashboardPage() {
     const paint = () => {
       map.resize()
       const allVessels = mapIntel.vessels || []
+      const routes = mapIntel.route_risks || []
+      const indian = mapIntel.ports?.indian || []
+      const global = mapIntel.ports?.global || []
+
+      // Build route-matched vessel ID set for coloring
+      const routeVesselMap = matchVesselsToRoutes(allVessels, routes)
+      const activeRoutes = activeRouteId ? [activeRouteId] : selectedRoutes
+      let routeMatchedIds = null
+      if (activeRoutes.length > 0) {
+        routeMatchedIds = new Set()
+        for (const rid of activeRoutes) {
+          for (const v of (routeVesselMap[rid] || [])) {
+            const id = String(v.id || v.mmsi || '')
+            if (id) routeMatchedIds.add(id)
+          }
+        }
+      }
+
       const vessels = [
         ...allVessels.filter(isLiveAisVessel),
         ...allVessels.filter((v) => !isLiveAisVessel(v)),
       ]
-      const indian = mapIntel.ports?.indian || []
-      const global = mapIntel.ports?.global || []
-      const routes = mapIntel.route_risks || []
 
+      // Routes — selected corridors get brighter, wider line
       const routeFc = {
         type: 'FeatureCollection',
         features: routes
           .filter((r) => Array.isArray(r.waypoints) && r.waypoints.length >= 2)
-          .map((r) => ({
-            type: 'Feature',
-            properties: {
-              id: r.route_id,
-              selected: selectedRoutes.includes(r.route_id) || selectedRoutes.includes(r.id) ? 1 : 0,
-            },
-            geometry: {
-              type: 'LineString',
-              coordinates: r.waypoints.map((w) => [w[0], w[1]]),
-            },
-          })),
+          .map((r) => {
+            const isSelected = selectedRoutes.includes(r.route_id) || selectedRoutes.includes(r.id)
+            const isActive = activeRouteId === r.route_id
+            return {
+              type: 'Feature',
+              properties: {
+                id: r.route_id,
+                selected: isActive ? 2 : isSelected ? 1 : 0,
+              },
+              geometry: {
+                type: 'LineString',
+                coordinates: r.waypoints.map((w) => [w[0], w[1]]),
+              },
+            }
+          }),
       }
       if (map.getSource('cc-routes')) {
         map.getSource('cc-routes').setData(routeFc)
@@ -279,9 +308,25 @@ export default function DashboardPage() {
           type: 'line',
           source: 'cc-routes',
           paint: {
-            'line-color': '#38bdf8',
-            'line-width': ['case', ['==', ['get', 'selected'], 1], 2.4, 1],
-            'line-opacity': ['case', ['==', ['get', 'selected'], 1], 0.7, 0.22],
+            'line-color': [
+              'case',
+              ['==', ['get', 'selected'], 2], '#38bdf8',
+              ['==', ['get', 'selected'], 1], '#7dd3fc',
+              '#1e3a5f',
+            ],
+            'line-width': [
+              'case',
+              ['==', ['get', 'selected'], 2], 3.2,
+              ['==', ['get', 'selected'], 1], 2.0,
+              0.8,
+            ],
+            'line-opacity': [
+              'case',
+              ['==', ['get', 'selected'], 2], 0.95,
+              ['==', ['get', 'selected'], 1], 0.7,
+              0.18,
+            ],
+            'line-dasharray': ['case', ['==', ['get', 'selected'], 0], ['literal', [4, 4]], ['literal', [1]]],
           },
         })
       }
@@ -306,7 +351,7 @@ export default function DashboardPage() {
         })
       }
 
-      const vesselFc = vesselsToFeatureCollection(vessels)
+      const vesselFc = vesselsToFeatureCollection(vessels, routeMatchedIds)
       if (map.getSource('cc-vessels')) {
         map.getSource('cc-vessels').setData(vesselFc)
         upsertVesselArrowLayers(map, 'cc-vessels', {
@@ -328,7 +373,7 @@ export default function DashboardPage() {
 
     if (map.isStyleLoaded()) paint()
     else map.once('load', paint)
-  }, [mapIntel, selectedPorts, selectedRoutes])
+  }, [mapIntel, selectedPorts, selectedRoutes, activeRouteId])
 
   const kpis = data?.kpis || {}
   const forecasts = (data?.recent_forecasts || []).filter((f) => {
@@ -365,6 +410,20 @@ export default function DashboardPage() {
         : 'Live AIS feed warming up for the Bay of Bengal.',
     ]
   }, [copilotBriefing, sentLabel, sentScore, kpis, chokepoints, fleetCount, selectedPortNames])
+
+  // Vessel-to-route matching (client-side spatial proximity)
+  const routeVesselMap = useMemo(() => {
+    const vessels = mapIntel?.vessels || []
+    const routes = mapIntel?.route_risks || []
+    return matchVesselsToRoutes(vessels, routes)
+  }, [mapIntel])
+
+  // Vessels for the currently displayed route corridor
+  const routeVessels = useMemo(() => {
+    const targetId = activeRouteId || selectedRoutes[0] || Object.keys(routeVesselMap)[0] || null
+    if (!targetId) return Object.values(routeVesselMap).flat().slice(0, 10)
+    return routeVesselMap[targetId] || []
+  }, [routeVesselMap, activeRouteId, selectedRoutes])
 
   const tickerItems = [
     { key: 'brent', label: 'Brent', value: formatMoney(parseNum(kpis.brent_crude?.value, 82.4)), trend: kpis.brent_crude?.trend, up: kpis.brent_crude?.trend_dir === 'up', icon: <MdLocalGasStation /> },
@@ -491,7 +550,7 @@ export default function DashboardPage() {
   }, [tickerItems, sentLabel, sentScore, negPct, neuPct, posPct, forecasts, corridorFallback, primaryRoute, fwd4, insights, formatMoney])
 
   return (
-    <div className={`cc-page`} ref={dashboardRef}>
+    <div className="cc-page" ref={dashboardRef}>
       <AnimatePresence>
         {selectedVessel && (
           <VesselSidePanel
@@ -505,11 +564,13 @@ export default function DashboardPage() {
           />
         )}
       </AnimatePresence>
+
+      {/* ── Header ──────────────────────────────────────────── */}
       <header className="cc-header">
         <div>
           <h1>Command Centre</h1>
           <p className="cc-profile-line">
-            Built for {currentUser?.name || 'your desk'} · {selectedPorts.length} ports · {selectedRoutes.length} corridors · {selectedCargoes.slice(0, 3).join(', ') || 'cargo mix'}
+            {currentUser?.name || 'Your desk'} · {selectedPorts.length} ports · {selectedRoutes.length} corridors · {selectedCargoes.slice(0, 3).join(', ') || 'cargo mix'}
           </p>
         </div>
         <div className="cc-header-actions">
@@ -521,16 +582,19 @@ export default function DashboardPage() {
             {lastRefresh.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
           </span>
           <button type="button" className="cc-btn cc-export-btn" onClick={handleExportPdf} disabled={isExporting}>
-            {isExporting ? 'Generating...' : <><MdPictureAsPdf size={16} /> Export PDF</>}
+            {isExporting ? 'Generating…' : <><MdPictureAsPdf size={16} /> Export PDF</>}
           </button>
-          <button type="button" className="cc-btn cc-refresh-btn" onClick={loadAll}>
+          <button type="button" className="cc-btn" onClick={loadAll}>
             <MdRefresh size={16} /> Refresh
           </button>
         </div>
       </header>
 
+
+
+      {/* ── Market Ticker ─────────────────────────────────── */}
       <div className="cc-ticker" role="list">
-        {tickerItems.map((item) => (
+        {tickerItems.slice(0, 3).map((item) => (
           <div key={item.key} className={`cc-tick ${item.danger ? 'danger' : ''}`} role="listitem">
             <span className="cc-tick-label">{item.icon}{item.label}</span>
             <span className="cc-tick-value">{item.value}</span>
@@ -544,35 +608,12 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* ── Brief Strip: 3 Columns ────────────────────────── */}
       <section className={`cc-brief tone-${sentTone}`}>
-        <div className="cc-brief-sent">
-          <span className="cc-brief-tag">Market sentiment</span>
-          <div className="cc-sent-score">
-            <div className={`big ${sentTone}`}>{Number(sentScore).toFixed(2)}</div>
-            <div>
-              <strong>{sentLabel}</strong>
-              <p>FinBERT · live headlines</p>
-            </div>
-          </div>
-          <div className="cc-sent-bars">
-            <div className="bar-row">
-              <span>Negative</span>
-              <div className="track"><i style={{ width: `${negPct}%` }} className="neg" /></div>
-              <em>{negPct}%</em>
-            </div>
-            <div className="bar-row">
-              <span>Neutral</span>
-              <div className="track"><i style={{ width: `${neuPct}%` }} className="neu" /></div>
-              <em>{neuPct}%</em>
-            </div>
-            <div className="bar-row">
-              <span>Positive</span>
-              <div className="track"><i style={{ width: `${posPct}%` }} className="pos" /></div>
-              <em>{posPct}%</em>
-            </div>
-          </div>
-        </div>
 
+
+
+        {/* Col 2 — Live Ops Snapshot */}
         <div className="cc-brief-ops">
           <span className="cc-brief-tag">Live desk snapshot</span>
           <div className="cc-ops-grid">
@@ -591,12 +632,12 @@ export default function DashboardPage() {
             <div className="cc-ops-tile">
               <em>Port wait</em>
               <strong>{kpis.avg_port_wait?.value || '—'}</strong>
-              <span>Avg congestion {avgCong != null ? avgCong : '—'}</span>
+              <span>Avg cong. {avgCong != null ? avgCong : '—'}</span>
             </div>
             <div className="cc-ops-tile">
               <em>{(topChoke?.name || 'Chokepoint').split(' / ')[0]}</em>
               <strong>{topChoke?.risk_level || 'Watch'}</strong>
-              <span>{Object.keys(chokepoints).length || 0} corridors watched</span>
+              <span>{Object.keys(chokepoints).length || 0} corridors</span>
             </div>
             <div className="cc-ops-tile">
               <em>Desk ports</em>
@@ -606,32 +647,88 @@ export default function DashboardPage() {
             <div className="cc-ops-tile">
               <em>Alerts</em>
               <strong>{geoAlerts.length || Object.keys(chokepoints).length || 0}</strong>
-              <span>{apiStatus.weather === 'connected' ? 'Weather live' : (apiStatus.weather || 'Weather standby')}</span>
+              <span>{apiStatus.weather === 'connected' ? 'Weather live' : 'Weather standby'}</span>
             </div>
           </div>
         </div>
 
-        <div className="cc-brief-main">
-          <span className="cc-brief-tag"><MdBolt size={14} /> Intelligence brief</span>
-          <ul className="cc-brief-list">
-            {insights.map((line, i) => (
-              <li key={i}>{typeof line === 'string' ? line.replace(/^\s*[•\-*]\s*/, '').replace(/\*\*/g, '') : line}</li>
+        {/* Col 3 — Route Vessels (new!) */}
+        <div className="cc-brief-vessels">
+          <div className="cc-brief-vessels-head">
+            <span className="cc-brief-tag"><MdDirectionsBoat size={13} /> Route vessels</span>
+            <span className="cc-vessels-count">{routeVessels.length} on corridor</span>
+          </div>
+          {selectedRoutes.length > 1 && (
+            <div className="cc-route-tabs">
+              {selectedRoutes.slice(0, 4).map((rid) => {
+                const r = ALL_TRADE_ROUTES.find((x) => x.id === rid)
+                return (
+                  <button
+                    key={rid}
+                    type="button"
+                    className={`cc-route-tab ${(activeRouteId ?? selectedRoutes[0]) === rid ? 'active' : ''}`}
+                    onClick={() => setActiveRouteId(rid === activeRouteId ? null : rid)}
+                  >
+                    {r?.destination || rid.split('_TO_').pop().replace('IN_', '')}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <div className="cc-vessel-list">
+            {routeVessels.slice(0, 7).map((v) => (
+              <button
+                key={v.id || v.mmsi}
+                type="button"
+                className="cc-vessel-row"
+                title={`Fly to ${v.name || v.mmsi}`}
+                onClick={() => {
+                  const lon = Number(v.lon)
+                  const lat = Number(v.lat)
+                  if (Number.isFinite(lon) && Number.isFinite(lat) && mapInstance.current) {
+                    mapInstance.current.flyTo({ center: [lon, lat], zoom: 7.5, duration: 900 })
+                  }
+                  setSelectedVessel(v)
+                }}
+              >
+                <span className="cc-vdot" style={{ background: vesselMarkerColor(v) }} />
+                <div className="cc-vinfo">
+                  <strong>{v.name || v.mmsi || 'Unknown'}</strong>
+                  <span>{v.class || '—'}{v.speed ? ` · ${Number(v.speed).toFixed(1)} kn` : ''}</span>
+                </div>
+                <span className={`cc-vstatus ${v.status === 'At Anchor' ? 'anchor' : ''}`}>
+                  {(v.status || 'Underway').replace('Under Way Using Engine', 'Underway').slice(0, 8)}
+                </span>
+              </button>
             ))}
-          </ul>
-          <button type="button" className="cc-brief-cta" onClick={() => navigate('/copilot')}>
-            Open Copilot
-          </button>
+            {routeVessels.length === 0 && (
+              <p className="cc-empty" style={{ padding: '14px 0', fontSize: '0.78rem' }}>
+                {mapIntel ? 'No vessels matched to this corridor.' : 'Scanning route corridor…'}
+              </p>
+            )}
+            {routeVessels.length > 7 && (
+              <button type="button" className="cc-link" onClick={() => navigate('/routes')} style={{ padding: '8px 0' }}>
+                +{routeVessels.length - 7} more on route map <MdOpenInNew size={12} />
+              </button>
+            )}
+          </div>
         </div>
+
       </section>
 
+      {/* ── Map + Rates Split ─────────────────────────────── */}
       <div className="cc-split">
+        {/* Left — Live Map */}
         <section className="cc-panel cc-map-panel">
           <div className="cc-panel-head">
             <h2><MdMap size={18} /> Live East Coast map</h2>
             <div className="cc-panel-meta">
               <span>{fleetCount} vessels</span>
+              {selectedRoutes.length > 0 && routeVessels.length > 0 && (
+                <span className="cc-route-badge">{routeVessels.length} on route</span>
+              )}
               <button type="button" className="cc-link" onClick={() => navigate('/routes')}>
-                Full route map <MdOpenInNew size={14} />
+                Full map <MdOpenInNew size={14} />
               </button>
             </div>
           </div>
@@ -666,6 +763,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
+        {/* Right — Rates & Risk */}
         <section className="cc-panel cc-rates-panel">
           <div className="cc-panel-head">
             <h2><MdShowChart size={18} /> Dry bulk rates</h2>
@@ -770,12 +868,7 @@ export default function DashboardPage() {
                 ? Object.entries(chokepoints).slice(0, 2)
                 : [['red_sea', { name: 'Red Sea / Bab el-Mandeb', risk_level: 'Elevated' }]]
               ).map(([k, item]) => (
-                <button
-                  type="button"
-                  key={k}
-                  className="cc-risk-row"
-                  onClick={() => navigate('/risk')}
-                >
+                <button type="button" key={k} className="cc-risk-row" onClick={() => navigate('/risk')}>
                   <span className="name">{item.name?.split(' / ')[0]}</span>
                   <span className="lvl">{item.risk_level}</span>
                 </button>
@@ -783,36 +876,12 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+
       </div>
 
-      <div className="cc-lower">
-        <section className="cc-panel">
-          <div className="cc-panel-head">
-            <h2><MdNewspaper size={18} /> Intelligence wire</h2>
-            <button type="button" className="cc-link" onClick={() => navigate('/risk')}>All alerts</button>
-          </div>
-          <div className="cc-news-list">
-            {(newsArticles.length ? newsArticles : geoAlerts).slice(0, 6).map((a, i) => {
-              const title = a.title || a.message || a.headline || 'Market update'
-              const meta = a.source || a.category || a.severity || 'Wire'
-              const tone = (a.sentiment || a.severity || '').toLowerCase()
-              return (
-                <article key={a.id || i} className="cc-news-item">
-                  <span className={`cc-news-dot ${tone.includes('neg') || tone.includes('crit') || tone.includes('warn') ? 'neg' : tone.includes('pos') ? 'pos' : ''}`} />
-                  <div>
-                    <h4>{title}</h4>
-                    <p>{meta}{a.published_at ? ` · ${String(a.published_at).slice(0, 10)}` : ''}</p>
-                  </div>
-                </article>
-              )
-            })}
-            {!newsArticles.length && !geoAlerts.length && (
-              <p className="cc-empty">News feed will populate as sources sync.</p>
-            )}
-          </div>
-        </section>
-      </div>
 
+
+      {/* ── Status Bar ────────────────────────────────────── */}
       <footer className="cc-status">
         <StatusChip label="AIS" ok={apiStatus.ais === 'connected'} detail={apiStatus.ais || '—'} />
         <StatusChip label="Weather" ok={apiStatus.weather === 'connected'} detail={apiStatus.weather || '—'} />

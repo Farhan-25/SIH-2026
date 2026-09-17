@@ -119,7 +119,10 @@ export default function VesselPage() {
     }
   }, [origins, destinations, runOptimization, results, loading])
 
-  const evaluations = results?.all_vessel_evaluations || []
+  const rawEvaluations = results?.all_vessel_evaluations || []
+  const evaluations = rawEvaluations.filter((v, index, self) => 
+    index === self.findIndex((t) => t.vessel_name === v.vessel_name)
+  )
   const feasible = evaluations
     .filter(v => v.is_feasible)
     .sort((a, b) => (a.total_landed_cost_usd_per_mt || 0) - (b.total_landed_cost_usd_per_mt || 0))
