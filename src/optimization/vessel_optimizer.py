@@ -139,6 +139,19 @@ class VesselConstraintOptimizer:
                 return "Handysize"
             return None
 
+        # ── Classify live vessels by vessel class ─────────────────────────────
+        from math import radians, cos, sin, asin, sqrt as _sqrt
+
+        def _nm(lat1, lon1, lat2, lon2):
+            r = 3440.065
+            lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+            a = sin((lat2 - lat1) / 2) ** 2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2) ** 2
+            return 2 * asin(_sqrt(a)) * r
+
+        o_coords = origin_port.get("coordinates", {})
+        o_lat = o_coords.get("lat", 0.0)
+        o_lon = o_coords.get("lon", 0.0)
+
         classified_live: list[dict[str, Any]] = []
         for vessel in live_fleet or []:
             vclass_name = vessel.get("class") or vessel.get("vessel_class")
@@ -154,14 +167,43 @@ class VesselConstraintOptimizer:
                 "name": vessel.get("name") or vessel.get("vessel_name"),
             })
 
-        fleet_to_evaluate = classified_live if classified_live else self.active_fleet
-        if classified_live and len(classified_live) < 6:
-            fleet_to_evaluate = classified_live + list(self.active_fleet)
+        # ── Filter to vessels within 2000 NM of the origin port ───────────────
+        # This is the key fix: different ports (Mozambique vs Newcastle) will
+        # now produce different vessel lists based on actual geographic proximity.
+        BALLAST_RADIUS_NM = 2000
+        nearby_live: list[dict[str, Any]] = []
+        for v in classified_live:
+            try:
+                v_lat = float(v.get("lat") or 0)
+                v_lon = float(v.get("lon") or 0)
+            except (TypeError, ValueError):
+                continue
+            if not v_lat and not v_lon:
+                continue
+            if _nm(o_lat, o_lon, v_lat, v_lon) <= BALLAST_RADIUS_NM:
+                nearby_live.append(v)
+
+        # Pad with one static vessel per class not covered by nearby live ships,
+        # so the result always returns a full class spectrum for comparison.
+        covered_classes = {v.get("class") or v.get("vessel_class") for v in nearby_live}
+        static_padding = [v for v in self.active_fleet
+                          if (v.get("class") or v.get("vessel_class")) not in covered_classes]
+
+        seen_names: set[str] = set()
+        fleet_to_evaluate: list[dict[str, Any]] = []
+        for v in (nearby_live + static_padding):
+            vname = v.get("name") or v.get("vessel_name") or ""
+            if vname and vname in seen_names:
+                continue
+            seen_names.add(vname)
+            fleet_to_evaluate.append(v)
+
 
         for vessel in fleet_to_evaluate:
             vclass_name = vessel.get("class", vessel.get("vessel_class"))
             v_name = vessel.get("name", vessel.get("vessel_name"))
             v_spec = self.vessels.get(vclass_name)
+
             
             if not v_spec:
                 continue
@@ -223,7 +265,23 @@ class VesselConstraintOptimizer:
                 warnings.append(f"Cargo parcel ({cargo_parcel_mt:,.0f} MT) under-utilizes {vclass_name} capacity ({capacity:,.0f} MT).")
 
             # 4. Landed Cost Calculation ($/tonne)
-            default_freight_by_class = {
+            # Compute actual route distance via haversine on port coordinates
+            from math import radians, cos, sin, asin, sqrt as msqrt
+            def _haversine_nm(lat1, lon1, lat2, lon2):
+                r = 3440.065
+                lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+                a = sin((lat2-lat1)/2)**2 + cos(lat1)*cos(lat2)*sin((lon2-lon1)/2)**2
+                return 2 * asin(msqrt(a)) * r
+
+            o_coords = origin_port.get("coordinates", {})
+            d_coords = dest_port.get("coordinates", {})
+            route_nm = _haversine_nm(
+                o_coords.get("lat", 0), o_coords.get("lon", 0),
+                d_coords.get("lat", 0), d_coords.get("lon", 0)
+            )
+            # Reference: Newcastle→Paradip ≈ 5200 NM at $15.50/MT for Kamsarmax
+            reference_nm = 5200.0
+            base_freight_by_class = {
                 "Handysize": 24.50,
                 "Supramax": 20.50,
                 "Ultramax": 19.00,
@@ -232,8 +290,13 @@ class VesselConstraintOptimizer:
                 "Capesize": 12.80,
                 "Newcastlemax": 11.90
             }
-            base_freight = (predicted_freight_rates or {}).get(vclass_name, default_freight_by_class.get(vclass_name, 18.50))
+            ref_rate = (predicted_freight_rates or {}).get(vclass_name, base_freight_by_class.get(vclass_name, 18.50))
+            # Scale linearly by distance ratio vs reference route
+            distance_factor = max(0.4, route_nm / reference_nm) if route_nm > 0 else 1.0
+            base_freight = ref_rate * distance_factor
+
             port_charges = (dest_port["port_dues_usd_per_gt"] * capacity * 0.6 + dest_port["pilotage_usd_per_gt"] * 30000) / intake_mt
+
             
             # Berth turnaround delay factor based on discharge handling rate
             handling_rate_tpd = dest_port["average_output_per_ship_berthday_mt"]

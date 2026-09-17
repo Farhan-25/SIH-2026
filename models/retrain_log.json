@@ -67,5 +67,97 @@
     "error": null,
     "completed_at": "2026-09-16T16:21:00.612149+00:00",
     "training_records": 16497
+  },
+  {
+    "status": "success",
+    "triggered_by": "scheduler",
+    "triggered_at": "2026-09-16T17:49:21.934204+00:00",
+    "duration_seconds": 230.2,
+    "metrics_snapshot": {
+      "ensemble_mape_pct": 5.82,
+      "ensemble_r2": 0.9647,
+      "xgb_mape_pct": 9.1,
+      "lgb_mape_pct": 8.59,
+      "bilstm_mape_pct": 16.26,
+      "dynamic_weights": {
+        "xgboost": 0.249,
+        "lightgbm": 0.264,
+        "elasticnet": 0.487
+      },
+      "training_records": 16497,
+      "date_range": "2015-01-05 -> 2026-09-14"
+    },
+    "error": null,
+    "completed_at": "2026-09-16T17:53:12.102624+00:00",
+    "training_records": 16497
+  },
+  {
+    "status": "success",
+    "triggered_by": "scheduler",
+    "triggered_at": "2026-09-16T19:10:50.655437+00:00",
+    "duration_seconds": 206.6,
+    "metrics_snapshot": {
+      "ensemble_mape_pct": 5.82,
+      "ensemble_r2": 0.9647,
+      "xgb_mape_pct": 9.1,
+      "lgb_mape_pct": 8.59,
+      "bilstm_mape_pct": 15.24,
+      "dynamic_weights": {
+        "xgboost": 0.249,
+        "lightgbm": 0.264,
+        "elasticnet": 0.487
+      },
+      "training_records": 16497,
+      "date_range": "2015-01-05 -> 2026-09-14"
+    },
+    "error": null,
+    "completed_at": "2026-09-16T19:14:17.296023+00:00",
+    "training_records": 16497
+  },
+  {
+    "status": "success",
+    "triggered_by": "scheduler",
+    "triggered_at": "2026-09-17T11:14:36.960835+00:00",
+    "duration_seconds": 208.5,
+    "metrics_snapshot": {
+      "ensemble_mape_pct": 5.84,
+      "ensemble_r2": 0.9648,
+      "xgb_mape_pct": 9.22,
+      "lgb_mape_pct": 8.7,
+      "bilstm_mape_pct": 17.91,
+      "dynamic_weights": {
+        "xgboost": 0.248,
+        "lightgbm": 0.262,
+        "elasticnet": 0.49
+      },
+      "training_records": 16497,
+      "date_range": "2015-01-05 -> 2026-09-14"
+    },
+    "error": null,
+    "completed_at": "2026-09-17T11:18:05.458150+00:00",
+    "training_records": 16497
+  },
+  {
+    "status": "success",
+    "triggered_by": "scheduler",
+    "triggered_at": "2026-09-17T17:54:07.452686+00:00",
+    "duration_seconds": 246.9,
+    "metrics_snapshot": {
+      "ensemble_mape_pct": 5.84,
+      "ensemble_r2": 0.9648,
+      "xgb_mape_pct": 9.22,
+      "lgb_mape_pct": 8.7,
+      "bilstm_mape_pct": 18.98,
+      "dynamic_weights": {
+        "xgboost": 0.248,
+        "lightgbm": 0.262,
+        "elasticnet": 0.49
+      },
+      "training_records": 16497,
+      "date_range": "2015-01-05 -> 2026-09-14"
+    },
+    "error": null,
+    "completed_at": "2026-09-17T17:58:14.385732+00:00",
+    "training_records": 16497
   }
 ]

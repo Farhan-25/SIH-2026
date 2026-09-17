@@ -357,9 +357,9 @@ def _run_retrain_task():
 
     try:
         script_path = str(_BASE_DIR / "train_models.py")
-        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
         proc = subprocess.Popen(
-            [sys.executable, script_path],
+            [sys.executable, "-u", script_path],
             cwd=str(_BASE_DIR),
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -890,7 +890,32 @@ def get_dashboard_data():
     except Exception:
         pass
 
-    # --- 4. KPIs ---
+    # --- 4. KPIs — prefer live market feed for real-time tickers ---
+    # Fetch live Brent & USD/INR from TwelveData / Yahoo Finance (fast, cached in-process)
+    live_brent_price = None
+    live_brent_chg = None
+    live_inr_price = None
+    live_inr_chg = None
+    try:
+        from src.data.twelvedata_client import TwelveDataClient
+        _td = TwelveDataClient()
+        _brent = _td.get_brent_crude_proxy()
+        if _brent and _brent.get("price"):
+            live_brent_price = round(float(_brent["price"]), 2)
+            live_brent_chg = _brent.get("change_pct", 0) or 0
+        _inr = _td.get_exchange_rate("USD/INR")
+        if _inr and _inr.get("price"):
+            live_inr_price = round(float(_inr["price"]), 2)
+            live_inr_chg = _inr.get("change_pct", 0) or 0
+    except Exception:
+        pass  # fall back to FRED below
+
+    # Resolve final values: live feed preferred, FRED as fallback
+    brent_val = live_brent_price or fred_data.get("brent_crude", {}).get("value", 82.4)
+    brent_chg = live_brent_chg if live_brent_price else fred_data.get("brent_crude", {}).get("change_pct", 0)
+    inr_val = live_inr_price or fred_data.get("usd_inr", {}).get("value", 85.2)
+    inr_chg = live_inr_chg if live_inr_price else fred_data.get("usd_inr", {}).get("change_pct", 0)
+
     result["kpis"] = {
         "avg_freight_rate": {
             "value": f"${avg_freight_rate}" if avg_freight_rate else "$14.82",
@@ -898,15 +923,15 @@ def get_dashboard_data():
             "trend_dir": "up" if rate_trend_pct > 0 else "down",
         },
         "brent_crude": {
-            "value": f"${fred_data.get('brent_crude', {}).get('value', 82.4)}",
-            "trend": f"{'+' if fred_data.get('brent_crude', {}).get('change_pct', 0) > 0 else ''}{fred_data.get('brent_crude', {}).get('change_pct', 0)}%",
-            "trend_dir": "up" if fred_data.get("brent_crude", {}).get("change_pct", 0) > 0 else "down",
+            "value": f"${brent_val}",
+            "trend": f"{'+' if brent_chg > 0 else ''}{round(brent_chg, 2)}%",
+            "trend_dir": "up" if brent_chg > 0 else "down",
             "as_of": fred_data.get("brent_crude", {}).get("date", ""),
         },
         "usd_inr": {
-            "value": f"\u20B9{fred_data.get('usd_inr', {}).get('value', 85.2)}",
-            "trend": f"{'+' if fred_data.get('usd_inr', {}).get('change_pct', 0) > 0 else ''}{fred_data.get('usd_inr', {}).get('change_pct', 0)}%",
-            "trend_dir": "up" if fred_data.get("usd_inr", {}).get("change_pct", 0) > 0 else "down",
+            "value": f"\u20B9{inr_val}",
+            "trend": f"{'+' if inr_chg > 0 else ''}{round(inr_chg, 2)}%",
+            "trend_dir": "up" if inr_chg > 0 else "down",
             "as_of": fred_data.get("usd_inr", {}).get("date", ""),
         },
         "avg_port_wait": {
@@ -976,8 +1001,7 @@ def get_dashboard_data():
             "message": f"Avg East Coast turnaround: {avg_port_wait} days. Consider Dhamra/Gangavaram as alternatives.",
             "time": "Current", "category": "Port",
         })
-    brent_val = fred_data.get("brent_crude", {}).get("value")
-    if brent_val and brent_val > 85:
+    if brent_val and brent_val > 90:
         result["alerts"].append({
             "severity": "warning", "title": "Elevated Bunker Fuel Costs",
             "message": f"Brent Crude at ${brent_val}/bbl. VLSFO bunker surcharges likely increasing.",
