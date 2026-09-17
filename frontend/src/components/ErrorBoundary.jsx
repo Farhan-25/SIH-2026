@@ -24,8 +24,8 @@ export default class ErrorBoundary extends React.Component {
       return (
         <div style={{
           minHeight: '100vh',
-          backgroundColor: '#0a0e17',
-          color: '#e2e8f0',
+          background: 'var(--bg-primary)',
+          color: 'var(--text-primary)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -36,31 +36,32 @@ export default class ErrorBoundary extends React.Component {
           <div style={{
             maxWidth: '600px',
             width: '100%',
-            background: 'rgba(30, 41, 59, 0.7)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--accent-rose)',
             borderRadius: '16px',
             padding: '32px',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            boxShadow: 'var(--glass-shadow)',
             textAlign: 'center'
           }}>
             <div style={{ fontSize: '3rem', marginBottom: '12px' }}>!</div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f87171', marginBottom: '8px' }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-rose)', marginBottom: '8px' }}>
               Something went wrong
             </h2>
-            <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginBottom: '20px' }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', marginBottom: '20px' }}>
               An unexpected error occurred while rendering the interface.
             </p>
             {this.state.error && (
               <div style={{
-                background: 'rgba(15, 23, 42, 0.8)',
+                background: 'var(--bg-input)',
                 padding: '12px 16px',
                 borderRadius: '8px',
                 textAlign: 'left',
                 fontSize: '0.82rem',
                 fontFamily: 'monospace',
-                color: '#fca5a5',
+                color: 'var(--accent-rose)',
                 overflowX: 'auto',
-                marginBottom: '20px'
+                marginBottom: '20px',
+                border: '1px solid var(--border-subtle)',
               }}>
                 {this.state.error.toString()}
               </div>
@@ -68,31 +69,15 @@ export default class ErrorBoundary extends React.Component {
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
                 onClick={this.handleReload}
-                style={{
-                  background: '#0284c7',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '0.9rem'
-                }}
+                className="btn btn-primary"
+                style={{ padding: '10px 20px', fontSize: '0.9rem' }}
               >
                 Return to Home
               </button>
               <button
                 onClick={() => window.location.reload()}
-                style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  color: '#e2e8f0',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  padding: '10px 20px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '0.9rem'
-                }}
+                className="btn btn-secondary"
+                style={{ padding: '10px 20px', fontSize: '0.9rem' }}
               >
                 Reload Page
               </button>
