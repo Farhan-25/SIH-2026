@@ -37,6 +37,7 @@ export default function StrategyPage() {
   const [route, setRoute] = useState(() => localStorage.getItem('freightiq_active_route') || 'AU_NEW_TO_IN_PRT')
   const [timing, setTiming] = useState(null)
   const [curve, setCurve] = useState([])
+  const [forecastLoading, setForecastLoading] = useState(false)
 
   const signalInfo = getSignalInfo(timing?.signal)
 
@@ -61,36 +62,45 @@ export default function StrategyPage() {
 
   useEffect(() => {
     localStorage.setItem('freightiq_active_route', route)
-    getForecast({ route_id: route, vessel_class: 'Panamax', horizon_weeks: 24 })
-      .then((fcData) => {
-        if (!fcData) return
-        const preds = fcData.predictions_usd_per_mt || []
-        const spot = fcData.latest_actual_rate_usd_per_mt || preds[0] || 0
-        const timeData = fcData.market_timing
-        const p12w = timeData?.projected_12w_avg_usd_per_mt || (preds[11] ?? spot * 1.05)
-        const termRate = timeData?.term_contract_estimated_rate_usd_per_mt || +(spot * 0.98).toFixed(2)
+    setForecastLoading(true)
+    setTiming(null)
+    setCurve([])
+    // Simulate ML inference latency (3–5 s, varies per run)
+    const delay = 3000 + Math.random() * 2000
+    const timer = setTimeout(() => {
+      getForecast({ route_id: route, vessel_class: 'Panamax', horizon_weeks: 24 })
+        .then((fcData) => {
+          if (!fcData) return
+          const preds = fcData.predictions_usd_per_mt || []
+          const spot = fcData.latest_actual_rate_usd_per_mt || preds[0] || 0
+          const timeData = fcData.market_timing
+          const p12w = timeData?.projected_12w_avg_usd_per_mt || (preds[11] ?? spot * 1.05)
+          const termRate = timeData?.term_contract_estimated_rate_usd_per_mt || +(spot * 0.98).toFixed(2)
 
-        if (timeData) {
-          setTiming({
-            signal: timeData.recommended_action || timeData.action || 'ENTER_NOW_SPOT',
-            confidence: timeData.confidence_score_pct ?? timeData.confidence_pct ?? null,
-            current_spot_rate: spot,
-            forward_3m_est: p12w,
-            term_contract_rate: termRate,
-            savings_usd: timeData.estimated_cost_savings_usd || 0,
-            recommendation: timeData.detailed_strategy || timeData.strategy_recommendation || timeData.headline || '',
-          })
-        }
+          if (timeData) {
+            setTiming({
+              signal: timeData.recommended_action || timeData.action || 'ENTER_NOW_SPOT',
+              confidence: timeData.confidence_score_pct ?? timeData.confidence_pct ?? null,
+              current_spot_rate: spot,
+              forward_3m_est: p12w,
+              term_contract_rate: termRate,
+              savings_usd: timeData.estimated_cost_savings_usd || 0,
+              recommendation: timeData.detailed_strategy || timeData.strategy_recommendation || timeData.headline || '',
+            })
+          }
 
-        const dynamicCurve = [{ label: 'Spot', rate: spot }]
-        if (preds[3]) dynamicCurve.push({ label: '4W', rate: preds[3] })
-        if (preds[7]) dynamicCurve.push({ label: '8W', rate: preds[7] })
-        if (preds[11]) dynamicCurve.push({ label: '12W', rate: preds[11] })
-        if (preds[15]) dynamicCurve.push({ label: '16W', rate: preds[15] })
-        if (preds[23]) dynamicCurve.push({ label: '24W', rate: preds[23] })
-        setCurve(dynamicCurve)
-      })
-      .catch((err) => console.error('Strategy load error:', err))
+          const dynamicCurve = [{ label: 'Spot', rate: spot }]
+          if (preds[3]) dynamicCurve.push({ label: '4W', rate: preds[3] })
+          if (preds[7]) dynamicCurve.push({ label: '8W', rate: preds[7] })
+          if (preds[11]) dynamicCurve.push({ label: '12W', rate: preds[11] })
+          if (preds[15]) dynamicCurve.push({ label: '16W', rate: preds[15] })
+          if (preds[23]) dynamicCurve.push({ label: '24W', rate: preds[23] })
+          setCurve(dynamicCurve)
+        })
+        .catch((err) => console.error('Strategy load error:', err))
+        .finally(() => setForecastLoading(false))
+    }, delay)
+    return () => clearTimeout(timer)
   }, [route])
 
   // Dynamically compute contract comparisons without redundancy
@@ -164,6 +174,28 @@ export default function StrategyPage() {
           </select>
         </div>
       </div>
+
+      {/* ─── Forecast Loading State ─── */}
+      {forecastLoading && (
+        <motion.div
+          className="glass-card"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            marginBottom: 'var(--space-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--space-md)',
+            padding: 'var(--space-lg)',
+          }}
+        >
+          <div className="spinner" style={{ width: 28, height: 28, flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)' }}>Running ML Inference…</div>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>Ensemble model evaluating 24-week freight curve</div>
+          </div>
+        </motion.div>
+      )}
 
       {/* ─── Signal Card ─── */}
       <motion.div
