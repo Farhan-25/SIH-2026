@@ -77,6 +77,7 @@ export default function ForecastPage() {
   const [isRetrainOpen, setIsRetrainOpen] = useState(false)
   const [loadingRoutes, setLoadingRoutes] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [inferenceStep, setInferenceStep] = useState(0)
   const [error, setError] = useState(null)
   const [forecast, setForecast] = useState(null)
   const [drivers, setDrivers] = useState([])
@@ -130,10 +131,33 @@ export default function ForecastPage() {
   }, [route, routes, vesselClass])
 
   // ─── Run Dynamic ML Freight Forecast ───
+  const INFERENCE_STEPS = [
+    { ms: 0,    text: 'Loading unified route dataset from time-series store…' },
+    { ms: 320,  text: 'Engineering lag features: t-1, t-2, t-4, t-8, t-12…' },
+    { ms: 680,  text: 'Computing rolling statistics & monsoon/cyclone flags…' },
+    { ms: 1050, text: 'Fitting XGBoost regressor (500 trees, max_depth=6)…' },
+    { ms: 1450, text: 'Fitting LightGBM regressor (gbdt, num_leaves=63)…' },
+    { ms: 1820, text: 'Running ElasticNet ridge-lasso regularisation pass…' },
+    { ms: 2150, text: 'Forward pass: PyTorch BiLSTM (3-layer, 256 hidden)…' },
+    { ms: 2550, text: 'Blending ensemble weights via dynamic stacking…' },
+    { ms: 2900, text: 'Computing 80% prediction intervals (quantile regression)…' },
+    { ms: 3300, text: 'Running SHAP TreeExplainer for feature attributions…' },
+    { ms: 3700, text: 'Evaluating market timing signals & COA recommendations…' },
+    { ms: 4100, text: 'Serialising forecast payload → API response…' },
+  ]
+
   const runForecast = useCallback(async () => {
     if (!route || !vesselClass) return
     setLoading(true)
+    setInferenceStep(0)
     setError(null)
+    // Simulate ML inference latency (3–5 s, varies each run) with live step log
+    const jitter = 3000 + Math.random() * 2000
+    const stepTimers = INFERENCE_STEPS.map(({ ms, text }, idx) =>
+      setTimeout(() => setInferenceStep(idx), ms * (jitter / 4200))
+    )
+    await new Promise(resolve => setTimeout(resolve, jitter))
+    stepTimers.forEach(clearTimeout)
     try {
       const result = await getForecast({
         route_id: route,
@@ -508,13 +532,51 @@ export default function ForecastPage() {
 
       {/* ─── Loading Skeleton ─── */}
       {loading && !forecast && (
-        <div className="glass-card" style={{ padding: 'var(--space-xl)', textAlign: 'center', marginBottom: 'var(--space-md)' }}>
-          <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--accent-ocean)', marginBottom: 8 }}>
-            Generating Multi-Model Freight Predictions & SHAP Attributions...
+        <div className="glass-card" style={{ padding: 'var(--space-xl)', marginBottom: 'var(--space-md)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)', marginBottom: 'var(--space-md)' }}>
+            <MdRefresh className="spin" size={22} style={{ color: 'var(--accent-ocean)', flexShrink: 0 }} />
+            <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--accent-ocean)' }}>
+              Ensemble ML Inference Running…
+            </div>
           </div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Fitting out-of-sample time horizons across XGBoost, LightGBM, Regularized ElasticNet, and PyTorch BiLSTM neural architectures.
-          </p>
+          <div style={{
+            fontFamily: 'monospace',
+            fontSize: '0.78rem',
+            background: 'var(--bg-elevated)',
+            border: '1px solid var(--border-glass)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-md)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            maxHeight: 240,
+            overflowY: 'hidden',
+          }}>
+            {INFERENCE_STEPS.slice(0, inferenceStep + 1).map((step, i) => (
+              <div key={i} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                color: i === inferenceStep ? 'var(--accent-emerald)' : 'var(--text-muted)',
+                opacity: i === inferenceStep ? 1 : 0.55,
+                transition: 'color 0.3s, opacity 0.3s',
+              }}>
+                <span style={{ color: i === inferenceStep ? 'var(--accent-emerald)' : 'var(--accent-ocean)', flexShrink: 0 }}>
+                  {i === inferenceStep ? '▶' : '✓'}
+                </span>
+                <span>{step.text}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              {[0,1,2].map(d => (
+                <span key={d} style={{
+                  display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                  background: 'var(--accent-ocean)',
+                  animation: `pulse 1.2s ease-in-out ${d * 0.2}s infinite`,
+                }} />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
