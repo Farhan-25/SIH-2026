@@ -96,3 +96,49 @@ class FreightFeatureEngineer:
             "month_sin", "month_cos", "quarter_sin", "quarter_cos",
             "distance_nm", "sailing_days_one_way"
         ]
+
+    def validate_origin_coverage(self, df: "pd.DataFrame") -> dict[str, bool]:
+        """
+        Checks that all five PS-named origin regions are present in the DataFrame.
+
+        SIH26006 PS lists five origins: Australia, USA, Mozambique, Russia, Indonesia.
+        This method inspects the ``route_id`` column for the corresponding prefixes
+        (AU_, US_, MZ_, RU_, ID_) and logs a WARNING for any that are absent.
+        Inference will still proceed — this is a data-quality guard, not a hard stop.
+
+        Returns:
+            Dict mapping origin prefix → bool (True = rows present, False = absent).
+        """
+        import logging as _log
+        _logger = _log.getLogger(__name__)
+
+        # PS-named origins mapped to their route_id prefix
+        ps_origins = {
+            "AU_": "Australia",
+            "US_": "USA",
+            "MZ_": "Mozambique",
+            "RU_": "Russia",
+            "ID_": "Indonesia",
+        }
+
+        coverage: dict[str, bool] = {}
+        if "route_id" not in df.columns:
+            _logger.warning(
+                "validate_origin_coverage: 'route_id' column not found in DataFrame. "
+                "Cannot verify PS-origin coverage."
+            )
+            return {prefix: False for prefix in ps_origins}
+
+        route_ids = df["route_id"].dropna().unique()
+        for prefix, name in ps_origins.items():
+            present = any(str(rid).startswith(prefix) for rid in route_ids)
+            coverage[prefix] = present
+            if not present:
+                _logger.warning(
+                    "validate_origin_coverage: No training rows found for %s-origin routes "
+                    "(%s). All five PS-named origins (Australia, USA, Mozambique, Russia, "
+                    "Indonesia) should be present. Re-run train_models.py with a complete "
+                    "unified_freight_timeseries.csv to avoid silent forecast gaps.",
+                    prefix, name,
+                )
+        return coverage

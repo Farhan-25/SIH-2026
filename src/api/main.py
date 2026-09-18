@@ -6,12 +6,13 @@ Serves React frontend in production mode.
 
 import logging
 import os
+import threading
 import time
 
 from dotenv import load_dotenv
 
 load_dotenv()
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import pandas as pd
@@ -22,6 +23,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+from contextlib import asynccontextmanager
 
 from src.api.copilot_engine import MaritimeCopilotEngine
 from src.data.aisstream_client import AISPortCongestionTracker
@@ -39,10 +42,76 @@ from src.optimization.vessel_optimizer import VesselConstraintOptimizer
 from src.risk.geopolitical_risk import GeopoliticalRiskEngine
 from src.risk.risk_engine import RiskAndDisruptionEngine
 
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    # Clear ballooned AIS history, then stream only ROI port regions
+    try:
+        kept = ais_tracker.db.prune_live_vessels(max_keep=1200)
+        logger.info("Pruned vessels_live_tracking → %s rows", kept)
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
+        logger.warning("Could not prune live vessels on startup: %s", e)
+    # Drop stale congestion cache (old logic invented ship counts)
+    try:
+        conn = db_manager.get_connection()
+        conn.execute("DELETE FROM port_congestion_cache")
+        conn.commit()
+        conn.close()
+        logger.info("Cleared port_congestion_cache for live-AIS recount")
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
+        logger.warning("Could not clear congestion cache: %s", e)
+
+    # Sync active_fleet asynchronously in background so server listens immediately
+    async def _bg_sync_fleet():
+        try:
+            sync_result = await asyncio.to_thread(sync_fleet_from_apis, db_manager)
+            logger.info("Fleet sync: %s real vessels upserted from AIS APIs", sync_result.get("upserted", 0))
+        except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
+            logger.warning("Fleet sync failed (using existing fleet data): %s", e)
+
+    asyncio.create_task(_bg_sync_fleet())
+
+    logger.info("Starting multi-source AIS tracker (AISStream + Open Waters)...")
+    asyncio.create_task(ais_tracker.start_background_vessel_tracker())
+
+    # Pre-warm essential caches in background for instant UI response
+    async def _prewarm_caches():
+        try:
+            await asyncio.to_thread(get_cached_timeseries_df)
+            _build_route_norm_map()
+            await asyncio.to_thread(get_cached_fred_data)
+            await asyncio.to_thread(commodity_tracker.get_detailed_commodity_snapshot)
+            df_ts = get_cached_timeseries_df()
+            if df_ts is not None and model_service.is_ready:
+                for r_id, v_cls in [("AU_NEW_TO_IN_PRT", "Panamax"), ("AU_HAY_TO_IN_VTZ", "Capesize"), ("ID_KLT_TO_IN_DHM", "Supramax")]:
+                    try:
+                        await asyncio.to_thread(model_service.predict_route_forecast, df_ts, r_id, v_cls, 12)
+                    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
+                        pass
+            logger.info("Startup cache pre-warming completed.")
+        except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
+            logger.info("Cache pre-warming notice: %s", e)
+
+    asyncio.create_task(_prewarm_caches())
+
+    # Start periodic background fleet, bunker & weather worker
+    if os.environ.get("ENABLE_BACKGROUND_WORKER", "true").lower() in ("true", "1", "yes"):
+        worker = get_background_worker()
+        worker.model_service = model_service  # enable weekly retrain hot-reload
+        worker.start()
+        logger.info("Background Fleet & Market Worker started.")
+
+
+    yield
+    worker = get_background_worker()
+    await worker.stop()
+
+
 app = FastAPI(
     title="SIH26006 Intelligent Freight Forecasting API",
     description="Backend services for bulk cargo vessel chartering optimization to East Coast of India.",
-    version="3.0.0"
+    version="3.0.0",
+    lifespan=app_lifespan
 )
 
 app.add_middleware(
@@ -77,71 +146,6 @@ commodity_tracker = CommodityPriceTracker()
 
 import asyncio
 
-
-@app.on_event("startup")
-async def startup_event():
-    # Clear ballooned AIS history, then stream only ROI port regions
-    try:
-        kept = ais_tracker.db.prune_live_vessels(max_keep=1200)
-        logger.info("Pruned vessels_live_tracking → %s rows", kept)
-    except Exception as e:
-        logger.warning("Could not prune live vessels on startup: %s", e)
-    # Drop stale congestion cache (old logic invented ship counts)
-    try:
-        conn = db_manager.get_connection()
-        conn.execute("DELETE FROM port_congestion_cache")
-        conn.commit()
-        conn.close()
-        logger.info("Cleared port_congestion_cache for live-AIS recount")
-    except Exception as e:
-        logger.warning("Could not clear congestion cache: %s", e)
-
-    # Sync active_fleet asynchronously in background so server listens immediately
-    async def _bg_sync_fleet():
-        try:
-            sync_result = await asyncio.to_thread(sync_fleet_from_apis, db_manager)
-            logger.info("Fleet sync: %s real vessels upserted from AIS APIs", sync_result.get("upserted", 0))
-        except Exception as e:
-            logger.warning("Fleet sync failed (using existing fleet data): %s", e)
-
-    asyncio.create_task(_bg_sync_fleet())
-
-    logger.info("Starting multi-source AIS tracker (AISStream + Open Waters)...")
-    asyncio.create_task(ais_tracker.start_background_vessel_tracker())
-
-    # Pre-warm essential caches in background for instant UI response
-    async def _prewarm_caches():
-        try:
-            await asyncio.to_thread(get_cached_timeseries_df)
-            _build_route_norm_map()
-            await asyncio.to_thread(get_cached_fred_data)
-            await asyncio.to_thread(commodity_tracker.get_detailed_commodity_snapshot)
-            df_ts = get_cached_timeseries_df()
-            if df_ts is not None and model_service.is_ready:
-                for r_id, v_cls in [("AU_NEW_TO_IN_PRT", "Panamax"), ("AU_HAY_TO_IN_VTZ", "Capesize"), ("ID_KLT_TO_IN_DHM", "Supramax")]:
-                    try:
-                        await asyncio.to_thread(model_service.predict_route_forecast, df_ts, r_id, v_cls, 12)
-                    except Exception:
-                        pass
-            logger.info("Startup cache pre-warming completed.")
-        except Exception as e:
-            logger.info("Cache pre-warming notice: %s", e)
-
-    asyncio.create_task(_prewarm_caches())
-
-    # Start periodic background fleet, bunker & weather worker
-    if os.environ.get("ENABLE_BACKGROUND_WORKER", "true").lower() in ("true", "1", "yes"):
-        worker = get_background_worker()
-        worker.model_service = model_service  # enable weekly retrain hot-reload
-        worker.start()
-        logger.info("Background Fleet & Market Worker started.")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    worker = get_background_worker()
-    await worker.stop()
-
 # ── Inference Service: loads pre-trained model registry from models/ ──
 # All /forecast endpoint calls go through this service — zero API dependency.
 model_service = FreightModelService()
@@ -163,7 +167,7 @@ if model_service.xgb_model is not None:
 elif os.path.exists("models/freight_xgb_model.joblib"):
     try:
         ml_forecaster.load_model("models/freight_xgb_model.joblib")
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         logger.warning("Legacy ml_forecaster load error: %s", e)
 
 if model_service.deep_model is not None:
@@ -173,7 +177,7 @@ else:
     if os.path.exists("models/freight_deep_lstm.pt"):
         try:
             deep_forecaster.load_checkpoint("models/freight_deep_lstm.pt")
-        except Exception as e:
+        except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
             logger.warning("Legacy deep_forecaster load error: %s", e)
 
 from pathlib import Path
@@ -181,6 +185,8 @@ from pathlib import Path
 _BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # ── In-Memory Dataset Caches ──
+_CACHE_LOCK = threading.Lock()
+
 _TS_CACHE: pd.DataFrame | None = None
 _TS_CACHE_TS: float = 0
 _TS_CACHE_TTL = 600  # 10 minutes
@@ -199,11 +205,15 @@ def get_cached_timeseries_df() -> pd.DataFrame | None:
     ]
     if _TS_CACHE is not None and (now - _TS_CACHE_TS) < _TS_CACHE_TTL:
         return _TS_CACHE
-    for p in candidates:
-        if os.path.exists(p):
-            _TS_CACHE = pd.read_csv(p)
-            _TS_CACHE_TS = now
+        
+    with _CACHE_LOCK:
+        if _TS_CACHE is not None and (now - _TS_CACHE_TS) < _TS_CACHE_TTL:
             return _TS_CACHE
+        for p in candidates:
+            if os.path.exists(p):
+                _TS_CACHE = pd.read_csv(p)
+                _TS_CACHE_TS = now
+                return _TS_CACHE
     return None
 
 
@@ -217,11 +227,15 @@ def get_cached_ogd_df() -> pd.DataFrame | None:
     ]
     if _OGD_CACHE is not None and (now - _OGD_CACHE_TS) < _TS_CACHE_TTL:
         return _OGD_CACHE
-    for p in candidates:
-        if os.path.exists(p):
-            _OGD_CACHE = pd.read_csv(p)
-            _OGD_CACHE_TS = now
+
+    with _CACHE_LOCK:
+        if _OGD_CACHE is not None and (now - _OGD_CACHE_TS) < _TS_CACHE_TTL:
             return _OGD_CACHE
+        for p in candidates:
+            if os.path.exists(p):
+                _OGD_CACHE = pd.read_csv(p)
+                _OGD_CACHE_TS = now
+                return _OGD_CACHE
     return None
 
 
@@ -235,33 +249,37 @@ def _build_route_norm_map() -> dict[str, str]:
     if _ROUTE_NORM_MAP is not None:
         return _ROUTE_NORM_MAP
 
-    norm = {}
-    routes_data = db_manager.load_routes_master()
-    routes_list = routes_data.get("trade_routes", []) if isinstance(routes_data, dict) else routes_data
-    for r in routes_list:
-        rid = r.get("route_id", "")
-        norm[rid.lower()] = rid
-        norm[rid.upper()] = rid
-        orig = r.get("origin_port", "").lower().split("_")[-1]
-        dest = r.get("destination_port", "").lower().split("_")[-1]
-        orig_country = r.get("origin_port", "").lower().split("_")[0]
-        for alias in [f"{orig}_{dest}", f"{orig_country}_{dest[:3]}", f"{orig_country}_{dest}"]:
-            norm[alias] = rid
+    with _CACHE_LOCK:
+        if _ROUTE_NORM_MAP is not None:
+            return _ROUTE_NORM_MAP
 
-    # Known shorthand aliases
-    shorthands = {
-        "au_par": "AU_NEW_TO_IN_PRT",
-        "au_viz": "AU_HAY_TO_IN_VTZ",
-        "id_gan": "ID_KLT_TO_IN_DHM",
-        "id_dhm": "ID_KLT_TO_IN_DHM",
-        "us_viz": "US_BAL_TO_IN_GNV",
-        "mz_hal": "MZ_BEI_TO_IN_GPL",
-        "ru_par": "RU_VOS_TO_IN_PRT",
-        "us_nor": "US_NOR_TO_IN_PRT",
-    }
-    norm.update(shorthands)
-    _ROUTE_NORM_MAP = norm
-    return _ROUTE_NORM_MAP
+        norm = {}
+        routes_data = db_manager.load_routes_master()
+        routes_list = routes_data.get("trade_routes", []) if isinstance(routes_data, dict) else routes_data
+        for r in routes_list:
+            rid = r.get("route_id", "")
+            norm[rid.lower()] = rid
+            norm[rid.upper()] = rid
+            orig = r.get("origin_port", "").lower().split("_")[-1]
+            dest = r.get("destination_port", "").lower().split("_")[-1]
+            orig_country = r.get("origin_port", "").lower().split("_")[0]
+            for alias in [f"{orig}_{dest}", f"{orig_country}_{dest[:3]}", f"{orig_country}_{dest}"]:
+                norm[alias] = rid
+    
+        # Known shorthand aliases
+        shorthands = {
+            "au_par": "AU_NEW_TO_IN_PRT",
+            "au_viz": "AU_HAY_TO_IN_VTZ",
+            "id_gan": "ID_KLT_TO_IN_DHM",
+            "id_dhm": "ID_KLT_TO_IN_DHM",
+            "us_viz": "US_BAL_TO_IN_GNV",
+            "mz_hal": "MZ_BEI_TO_IN_GPL",
+            "ru_par": "RU_VOS_TO_IN_PRT",
+            "us_nor": "US_NOR_TO_IN_PRT",
+        }
+        norm.update(shorthands)
+        _ROUTE_NORM_MAP = norm
+        return _ROUTE_NORM_MAP
 
 # --- Request Schemas ---
 class ForecastRequest(BaseModel):
@@ -323,8 +341,9 @@ def health_check():
 def reload_models():
     """Reloads model artifacts from models/ directory and clears dataset caches."""
     global _TS_CACHE, _TS_CACHE_TS
-    _TS_CACHE = None
-    _TS_CACHE_TS = 0
+    with _CACHE_LOCK:
+        _TS_CACHE = None
+        _TS_CACHE_TS = 0
     model_service.reload()
     return {
         "status": "success",
@@ -350,7 +369,7 @@ def _run_retrain_task():
     global _TRAINING_STATE, _TS_CACHE, _TS_CACHE_TS
     with _TRAINING_LOCK:
         _TRAINING_STATE["status"] = "running"
-        _TRAINING_STATE["started_at"] = datetime.now().isoformat()
+        _TRAINING_STATE["started_at"] = datetime.now(timezone.utc).isoformat()
         _TRAINING_STATE["ended_at"] = None
         _TRAINING_STATE["logs"] = ["Initiating model retraining pipeline (train_models.py)..."]
         _TRAINING_STATE["error"] = None
@@ -386,21 +405,22 @@ def _run_retrain_task():
             if return_code == 0:
                 _TRAINING_STATE["status"] = "completed"
                 _TRAINING_STATE["logs"].append("Model training completed successfully! Reloading registry...")
-                _TS_CACHE = None
-                _TS_CACHE_TS = 0
+                with _CACHE_LOCK:
+                    _TS_CACHE = None
+                    _TS_CACHE_TS = 0
                 model_service.reload()
                 _TRAINING_STATE["logs"].append("Model registry reloaded and active for inference.")
             else:
                 _TRAINING_STATE["status"] = "failed"
                 _TRAINING_STATE["error"] = f"train_models.py exited with code {return_code}"
                 _TRAINING_STATE["logs"].append(f"Retraining failed with exit code {return_code}.")
-            _TRAINING_STATE["ended_at"] = datetime.now().isoformat()
-    except Exception as e:
+            _TRAINING_STATE["ended_at"] = datetime.now(timezone.utc).isoformat()
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         with _TRAINING_LOCK:
             _TRAINING_STATE["status"] = "failed"
             _TRAINING_STATE["error"] = str(e)
             _TRAINING_STATE["logs"].append(f"Retraining exception: {e}")
-            _TRAINING_STATE["ended_at"] = datetime.now().isoformat()
+            _TRAINING_STATE["ended_at"] = datetime.now(timezone.utc).isoformat()
 
 
 @app.post("/api/v1/models/train")
@@ -564,18 +584,19 @@ def get_freight_forecast(req: ForecastRequest):
             vessel_class=req.vessel_class,
             horizon_weeks=req.horizon_weeks,
         )
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=f"Inference error: {e!s}")
 
-    # Attach market timing insight
+    # Attach market timing insight (route_id enables real alternate-route idle guidance)
     try:
         timing_insight = timing_engine.evaluate_strategy(
             current_spot_rate=result["latest_actual_rate_usd_per_mt"],
             forecast_rates=result["predictions_usd_per_mt"],
-            target_volume_mt=75000.0
+            target_volume_mt=75000.0,
+            route_id=normalized_route_id,
         )
         result["market_timing"] = timing_insight
-    except Exception:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
         result["market_timing"] = None
 
     response_payload = dict(result)
@@ -593,7 +614,7 @@ def recommend_vessel(req: VesselRecommendationRequest):
             dest_port_id=req.dest_port_id,
             live_fleet=live_fleet
         )
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -607,7 +628,7 @@ def assess_risk(req: RiskAssessRequest):
             dest_lat=req.dest_lat,
             dest_lon=req.dest_lon,
         )
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -629,12 +650,16 @@ def evaluate_market_timing(req: MarketTimingRequest):
             base = req.current_spot_rate
             forecast_rates = [round(base * (1.0 + 0.008 * (i + 1)), 2) for i in range(12)]
 
+        route_id = getattr(req, "route_id", "") or ""
+        history = getattr(req, "recommendation_history", None) or []
         return timing_engine.evaluate_strategy(
             current_spot_rate=req.current_spot_rate,
             forecast_rates=forecast_rates,
             target_volume_mt=req.target_volume_mt,
+            route_id=route_id,
+            recommendation_history=history,
         )
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -672,7 +697,7 @@ def run_full_scenario_analysis(req: ScenarioPlanRequest):
             dest_port_id=req.dest_port_id,
             live_fleet=live_fleet
         )
-    except Exception:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
         vessel_eval = {
             "recommended_vessel_name": "N/A (optimization unavailable)",
             "recommended_vessel_class": "Panamax",
@@ -787,7 +812,7 @@ def get_cached_fred_data() -> dict[str, Any]:
                         "change_pct": pct_change,
                         "date": latest["date"].strftime("%Y-%m-%d") if hasattr(latest["date"], "strftime") else str(latest["date"]),
                     }
-            except Exception:
+            except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
                 pass
             return label, None
 
@@ -798,14 +823,15 @@ def get_cached_fred_data() -> dict[str, Any]:
                     label, data = future.result()
                     if data:
                         fred_data[label] = data
-            except Exception:
+            except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
                 pass
 
         if fred_data:
-            _FRED_CACHE = {"timestamp": now_ts, "data": fred_data}
+            with _CACHE_LOCK:
+                _FRED_CACHE = {"timestamp": now_ts, "data": fred_data}
         elif _FRED_CACHE:
             return _FRED_CACHE.get("data", {})
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         print(f"FRED fetch notice: {e}")
         if _FRED_CACHE:
             return _FRED_CACHE.get("data", {})
@@ -824,7 +850,7 @@ def get_dashboard_data():
         "recent_forecasts": [],
         "system_status": {},
         "market_news_sources": [],
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     # --- 1. Live FRED Data ---
@@ -867,7 +893,7 @@ def get_dashboard_data():
                         "rate": f"${row['freight_rate_usd_per_mt']:.2f}/MT",
                         "congestion": round(float(row.get("congestion_index", 0)), 1),
                     })
-    except Exception:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
         pass
 
     # --- 3. OGD Port Turnaround ---
@@ -887,7 +913,7 @@ def get_dashboard_data():
                 if prev_vals:
                     diff = round(avg_port_wait - sum(prev_vals) / len(prev_vals), 1)
                     port_wait_trend = f"{'+' if diff > 0 else ''}{diff}d"
-    except Exception:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
         pass
 
     # --- 4. KPIs — prefer live market feed for real-time tickers ---
@@ -907,7 +933,7 @@ def get_dashboard_data():
         if _inr and _inr.get("price"):
             live_inr_price = round(float(_inr["price"]), 2)
             live_inr_chg = _inr.get("change_pct", 0) or 0
-    except Exception:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
         pass  # fall back to FRED below
 
     # Resolve final values: live feed preferred, FRED as fallback
@@ -981,7 +1007,7 @@ def get_dashboard_data():
                 "time": "Live Weather",
                 "category": "Weather"
             })
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         logger.info(f"Weather alert notice: {e}")
     if avg_freight_rate and rate_trend_pct < -3:
         result["alerts"].append({
@@ -1076,7 +1102,7 @@ def get_map_intelligence():
         "market_indicators": {},
         "route_risks": [],
         "api_status": {},
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
     # ── Load port & route master data from JSON (reference files, not hardcoded) ──
@@ -1092,7 +1118,7 @@ def get_map_intelligence():
         vessels = gfw_client.get_live_cargo_vessels(limit=700)
         result["vessels"] = vessels
         gfw_status = "connected"
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         print(f"Map Intel — GFW error: {e}")
         gfw_status = f"error: {str(e)[:60]}"
 
@@ -1129,7 +1155,7 @@ def get_map_intelligence():
         # keep websocket-derived ais_status above; only override on hard failure
         if ais_tracker.connected:
             ais_status = "connected"
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         print(f"Map Intel — AIS/port congestion error: {e}")
         ais_status = f"error: {str(e)[:60]}"
 
@@ -1169,7 +1195,7 @@ def get_map_intelligence():
                     "weather_alert": sea_state.get("weather_alert", "Unknown"),
                     "status": sea_state.get("status", "fallback"),
                 }
-            except Exception:
+            except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
                 return {
                     "port_id": port_id, "port_name": port_name,
                     "lat": lat, "lon": lon,
@@ -1191,7 +1217,7 @@ def get_map_intelligence():
                     result["marine_weather"].append(wx)
 
         weather_status = "connected"
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         print(f"Map Intel — Weather error: {e}")
         weather_status = f"error: {str(e)[:60]}"
 
@@ -1201,7 +1227,7 @@ def get_map_intelligence():
         fred_data = get_cached_fred_data()
         result["market_indicators"] = fred_data
         fred_status = "connected" if fred_data else "no_data"
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         print(f"Map Intel — FRED error: {e}")
         fred_status = f"error: {str(e)[:60]}"
 
@@ -1235,7 +1261,7 @@ def get_map_intelligence():
                     "alerts": risk_result.get("active_alerts", []),
                     "waypoints": route.get("waypoints", []),
                 })
-            except Exception as e:
+            except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
                 print(f"Map Intel — Route risk error for {route.get('route_id', '?')}: {e}")
                 result["route_risks"].append({
                     "route_id": route.get("route_id", ""),
@@ -1250,7 +1276,7 @@ def get_map_intelligence():
                     "alerts": [],
                     "waypoints": route.get("waypoints", []),
                 })
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         print(f"Map Intel — Route risk iteration error: {e}")
 
     # ── 6. API Status Summary ──
@@ -1263,7 +1289,8 @@ def get_map_intelligence():
 
     # Cache the result
     result["_ts"] = now_ts
-    _MAP_INTEL_CACHE = result
+    with _CACHE_LOCK:
+        _MAP_INTEL_CACHE = result
 
     return result
 
@@ -1276,7 +1303,7 @@ def get_live_commodities():
     """
     try:
         return commodity_tracker.get_detailed_commodity_snapshot()
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1288,9 +1315,9 @@ def get_maritime_news(limit: int = 50):
         return {
             "articles": articles[:limit],
             "total_articles": len(articles),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1299,7 +1326,7 @@ def get_market_sentiment():
     """Returns aggregated maritime market sentiment, historical trend, and distribution."""
     try:
         return geopolitical_engine.get_market_sentiment_summary()
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1308,7 +1335,7 @@ def get_chokepoint_risks():
     """Returns computed Disruption Risk Index across all major maritime chokepoints."""
     try:
         return geopolitical_engine.get_all_chokepoint_risks()
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1320,9 +1347,9 @@ def get_geopolitical_alerts():
         return {
             "alerts": alerts,
             "total_active_alerts": len(alerts),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1331,7 +1358,7 @@ def get_nlp_forecast_features():
     """Returns structured NLP signals and shock features for ML freight forecasting."""
     try:
         return geopolitical_engine.get_forecasting_nlp_features()
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1341,7 +1368,7 @@ def get_copilot_overview():
     """Returns an executive AI Copilot overview briefing of the current terminal and market state."""
     try:
         return copilot_engine.generate_overview_briefing()
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1350,7 +1377,7 @@ def ask_copilot(req: CopilotChatRequest):
     """Processes conversational questions on freight forecast drivers, SHAP values, and geopolitical risks."""
     try:
         return copilot_engine.answer_query(query=req.message, context=req.context)
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1429,7 +1456,7 @@ def admin_sync_fleet():
             "message": f"Synced {result['upserted']} real vessels from AIS APIs",
             "details": result,
         }
-    except Exception as e:
+    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
         raise HTTPException(status_code=500, detail=f"Fleet sync failed: {e}")
 
 
@@ -1491,7 +1518,7 @@ def get_retrain_status():
     Returns the current state of the automated model retraining pipeline:
     idle | running | success | failed, plus last metrics snapshot and schedule info.
     """
-    from src.models.retraining_pipeline import get_retrain_state, RETRAIN_LOG_PATH
+    from src.models.retraining_pipeline import RETRAIN_LOG_PATH, get_retrain_state
     state = get_retrain_state()
     worker = get_background_worker()
     worker_status = worker.get_status()
@@ -1513,13 +1540,16 @@ def get_retrain_history_endpoint():
 
 
 @app.post("/api/v1/admin/retrain/trigger", tags=["Admin"])
-async def trigger_model_retrain():
+async def admin_trigger_model_retrain():
     """
     Manually triggers an immediate out-of-schedule model retraining cycle.
     Runs asynchronously in a background thread — poll /admin/retrain/status for progress.
     Returns 409 if a retraining run is already in progress.
     """
-    from src.models.retraining_pipeline import get_retrain_state, run_retraining_pipeline
+    from src.models.retraining_pipeline import (
+        get_retrain_state,
+        run_retraining_pipeline,
+    )
     state = get_retrain_state()
     if state["status"] == "running":
         raise HTTPException(
@@ -1534,7 +1564,7 @@ async def trigger_model_retrain():
     return {
         "status": "triggered",
         "message": "Retraining pipeline started in background. Poll /api/v1/admin/retrain/status for progress.",
-        "triggered_at": datetime.now().isoformat(),
+        "triggered_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -1563,7 +1593,7 @@ def get_live_vessels():
     Uses the Global Fishing Watch (GFW) API Client.
     """
     vessels = gfw_client.get_live_cargo_vessels()
-    return {"vessels": vessels, "timestamp": datetime.now().isoformat()}
+    return {"vessels": vessels, "timestamp": datetime.now(timezone.utc).isoformat()}
 
 # --- Serve React Frontend (production mode) ---
 frontend_build = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")

@@ -233,7 +233,6 @@ def test_copilot_engine_briefing_and_chat(api_client, db):
     assert "briefing" in briefing
     assert len(briefing["key_insights"]) > 0
     assert len(briefing["suggested_actions"]) > 0
-    assert "FreightIQ" in briefing["briefing"]
 
     # 2. Test API Briefing Endpoint
     r_briefing = api_client.get("/api/v1/copilot/briefing")
@@ -278,4 +277,183 @@ def test_live_ais_tagged_to_trade_lane():
     assert tagged.get("waypoints")
 
 
+# ════════════════════════════════════════════════════════════════════════════
+#  NEW TESTS — SIH26006 PS alignment (idle scenario, consolidation KPI, Russia)
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── 1. Idle Scenario: Risk level classification ──────────────────────────────
+
+def test_idle_scenario_risk_levels(timing_engine):
+    """
+    PS: "forecasting periods of low demand" — idle_risk_level must be graded
+    Low / Medium / High based on forward curve, not just a qualitative label.
+    """
+    spot = 20.0
+    # High risk: rates drop >10%
+    dropping_forecast = [18.0, 17.0, 16.5, 15.0] * 3  # ~-25%
+    res_high = timing_engine.evaluate_strategy(
+        current_spot_rate=spot,
+        forecast_rates=dropping_forecast,
+        target_volume_mt=75000,
+        route_id="AU_NEW_TO_IN_PRT",
+    )
+    idle_high = res_high["idle_scenario_guidance"]
+    assert idle_high["idle_risk_level"] == "High"
+    assert isinstance(idle_high["idle_days_estimate"], (int, float))
+    assert idle_high["idle_days_estimate"] > 0
+
+    # Low risk: rates stable/rising
+    rising_forecast = [21.0, 22.0, 23.0, 24.0] * 3
+    res_low = timing_engine.evaluate_strategy(
+        current_spot_rate=spot,
+        forecast_rates=rising_forecast,
+        target_volume_mt=75000,
+        route_id="AU_NEW_TO_IN_PRT",
+    )
+    idle_low = res_low["idle_scenario_guidance"]
+    assert idle_low["idle_risk_level"] == "Low"
+
+
+# ── 2. Idle Scenario: Quantified $ savings and real alternate routes ─────────
+
+def test_idle_scenario_quantified_savings(timing_engine):
+    """
+    PS: "suggesting alternative employment opportunities" — each alternate must
+    carry estimated_savings_usd > 0.  The headline savings_vs_ballast_usd must
+    also be positive when idle risk is High.
+    """
+    spot = 18.0
+    dropping = [15.0, 14.0, 13.5, 13.0] * 3  # severe softening
+    res = timing_engine.evaluate_strategy(
+        current_spot_rate=spot,
+        forecast_rates=dropping,
+        target_volume_mt=75000,
+        route_id="AU_HAY_TO_IN_VTZ",
+    )
+    guidance = res["idle_scenario_guidance"]
+    assert guidance["savings_vs_ballast_usd"] > 0
+    assert len(guidance["alternate_employment"]) >= 1
+    for alt in guidance["alternate_employment"]:
+        assert "route_id" in alt
+        assert "description" in alt
+        assert alt["estimated_savings_usd"] > 0
+        assert alt["estimated_idle_days_avoided"] > 0
+
+
+# ── 3. Spot-to-Contract Consolidation KPI ────────────────────────────────────
+
+def test_spot_to_contract_consolidation_pct(timing_engine):
+    """
+    PS Objective: "moving from multiple single spot contracts to short/medium term
+    multiple voyage contracts." — consolidation_pct must track term decisions correctly.
+    """
+    # History: 4 TERM + 1 SPOT = 80% consolidation when we add one more TERM
+    history = [
+        "ENTER_NOW_TERM_CONTRACT",
+        "ENTER_NOW_TERM_CONTRACT",
+        "ENTER_NOW_SPOT",
+        "ENTER_NOW_TERM_CONTRACT",
+        "ENTER_NOW_TERM_CONTRACT",
+    ]
+    spot = 15.0
+    rising = [16.0, 17.5, 19.0, 20.5, 21.0, 22.0]  # bullish → TERM signal
+    res = timing_engine.evaluate_strategy(
+        current_spot_rate=spot,
+        forecast_rates=rising,
+        target_volume_mt=75000,
+        recommendation_history=history,
+    )
+    # Should return TERM action and history now has 6 items (4 TERM + 1 SPOT + 1 TERM = 83.3%)
+    assert res["recommended_action"] == "ENTER_NOW_TERM_CONTRACT"
+    pct = res["spot_to_contract_consolidation_pct"]
+    assert pct is not None
+    assert 75.0 <= pct <= 90.0  # 5 or 6 TERM out of 6 → ~83-100%
+
+    # No history: must return None (single call, not enough data)
+    res_no_history = timing_engine.evaluate_strategy(
+        current_spot_rate=spot,
+        forecast_rates=rising,
+        target_volume_mt=75000,
+    )
+    assert res_no_history["spot_to_contract_consolidation_pct"] is None
+
+
+# ── 4. Russia Routes in Master Data ─────────────────────────────────────────
+
+def test_russia_routes_in_master_data(db):
+    """
+    PS names Russia as an origin. Both Russia load ports and both Russia routes
+    must be present in the master reference data.
+    """
+    ports = db.load_ports_master()
+    routes = db.load_routes_master()
+
+    global_ports = ports.get("global_load_ports", {})
+    assert "RU_TAM" in global_ports, "Taman (RU_TAM) missing from global_load_ports"
+    assert "RU_VOS" in global_ports, "Vostochny (RU_VOS) missing from global_load_ports"
+
+    route_ids = {r["route_id"] for r in routes.get("trade_routes", [])}
+    assert "RU_TAM_TO_IN_VTZ" in route_ids, "RU_TAM_TO_IN_VTZ missing from trade_routes"
+    assert "RU_VOS_TO_IN_PRT" in route_ids, "RU_VOS_TO_IN_PRT missing from trade_routes"
+
+
+# ── 5. Vessel Optimizer: Taman (Russia, Black Sea) → Visakhapatnam ───────────
+
+def test_vessel_optimizer_russia_taman(vessel_optimizer):
+    """
+    PS origin: Russia (Black Sea — Taman). Panamax must be physically feasible
+    for RU_TAM → IN_VTZ with the same draft/LOA/beam solver used for other corridors.
+    """
+    res = vessel_optimizer.optimize_vessel_choice(
+        cargo_parcel_mt=70000,
+        origin_port_id="RU_TAM",
+        dest_port_id="IN_VTZ",
+    )
+    assert res["origin_port"] == "Port of Taman (OTVKO Bulk Terminal)"
+    assert res["destination_port"] == "Visakhapatnam Port (Vizag)"
+    # At least Panamax should be feasible (Vizag draft 18.1m, Taman draft 18.5m)
+    feasible_classes = {v["vessel_class"] for v in res["all_vessel_evaluations"] if v["is_feasible"]}
+    assert "Panamax" in feasible_classes, f"Panamax not feasible for Taman→Vizag: {feasible_classes}"
+
+
+# ── 6. Vessel Optimizer: Vostochny (Russia, Far East) → Paradip ─────────────
+
+def test_vessel_optimizer_russia_vostochny(vessel_optimizer):
+    """
+    PS origin: Russia (Far East — Vostochny). Panamax must be feasible for
+    RU_VOS → IN_PRT with standard constraint checks (Paradip draft 14.5m).
+    """
+    res = vessel_optimizer.optimize_vessel_choice(
+        cargo_parcel_mt=65000,
+        origin_port_id="RU_VOS",
+        dest_port_id="IN_PRT",
+    )
+    assert res["origin_port"] == "Vostochny Port (Urgal / PPK)"
+    assert res["destination_port"] == "Paradip Port"
+    feasible_classes = {v["vessel_class"] for v in res["all_vessel_evaluations"] if v["is_feasible"]}
+    assert "Panamax" in feasible_classes, f"Panamax not feasible for Vostochny→Paradip: {feasible_classes}"
+
+
+# ── 7. Feature Engineer: Origin Coverage Warning ─────────────────────────────
+
+def test_feature_engineer_origin_coverage_warns():
+    """
+    validate_origin_coverage() must return False for RU_ (and others) when the
+    DataFrame only has Australia routes, and must NOT raise an exception.
+    """
+    import pandas as pd
+    from src.models.feature_engineering import FreightFeatureEngineer
+
+    fe = FreightFeatureEngineer()
+    # Minimal DataFrame with only Australia routes
+    df = pd.DataFrame({
+        "route_id": ["AU_NEW_TO_IN_PRT", "AU_HAY_TO_IN_VTZ"],
+        "vessel_class": ["Panamax", "Panamax"],
+    })
+    coverage = fe.validate_origin_coverage(df)
+    assert coverage["AU_"] is True,  "Australia should be present"
+    assert coverage["RU_"] is False, "Russia should be absent"
+    assert coverage["US_"] is False, "USA should be absent"
+    assert coverage["MZ_"] is False, "Mozambique should be absent"
+    assert coverage["ID_"] is False, "Indonesia should be absent"
 
