@@ -310,7 +310,60 @@ Decision logic:
 - If rates are expected to fall soon, recommend `WAIT_N_WEEKS`.
 - Otherwise, recommend `ENTER_NOW_SPOT`.
 
-It also estimates potential savings and provides idle vessel repositioning guidance.
+#### PS Objective: Spot → Multi-Voyage Contract Migration
+
+**Problem Statement language:** *"Development of model to facilitate moving from multiple single
+spot contracts being entered into currently to short term / medium term multiple voyage contracts."*
+
+`MarketTimingEngine.evaluate_strategy()` returns a `spot_to_contract_consolidation_pct` field that
+directly measures this migration. Formula:
+
+```
+consolidation_pct = (TERM_CONTRACT decisions / total decisions) × 100
+```
+
+The calculation uses a session-rolling history of `recommended_action` strings (up to 20 entries).
+This KPI is surfaced on the **Strategy & Timing** page as a **"Spot → Multi-Voyage Contract
+Migration"** tile so procurement managers can see, in real time, whether their decision cadence is
+shifting toward term/COA structures as intended by the problem statement.
+
+#### PS Requirement: Idle Time Minimisation
+
+**Problem Statement language:** *"Propose strategies for minimising vessel idle time by forecasting
+periods of low demand and suggesting alternative employment opportunities or optimised positioning
+to reduce deadheading."*
+
+`_get_idle_scenario_repositioning()` derives its suggestions from the actual 12-route master
+(`data/reference/routes_master.json`) rather than generic text, and returns:
+
+| Field | Description |
+|-------|-------------|
+| `idle_risk_level` | `"Low"` / `"Medium"` / `"High"` — graded from forward curve |
+| `idle_days_estimate` | Numeric estimated idle/ballast days for the route |
+| `savings_vs_ballast_usd` | Headline $ saved vs straight ballast return |
+| `alternate_employment` | List of real alternate routes with per-option savings |
+
+Example output for an Australia-origin route when rates drop >10%:
+
+```json
+{
+  "idle_risk_level": "High",
+  "idle_days_estimate": 18.5,
+  "savings_vs_ballast_usd": 222000,
+  "alternate_employment": [
+    {
+      "route_id": "AU_GLA_TO_IN_GNV",
+      "description": "Gladstone (Australia) → Gangavaram (India): Coking / Thermal Coal (5,010 NM, ~15.0 ballast days)",
+      "estimated_idle_days_avoided": 7.2,
+      "estimated_savings_usd": 86400
+    }
+  ]
+}
+```
+
+This guidance is rendered on the **Strategy & Timing** page as the **"Idle Risk & Alternate
+Employment"** card with per-route $ savings, idle-day estimates, and vessel class suitability.
+
 
 ### Module D: Risk and Disruption Monitoring
 

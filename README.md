@@ -82,7 +82,12 @@ flowchart TD
 ### 3. 🎯 Module C: Market Timing & Contract Strategy
 - Evaluates instantaneous spot rates against forward multi-voyage contracts (COA).
 - Outputs actionable procurement signals: `ENTER_NOW_SPOT`, `ENTER_NOW_TERM_CONTRACT`, or `WAIT_N_WEEKS`.
-- Evaluates idle time and triangular repositioning guidance to minimize ballast legs.
+- **Spot → Multi-Voyage Contract Migration KPI** (`spot_to_contract_consolidation_pct` field in `MarketTimingEngine.evaluate_strategy()`):
+  Directly implements the PS objective — *"Development of model to facilitate moving from multiple single spot contracts being entered into currently to short term / medium term multiple voyage contracts."*
+  Tracks, across a rolling session window, what percentage of cargo volume decisions were routed to term/COA contracts vs. remaining on single spot fixtures. Displayed prominently on the **Strategy & Timing** page.
+- **Idle Time Minimisation** (`idle_scenario_guidance` field):
+  Implements the PS requirement — *"Propose strategies for minimising vessel idle time by forecasting periods of low demand and suggesting alternative employment opportunities or optimised positioning to reduce deadheading."*
+  Returns graded `idle_risk_level` (Low / Medium / High) + numeric `idle_days_estimate` + real alternate routes from the 12-route master with per-option `estimated_savings_usd` vs. straight ballast return.
 
 ### 4. ⚠️ Module D: Corridor Risk & Disruption Monitor
 - **Dual AIS ingestion**: AISStream.io WebSocket streaming to SQLite + Open Waters REST polling (default 45 s interval).
@@ -103,7 +108,7 @@ The interactive UI is built with **React + Vite** and features a modern dark gla
 | **Vessel Optimization** | Physical compatibility checker, landed cost rankings, and stacked cost component breakdowns. |
 | **Route Intelligence** | MapLibre dark maritime map — trade route polylines, live AIS fleet, port/route filter sidebar, time scrubber with auto-play, vessel side panel. |
 | **Risk Monitor** | Radial composite risk gauge, 30-day volatility trends, and marine disruption alerts. |
-| **Strategy & Timing** | Visual timing signal indicators, forward freight curves, and contract cost comparison matrices. |
+| **Strategy & Timing** | Timing signal indicators, forward freight curves, contract cost comparison, **Idle Risk & Alternate Employment card** (idle-days estimate + $ savings per alternate route), and **Spot → Multi-Voyage Contract Migration** KPI tile — all labelled in PS-verbatim language. |
 | **AI Copilot** | Gemini-backed / rule-based briefing chat for on-demand procurement guidance. |
 
 ---
