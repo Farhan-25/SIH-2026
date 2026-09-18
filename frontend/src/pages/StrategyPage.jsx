@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import Plotly from 'plotly.js/dist/plotly-basic'
 import createPlotlyComponent from 'react-plotly.js/factory'
 const Plot = createPlotlyComponent(Plotly)
-import { MdTrendingUp, MdCompareArrows } from 'react-icons/md'
+import { MdTrendingUp, MdCompareArrows, MdAnchor, MdSwapHoriz } from 'react-icons/md'
 import { getForecast, getRoutes } from '../api/client'
 import { usePreferences } from '../context/PreferencesContext'
 import { useUserProfile } from '../context/UserProfileContext'
@@ -30,6 +30,14 @@ function getSignalInfo(signal) {
   return { label: sig.replace(/_/g, ' '), color: 'var(--accent-emerald)', icon: '🟢', bgClass: 'enter' }
 }
 
+function idleRiskColor(level) {
+  if (!level) return 'var(--text-muted)'
+  const l = String(level).toLowerCase()
+  if (l === 'high') return 'hsl(0, 75%, 55%)'
+  if (l === 'medium') return 'hsl(38, 92%, 50%)'
+  return 'hsl(155, 70%, 45%)'
+}
+
 export default function StrategyPage() {
   const { axisCurrencyPrefix, formatMoney, convertMoney, chartTick, chartGrid } = usePreferences()
   const { filterRoutes } = useUserProfile()
@@ -40,6 +48,12 @@ export default function StrategyPage() {
   const [forecastLoading, setForecastLoading] = useState(false)
 
   const signalInfo = getSignalInfo(timing?.signal)
+
+  // ── Session-local action accumulator for Spot→Term KPI ──────────────────
+  // PS Objective: "moving from multiple single spot contracts to short/medium term
+  // multiple voyage contracts." Each route load appends the recommended_action so
+  // the consolidation_pct builds up across the session (max 20 entries).
+  const actionHistoryRef = useRef([])
 
   useEffect(() => {
     let isMounted = true
@@ -78,14 +92,33 @@ export default function StrategyPage() {
           const termRate = timeData?.term_contract_estimated_rate_usd_per_mt || +(spot * 0.98).toFixed(2)
 
           if (timeData) {
+            const action = timeData.recommended_action || timeData.action || 'ENTER_NOW_SPOT'
+
+            // Accumulate action in session history (cap at 20)
+            const prev = actionHistoryRef.current
+            actionHistoryRef.current = [...prev, action].slice(-20)
+
+            // Compute local consolidation pct from session history
+            const history = actionHistoryRef.current
+            const termCount = history.filter(a => String(a).toUpperCase().includes('TERM_CONTRACT')).length
+            const consolidationPct = history.length > 1
+              ? Math.round((termCount / history.length) * 100)
+              : null
+
+            // Idle guidance from API response
+            const idleGuidance = timeData.idle_scenario_guidance || null
+
             setTiming({
-              signal: timeData.recommended_action || timeData.action || 'ENTER_NOW_SPOT',
+              signal: action,
               confidence: timeData.confidence_score_pct ?? timeData.confidence_pct ?? null,
               current_spot_rate: spot,
               forward_3m_est: p12w,
               term_contract_rate: termRate,
               savings_usd: timeData.estimated_cost_savings_usd || 0,
               recommendation: timeData.detailed_strategy || timeData.strategy_recommendation || timeData.headline || '',
+              consolidation_pct: timeData.spot_to_contract_consolidation_pct ?? consolidationPct,
+              session_decisions: history.length,
+              idle_guidance: idleGuidance,
             })
           }
 
@@ -144,11 +177,14 @@ export default function StrategyPage() {
     ]
   }, [timing])
 
+  const idleGuidance = timing?.idle_guidance || null
+  const idleColor = idleRiskColor(idleGuidance?.idle_risk_level)
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
         <div>
-          <h1>Market Timing & Strategy</h1>
+          <h1>Market Timing &amp; Strategy</h1>
           <p>Spot vs Term contract evaluation with forward freight curve analysis and actionable procurement signals</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
@@ -217,7 +253,7 @@ export default function StrategyPage() {
         <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', maxWidth: 600, margin: '0 auto', lineHeight: 1.6 }}>
           {timing?.recommendation || 'Evaluating market entry timing and charter commitments...'}
         </div>
-        <div style={{ marginTop: 'var(--space-md)', display: 'flex', justifyContent: 'center', gap: 'var(--space-xl)' }}>
+        <div style={{ marginTop: 'var(--space-md)', display: 'flex', justifyContent: 'center', gap: 'var(--space-xl)', flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Confidence</div>
             <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-ocean)' }}>
@@ -234,6 +270,36 @@ export default function StrategyPage() {
             <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>3M Forward</div>
             <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-amber)' }}>
               {timing?.forward_3m_est ? formatMoney(timing.forward_3m_est, { suffix: '/MT' }) : '—'}
+            </div>
+          </div>
+
+          {/* ── Spot → Multi-Voyage Contract Migration KPI ── */}
+          {/* PS Objective: "moving from multiple single spot contracts to short/medium
+               term multiple voyage contracts" — surfaced here as a live session KPI */}
+          <div style={{
+            borderLeft: '1px solid var(--border-glass)',
+            paddingLeft: 'var(--space-xl)',
+          }}>
+            <div style={{
+              fontSize: 'var(--font-size-xs)',
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}>
+              <MdSwapHoriz size={14} />
+              Spot → Multi-Voyage Contract Migration
+            </div>
+            <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-ocean)' }}>
+              {timing?.consolidation_pct != null
+                ? `${timing.consolidation_pct}%`
+                : '—'}
+            </div>
+            <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
+              {timing?.session_decisions != null && timing.session_decisions > 1
+                ? `Over ${timing.session_decisions} session decisions`
+                : 'Builds across session decisions'}
             </div>
           </div>
         </div>
@@ -338,6 +404,124 @@ export default function StrategyPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── Idle Risk & Alternate Employment Card ─────────────────────────────
+           PS: "Propose strategies for minimising vessel idle time by forecasting
+           periods of low demand and suggesting alternative employment opportunities
+           or optimised positioning to reduce deadheading."
+      ──────────────────────────────────────────────────────────────────────── */}
+      {idleGuidance && (
+        <motion.div
+          className="glass-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            marginTop: 'var(--space-md)',
+            border: `1px solid ${idleColor}44`,
+            background: `linear-gradient(135deg, ${idleColor}08, transparent)`,
+          }}
+        >
+          {/* Header row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+            <h2 style={{ fontSize: 'var(--font-size-lg)', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <MdAnchor style={{ color: idleColor }} />
+              Idle Risk &amp; Alternate Employment
+            </h2>
+            {/* Risk level badge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+              <span style={{
+                background: `${idleColor}22`,
+                color: idleColor,
+                border: `1px solid ${idleColor}66`,
+                borderRadius: 'var(--radius-sm)',
+                padding: '4px 12px',
+                fontWeight: 700,
+                fontSize: 'var(--font-size-sm)',
+                letterSpacing: '0.05em',
+              }}>
+                {idleGuidance.idle_risk_level?.toUpperCase()} IDLE RISK
+              </span>
+              {idleGuidance.idle_days_estimate != null && (
+                <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)' }}>
+                  ~<strong style={{ color: idleColor }}>{idleGuidance.idle_days_estimate}</strong> idle-days estimated
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Suggested action + headline savings */}
+          <div style={{ display: 'flex', gap: 'var(--space-xl)', flexWrap: 'wrap', marginBottom: 'var(--space-lg)' }}>
+            <div style={{ flex: '1 1 200px' }}>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
+                Recommended Action
+              </div>
+              <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.5 }}>
+                {idleGuidance.suggested_action}
+              </div>
+            </div>
+            {idleGuidance.savings_vs_ballast_usd > 0 && (
+              <div style={{ flex: '1 1 180px' }}>
+                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 4 }}>
+                  Est. Savings vs Ballast Return
+                </div>
+                <div style={{ fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                  {formatMoney(idleGuidance.savings_vs_ballast_usd, { decimals: 0 })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Alternate Employment Options */}
+          {Array.isArray(idleGuidance.alternate_employment) && idleGuidance.alternate_employment.length > 0 && (
+            <>
+              <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 'var(--space-sm)' }}>
+                Alternate Employment Options
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                {idleGuidance.alternate_employment.map((alt, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 'var(--space-sm)',
+                      padding: 'var(--space-sm) var(--space-md)',
+                      background: 'var(--bg-input)',
+                      borderRadius: 'var(--radius-sm)',
+                      borderLeft: `3px solid ${idleColor}`,
+                    }}
+                  >
+                    <div style={{ flex: '1 1 300px' }}>
+                      <div style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)', fontWeight: 500 }}>
+                        {alt.description}
+                      </div>
+                      {Array.isArray(alt.typical_vessel_classes) && alt.typical_vessel_classes.length > 0 && (
+                        <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
+                          {alt.typical_vessel_classes.join(' · ')}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      {alt.estimated_savings_usd > 0 && (
+                        <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--accent-emerald)' }}>
+                          Saves ~{formatMoney(alt.estimated_savings_usd, { decimals: 0 })}
+                        </div>
+                      )}
+                      {alt.estimated_idle_days_avoided > 0 && (
+                        <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-muted)', marginTop: 2 }}>
+                          {alt.estimated_idle_days_avoided} idle-days avoided
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </motion.div>
+      )}
     </motion.div>
   )
 }
