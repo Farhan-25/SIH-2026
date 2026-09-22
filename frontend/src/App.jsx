@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom'
-import { useState, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MdDashboard, MdShowChart, MdDirectionsBoat,
@@ -68,7 +68,34 @@ const pageTitles = {
 function AppShell() {
   const location = useLocation()
   const [alertCount] = useState(3)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth <= 768
+    }
+    return false
+  })
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768)
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768
+      setIsMobile(mobile)
+      if (!mobile) {
+        // Automatically restore desktop sidebar layout when resizing up
+      }
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  // Auto-collapse sidebar on mobile screen navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      setSidebarCollapsed(true)
+    }
+  }, [location.pathname])
+
   const [showNotifications, setShowNotifications] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showApiModal, setShowApiModal] = useState(false)
@@ -139,6 +166,15 @@ function AppShell() {
 
   return (
     <div className={`app-layout ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {/* ──── Mobile Backdrop for Sidebar Drawer ──── */}
+      {isMobile && !sidebarCollapsed && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setSidebarCollapsed(true)}
+          aria-label="Close sidebar"
+        />
+      )}
+
       {/* ──── Sidebar ──── */}
       <aside className="sidebar">
         <div className="sidebar-brand" style={{ justifyContent: 'space-between' }}>
@@ -167,6 +203,11 @@ function AppShell() {
                   key={item.to}
                   to={item.to}
                   end={item.to === '/'}
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+                      setSidebarCollapsed(true)
+                    }
+                  }}
                   className={({ isActive }) =>
                     `nav-link ${isActive ? 'active' : ''}`
                   }
@@ -256,7 +297,7 @@ function AppShell() {
             {showNotifications && (
               <div style={{
                 position: 'absolute', top: '100%', right: 0, marginTop: 'var(--space-xs)',
-                width: '300px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
+                width: '300px', maxWidth: 'calc(100vw - 24px)', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-md)', boxShadow: 'var(--glass-shadow)', padding: 'var(--space-md)',
                 zIndex: 100
               }}>
@@ -282,7 +323,7 @@ function AppShell() {
             {showSettings && (
               <div style={{
                 position: 'absolute', top: '100%', right: 0, marginTop: 'var(--space-xs)',
-                width: '280px', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
+                width: '280px', maxWidth: 'calc(100vw - 24px)', background: 'var(--bg-card)', border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-md)', boxShadow: 'var(--glass-shadow)', padding: 'var(--space-md)',
                 zIndex: 100, backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)'
               }}>

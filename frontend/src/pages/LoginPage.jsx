@@ -44,7 +44,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{
+    <div className="login-page-container" style={{
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
@@ -54,7 +54,7 @@ export default function LoginPage() {
       padding: 'var(--space-lg)',
       position: 'relative'
     }}>
-      <div style={{
+      <div className="login-brand" style={{
         position: 'absolute',
         top: 'var(--space-xl)',
         left: 'var(--space-xl)',
@@ -67,6 +67,7 @@ export default function LoginPage() {
       </div>
 
       <motion.div
+        className="login-card"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}

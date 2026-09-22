@@ -351,7 +351,7 @@ export default function RiskPage() {
       {/* ─── TAB 2: FinBERT SENTIMENT ANALYSIS ─── */}
       {activeTab === 'sentiment' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div className="grid-3" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+          <div className="grid-3">
             {/* FinBERT Score Gauge Card */}
             <div className="glass-card" style={{ textAlign: 'center', padding: '24px 20px' }}>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 8 }}>FinBERT Macro Maritime Sentiment</div>
@@ -587,7 +587,7 @@ export default function RiskPage() {
       {activeTab === 'operational' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Operational Risk KPI Grid */}
-          <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          <div className="kpi-grid">
             <motion.div
               className="glass-card"
               initial={{ scale: 0.9 }} animate={{ scale: 1 }}
