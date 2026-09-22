@@ -159,5 +159,28 @@
     "error": null,
     "completed_at": "2026-09-17T17:58:14.385732+00:00",
     "training_records": 16497
+  },
+  {
+    "status": "success",
+    "triggered_by": "scheduler",
+    "triggered_at": "2026-09-22T13:33:11.050692+00:00",
+    "duration_seconds": 821.7,
+    "metrics_snapshot": {
+      "ensemble_mape_pct": 5.65,
+      "ensemble_r2": 0.9621,
+      "xgb_mape_pct": 8.32,
+      "lgb_mape_pct": 8.27,
+      "bilstm_mape_pct": 17.73,
+      "dynamic_weights": {
+        "xgboost": 0.263,
+        "lightgbm": 0.265,
+        "elasticnet": 0.471
+      },
+      "training_records": 16524,
+      "date_range": "2015-01-05 -> 2026-09-21"
+    },
+    "error": null,
+    "completed_at": "2026-09-22T13:46:52.748547+00:00",
+    "training_records": 16524
   }
 ]

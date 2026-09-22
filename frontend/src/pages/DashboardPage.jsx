@@ -4,7 +4,8 @@ import { AnimatePresence } from 'framer-motion'
 import {
   MdTrendingUp, MdTrendingDown, MdDirectionsBoat,
   MdLocalGasStation, MdMap, MdRefresh, MdShield,
-  MdShowChart, MdNewspaper, MdOpenInNew, MdLocationOn, MdPictureAsPdf
+  MdShowChart, MdNewspaper, MdOpenInNew, MdLocationOn, MdPictureAsPdf,
+  MdAttachMoney, MdPsychology, MdTrendingFlat, MdAccessTime
 } from 'react-icons/md'
 import pdfMake from 'pdfmake/build/pdfmake.js'
 import pdfFonts from 'pdfmake/build/vfs_fonts.js'
@@ -425,33 +426,6 @@ export default function DashboardPage() {
     return routeVesselMap[targetId] || []
   }, [routeVesselMap, activeRouteId, selectedRoutes])
 
-  const tickerItems = [
-    { key: 'brent', label: 'Brent', value: formatMoney(parseNum(kpis.brent_crude?.value, 82.4)), trend: kpis.brent_crude?.trend, up: kpis.brent_crude?.trend_dir === 'up', icon: <MdLocalGasStation /> },
-    { key: 'inr', label: 'USD/INR', value: kpis.usd_inr?.value || '₹85.2', trend: kpis.usd_inr?.trend, up: kpis.usd_inr?.trend_dir === 'up' },
-    { key: 'freight', label: 'Avg Freight', value: formatMoney(parseNum(kpis.avg_freight_rate?.value, 14.82), { suffix: '/MT' }), trend: kpis.avg_freight_rate?.trend, up: kpis.avg_freight_rate?.trend_dir === 'up', icon: <MdDirectionsBoat /> },
-    { key: 'wait', label: 'Port Wait', value: kpis.avg_port_wait?.value || '3.8d', trend: kpis.avg_port_wait?.trend, up: kpis.avg_port_wait?.trend_dir === 'up' },
-  ]
-
-  if (selectedCargoes.length === 0 || selectedCargoes.some((c) => c.toLowerCase().includes('coal'))) {
-    tickerItems.splice(2, 0, { key: 'coal', label: 'Newcastle Coal', value: formatMoney(parseNum(kpis.coal_price?.value, 130)), trend: kpis.coal_price?.trend, up: kpis.coal_price?.trend_dir === 'up' })
-  }
-  if (selectedCargoes.length === 0 || isCargoSelected('Iron Ore')) {
-    tickerItems.push({ key: 'iron', label: 'Iron Ore', value: formatMoney(parseNum(kpis.iron_ore?.value, 110)), trend: kpis.iron_ore?.trend, up: kpis.iron_ore?.trend_dir === 'up' })
-  }
-
-  const topChoke = Object.values(chokepoints)[0]
-  if (topChoke) {
-    tickerItems.push({
-      key: 'risk',
-      label: (topChoke.name || 'Chokepoint').split(' / ')[0],
-      value: String(topChoke.risk_level || 'Watch'),
-      trend: topChoke.volume_stats?.increase_pct != null ? `+${topChoke.volume_stats.increase_pct}%` : undefined,
-      up: false,
-      danger: true,
-      icon: <MdShield />,
-    })
-  }
-
   const negPct = sentiment?.negative_pct ?? 60
   const neuPct = sentiment?.neutral_pct ?? 22
   const posPct = sentiment?.positive_pct ?? 18
@@ -477,6 +451,70 @@ export default function DashboardPage() {
     || forecast?.market_timing?.action
     || null
   const spark = preds.slice(0, 8)
+  const topChoke = Object.values(chokepoints)[0]
+
+  const tickerItems = [
+    {
+      key: 'sentiment',
+      label: 'Sentiment',
+      value: sentLabel.toUpperCase(),
+      trend: `${Math.round(Math.abs(sentScore * 100))}% ${sentTone === 'neg' ? 'Bearish' : sentTone === 'pos' ? 'Bullish' : 'Neutral'}`,
+      trendDir: sentTone === 'pos' ? 'up' : sentTone === 'neg' ? 'down' : 'flat',
+      tone: sentTone,
+      badge: sentTone === 'neg' ? 'ALERT' : sentTone === 'pos' ? 'BULLISH' : 'BALANCED',
+      icon: <MdPsychology size={14} />,
+    },
+    {
+      key: 'brent',
+      label: 'Brent Crude',
+      value: formatMoney(parseNum(kpis.brent_crude?.value, 82.4)),
+      trend: kpis.brent_crude?.trend || '+0.4%',
+      trendDir: kpis.brent_crude?.trend_dir || 'flat',
+      tone: kpis.brent_crude?.trend_dir === 'up' ? 'warn' : 'info',
+      badge: 'ENERGY',
+      icon: <MdLocalGasStation size={14} />,
+    },
+    {
+      key: 'inr',
+      label: 'USD / INR',
+      value: kpis.usd_inr?.value ? (String(kpis.usd_inr.value).startsWith('₹') ? kpis.usd_inr.value : `₹${kpis.usd_inr.value}`) : '₹85.20',
+      trend: kpis.usd_inr?.trend || 'Stable',
+      trendDir: kpis.usd_inr?.trend_dir || 'flat',
+      tone: 'info',
+      badge: 'FOREX',
+      icon: <MdAttachMoney size={14} />,
+    },
+    {
+      key: 'coal',
+      label: 'Newcastle Coal',
+      value: formatMoney(parseNum(kpis.coal_price?.value, 130)),
+      trend: kpis.coal_price?.trend || '-6.63%',
+      trendDir: kpis.coal_price?.trend_dir || (parseNum(kpis.coal_price?.trend) < 0 ? 'down' : 'flat'),
+      tone: parseNum(kpis.coal_price?.trend) < 0 ? 'neg' : 'pos',
+      badge: 'COAL',
+      icon: <MdShowChart size={14} />,
+    },
+    {
+      key: 'iron',
+      label: 'Iron Ore (62%)',
+      value: formatMoney(parseNum(kpis.iron_ore?.value, 110)),
+      trend: kpis.iron_ore?.trend || '-2.12%',
+      trendDir: kpis.iron_ore?.trend_dir || (parseNum(kpis.iron_ore?.trend) < 0 ? 'down' : 'flat'),
+      tone: parseNum(kpis.iron_ore?.trend) < 0 ? 'neg' : 'pos',
+      badge: 'IRON ORE',
+      icon: <MdShowChart size={14} />,
+    },
+    {
+      key: 'freight',
+      label: 'Avg Freight',
+      value: formatMoney(parseNum(kpis.avg_freight_rate?.value, 14.82), { suffix: '/MT' }),
+      trend: kpis.avg_freight_rate?.trend || (fwdChange != null ? `${fwdChange >= 0 ? '+' : ''}${fwdChange.toFixed(1)}% 4W` : 'Spot'),
+      trendDir: fwdChange != null && fwdChange > 0 ? 'up' : fwdChange != null && fwdChange < 0 ? 'down' : 'flat',
+      tone: 'pos',
+      badge: 'SPOT',
+      icon: <MdDirectionsBoat size={14} />,
+    },
+  ]
 
   const handleExportPdf = useCallback(() => {
     setIsExporting(true)
@@ -594,13 +632,16 @@ export default function DashboardPage() {
 
       {/* ── Market Ticker ─────────────────────────────────── */}
       <div className="cc-ticker" role="list">
-        {tickerItems.slice(0, 3).map((item) => (
-          <div key={item.key} className={`cc-tick ${item.danger ? 'danger' : ''}`} role="listitem">
-            <span className="cc-tick-label">{item.icon}{item.label}</span>
+        {tickerItems.map((item) => (
+          <div key={item.key} className={`cc-tick tone-${item.tone || 'neu'}`} role="listitem">
+            <div className="cc-tick-head">
+              <span className="cc-tick-label">{item.icon}{item.label}</span>
+              {item.badge && <span className={`cc-tick-badge badge-${item.tone || 'neu'}`}>{item.badge}</span>}
+            </div>
             <span className="cc-tick-value">{item.value}</span>
             {item.trend != null && item.trend !== '' && (
-              <span className={`cc-tick-trend ${item.up ? 'up' : 'down'}`}>
-                {item.up ? <MdTrendingUp /> : <MdTrendingDown />}
+              <span className={`cc-tick-trend ${item.trendDir || (item.up ? 'up' : item.up === false ? 'down' : 'flat')}`}>
+                {item.trendDir === 'up' ? <MdTrendingUp size={13} /> : item.trendDir === 'down' ? <MdTrendingDown size={13} /> : <MdTrendingFlat size={13} />}
                 {item.trend}
               </span>
             )}
@@ -676,7 +717,7 @@ export default function DashboardPage() {
             </div>
           )}
           <div className="cc-vessel-list">
-            {routeVessels.slice(0, 7).map((v) => (
+            {routeVessels.map((v) => (
               <button
                 key={v.id || v.mmsi}
                 type="button"
@@ -706,9 +747,14 @@ export default function DashboardPage() {
                 {mapIntel ? 'No vessels matched to this corridor.' : 'Scanning route corridor…'}
               </p>
             )}
-            {routeVessels.length > 7 && (
-              <button type="button" className="cc-link" onClick={() => navigate('/routes')} style={{ padding: '8px 0' }}>
-                +{routeVessels.length - 7} more on route map <MdOpenInNew size={12} />
+            {routeVessels.length > 3 && (
+              <button
+                type="button"
+                className="cc-link"
+                onClick={() => navigate('/routes')}
+                style={{ padding: '6px 0', justifyContent: 'center', fontSize: '0.72rem', flexShrink: 0 }}
+              >
+                View all in Route Explorer <MdOpenInNew size={12} />
               </button>
             )}
           </div>
