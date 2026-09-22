@@ -129,7 +129,7 @@ export default function CopilotPage() {
       </div>
 
       {/* ─── Layout: 2 Columns (Main Chat + Context Inspector Sidebar) ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: 20, alignItems: 'start' }}>
+      <div className="copilot-grid-layout">
         
         {/* ─── Column 1: Main Conversational Area ─── */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', height: '720px', padding: 0, overflow: 'hidden' }}>

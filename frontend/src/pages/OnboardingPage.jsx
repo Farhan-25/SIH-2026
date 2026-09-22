@@ -190,7 +190,7 @@ export default function OnboardingPage({ onComplete }) {
           {selectedPorts.length === ALL_DESTINATION_PORTS.length ? 'Deselect All' : 'Select All'}
         </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10, maxHeight: '400px', overflowY: 'auto', paddingRight: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 10, maxHeight: '400px', overflowY: 'auto', paddingRight: 4 }}>
         {ALL_DESTINATION_PORTS.map(port => {
           const sel = selectedPorts.includes(port.id)
           return (
@@ -245,7 +245,7 @@ export default function OnboardingPage({ onComplete }) {
           {selectedRoutes.length === availableRoutes.length ? 'Deselect All' : 'Select All'}
         </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10, maxHeight: '400px', overflowY: 'auto', paddingRight: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 10, maxHeight: '400px', overflowY: 'auto', paddingRight: 4 }}>
         {availableRoutes.map(route => {
           const sel = selectedRoutes.includes(route.id)
           return (
@@ -282,7 +282,7 @@ export default function OnboardingPage({ onComplete }) {
           {selectedCargoes.length === ALL_CARGO_TYPES.length ? 'Deselect All' : 'Select All'}
         </button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(160px, 100%), 1fr))', gap: 10 }}>
         {ALL_CARGO_TYPES.map(cargo => {
           const sel = selectedCargoes.includes(cargo)
           return (
@@ -318,7 +318,7 @@ export default function OnboardingPage({ onComplete }) {
   ]
 
   return (
-    <div style={{
+    <div className="onboarding-page-container" style={{
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
@@ -334,13 +334,14 @@ export default function OnboardingPage({ onComplete }) {
       <div style={{ position: 'absolute', bottom: -100, left: -100, width: 300, height: 300, background: 'var(--accent-emerald)', filter: 'blur(140px)', opacity: 0.05, borderRadius: '50%' }} />
 
       {/* Top-left branding */}
-      <div style={{ position: 'absolute', top: 'var(--space-xl)', left: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+      <div className="onboarding-brand" style={{ position: 'absolute', top: 'var(--space-xl)', left: 'var(--space-xl)', display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
         <div style={{ fontSize: '28px' }}></div>
         <h2 style={{ margin: 0, fontSize: 'var(--font-size-xl)', fontWeight: 700, color: 'var(--text-primary)' }}>FreightIQ</h2>
       </div>
 
       {/* Skip / Demo button */}
       <button
+        className="onboarding-skip-btn"
         onClick={handleSkipDemo}
         style={{
           position: 'absolute', top: 'var(--space-xl)', right: 'var(--space-xl)',
@@ -354,6 +355,7 @@ export default function OnboardingPage({ onComplete }) {
       </button>
 
       <motion.div
+        className="onboarding-card"
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
