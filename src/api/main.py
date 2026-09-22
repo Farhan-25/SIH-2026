@@ -86,10 +86,10 @@ async def app_lifespan(app: FastAPI):
                 for r_id, v_cls in [("AU_NEW_TO_IN_PRT", "Panamax"), ("AU_HAY_TO_IN_VTZ", "Capesize"), ("ID_KLT_TO_IN_DHM", "Supramax")]:
                     try:
                         await asyncio.to_thread(model_service.predict_route_forecast, df_ts, r_id, v_cls, 12)
-                    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
+                    except Exception:
                         pass
             logger.info("Startup cache pre-warming completed.")
-        except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
+        except Exception as e:
             logger.info("Cache pre-warming notice: %s", e)
 
     asyncio.create_task(_prewarm_caches())
@@ -820,18 +820,28 @@ def get_cached_fred_data() -> dict[str, Any]:
             futures = [executor.submit(fetch_fred, label, s_id) for label, s_id in series_map]
             try:
                 for future in concurrent.futures.as_completed(futures, timeout=3.0):
-                    label, data = future.result()
-                    if data:
-                        fred_data[label] = data
-            except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError):
-                pass
+                    try:
+                        label, data = future.result()
+                        if data:
+                            fred_data[label] = data
+                    except Exception:
+                        pass
+            except Exception:
+                for future in futures:
+                    if future.done():
+                        try:
+                            label, data = future.result()
+                            if data:
+                                fred_data[label] = data
+                        except Exception:
+                            pass
 
         if fred_data:
             with _CACHE_LOCK:
                 _FRED_CACHE = {"timestamp": now_ts, "data": fred_data}
         elif _FRED_CACHE:
             return _FRED_CACHE.get("data", {})
-    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
+    except Exception as e:
         print(f"FRED fetch notice: {e}")
         if _FRED_CACHE:
             return _FRED_CACHE.get("data", {})
@@ -1211,13 +1221,26 @@ def get_map_intelligence():
                 weather_futures.append(
                     executor.submit(fetch_weather, port_id, coords.get("lat", 0), coords.get("lon", 0), port_data.get("port_name", port_id))
                 )
-            for future in concurrent.futures.as_completed(weather_futures):
-                wx = future.result()
-                if wx:
-                    result["marine_weather"].append(wx)
+            try:
+                for future in concurrent.futures.as_completed(weather_futures, timeout=5.0):
+                    try:
+                        wx = future.result()
+                        if wx:
+                            result["marine_weather"].append(wx)
+                    except Exception:
+                        pass
+            except Exception:
+                for future in weather_futures:
+                    if future.done():
+                        try:
+                            wx = future.result()
+                            if wx:
+                                result["marine_weather"].append(wx)
+                        except Exception:
+                            pass
 
         weather_status = "connected"
-    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
+    except Exception as e:
         print(f"Map Intel — Weather error: {e}")
         weather_status = f"error: {str(e)[:60]}"
 
@@ -1227,7 +1250,7 @@ def get_map_intelligence():
         fred_data = get_cached_fred_data()
         result["market_indicators"] = fred_data
         fred_status = "connected" if fred_data else "no_data"
-    except (ValueError, RuntimeError, ConnectionError, TypeError, KeyError) as e:
+    except Exception as e:
         print(f"Map Intel — FRED error: {e}")
         fred_status = f"error: {str(e)[:60]}"
 

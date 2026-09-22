@@ -2365,110 +2365,190 @@ select.form-control {
   color: var(--accent);
 }
 
-/* ─── Market Ticker ───────────────────────────────────── */
+/* ─── Market Ticker (6 Cards Grid) ───────────────────── */
 .cc-ticker {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 1200px) {
+  .cc-ticker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .cc-ticker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .cc-tick {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  justify-content: space-between;
+  gap: 6px;
   padding: 12px 14px;
   border-radius: var(--radius-lg);
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
+  border-top: 2.5px solid var(--border-subtle);
   box-shadow: var(--glass-shadow);
   min-width: 0;
-  transition: border-color 0.2s, transform 0.15s;
+  transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
   position: relative;
   overflow: hidden;
 }
-.cc-tick::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, hsla(192, 80%, 55%, 0.04) 0%, transparent 60%);
-  pointer-events: none;
-}
 .cc-tick:hover {
-  border-color: hsla(192, 80%, 55%, 0.3);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
-.cc-tick.danger {
-  background: hsla(0, 80%, 60%, 0.05);
-  border-color: hsla(0, 80%, 60%, 0.25);
+
+/* Status-based card accents: subtle top accent line and soft gradient */
+.cc-tick.tone-pos {
+  border-top-color: var(--accent-emerald);
+  background: linear-gradient(180deg, hsla(155, 70%, 45%, 0.07) 0%, var(--bg-card) 60%);
 }
-.cc-tick.danger::before {
-  background: linear-gradient(135deg, hsla(0, 80%, 60%, 0.06) 0%, transparent 60%);
+.cc-tick.tone-pos:hover {
+  border-top-color: var(--accent-emerald);
+  box-shadow: 0 6px 18px hsla(155, 70%, 45%, 0.15);
 }
+.cc-tick.tone-neg {
+  border-top-color: var(--accent-rose);
+  background: linear-gradient(180deg, hsla(0, 80%, 60%, 0.07) 0%, var(--bg-card) 60%);
+}
+.cc-tick.tone-neg:hover {
+  border-top-color: var(--accent-rose);
+  box-shadow: 0 6px 18px hsla(0, 80%, 60%, 0.15);
+}
+.cc-tick.tone-warn {
+  border-top-color: var(--accent-amber);
+  background: linear-gradient(180deg, hsla(38, 92%, 50%, 0.07) 0%, var(--bg-card) 60%);
+}
+.cc-tick.tone-warn:hover {
+  border-top-color: var(--accent-amber);
+  box-shadow: 0 6px 18px hsla(38, 92%, 50%, 0.15);
+}
+.cc-tick.tone-info {
+  border-top-color: var(--accent-cyan);
+  background: linear-gradient(180deg, hsla(192, 80%, 55%, 0.07) 0%, var(--bg-card) 60%);
+}
+.cc-tick.tone-info:hover {
+  border-top-color: var(--accent-cyan);
+  box-shadow: 0 6px 18px hsla(192, 80%, 55%, 0.15);
+}
+.cc-tick.tone-neu {
+  border-top-color: hsla(220, 20%, 40%, 0.5);
+  background: var(--bg-card);
+}
+
+.cc-tick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
 .cc-tick-label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 0.63rem;
+  gap: 6px;
+  font-size: 0.64rem;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
+.cc-tick.tone-pos .cc-tick-label svg { color: var(--accent-emerald); flex-shrink: 0; }
+.cc-tick.tone-neg .cc-tick-label svg { color: var(--accent-rose); flex-shrink: 0; }
+.cc-tick.tone-warn .cc-tick-label svg { color: var(--accent-amber); flex-shrink: 0; }
+.cc-tick.tone-info .cc-tick-label svg { color: var(--accent-cyan); flex-shrink: 0; }
+.cc-tick.tone-neu .cc-tick-label svg { color: var(--text-muted); flex-shrink: 0; }
+
+.cc-tick-badge {
+  font-size: 0.56rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cc-tick-badge.badge-pos {
+  color: var(--accent-emerald);
+  background: hsla(155, 70%, 45%, 0.14);
+}
+.cc-tick-badge.badge-neg {
+  color: var(--accent-rose);
+  background: hsla(0, 80%, 60%, 0.14);
+}
+.cc-tick-badge.badge-warn {
+  color: var(--accent-amber);
+  background: hsla(38, 92%, 50%, 0.14);
+}
+.cc-tick-badge.badge-info {
+  color: var(--accent-cyan);
+  background: hsla(192, 80%, 55%, 0.14);
+}
+.cc-tick-badge.badge-neu {
+  color: var(--text-muted);
+  background: hsla(220, 20%, 30%, 0.25);
+}
+
 .cc-tick-value {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
+
 .cc-tick-trend {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 1px 6px;
+  align-self: flex-start;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 7px;
   border-radius: var(--radius-full);
+  white-space: nowrap;
 }
 .cc-tick-trend.up {
   color: var(--accent-emerald);
-  background: hsla(155, 70%, 45%, 0.1);
+  background: hsla(155, 70%, 45%, 0.12);
 }
 .cc-tick-trend.down {
   color: var(--accent-rose);
-  background: hsla(0, 80%, 60%, 0.1);
+  background: hsla(0, 80%, 60%, 0.12);
+}
+.cc-tick-trend.flat,
+.cc-tick-trend.neu {
+  color: var(--text-muted);
+  background: hsla(220, 20%, 25%, 0.28);
 }
 
-/* ─── Brief Strip (2-col) ─────────────────────────────── */
+/* ─── Brief Strip (2 separate cards) ─────────────────────── */
 .cc-brief {
   display: grid;
   grid-template-columns: minmax(320px, 1.4fr) minmax(220px, 1fr);
   align-items: stretch;
-  gap: 0;
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-card);
-  box-shadow: var(--glass-shadow);
-  overflow: hidden;
+  gap: 14px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
   position: relative;
-}
-.cc-brief::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, hsla(192, 80%, 55%, 0.5), transparent);
-}
-.cc-brief.tone-neg {
-  border-color: hsla(0, 80%, 60%, 0.3);
-}
-.cc-brief.tone-pos {
-  border-color: hsla(155, 70%, 45%, 0.3);
 }
 
 .cc-brief-sent,
@@ -2480,12 +2560,47 @@ select.form-control {
   gap: 10px;
   padding: 16px 18px;
 }
+
 .cc-brief-ops {
-  background: linear-gradient(135deg, hsla(192, 80%, 55%, 0.03), transparent 60%);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
 }
+.cc-brief-ops::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsla(192, 80%, 55%, 0.5), transparent);
+}
+.cc-brief.tone-neg .cc-brief-ops {
+  border-color: hsla(0, 80%, 60%, 0.3);
+}
+.cc-brief.tone-pos .cc-brief-ops {
+  border-color: hsla(155, 70%, 45%, 0.3);
+}
+
 .cc-brief-vessels {
-  border-left: 1px solid var(--border-subtle);
-  background: linear-gradient(135deg, hsla(155, 70%, 45%, 0.03), transparent 60%);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+  overflow: hidden;
+}
+.cc-brief-vessels::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsla(155, 70%, 45%, 0.5), transparent);
 }
 
 /* ─── Vessel List Panel ───────────────────────────────── */
@@ -2535,10 +2650,29 @@ select.form-control {
 .cc-vessel-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  max-height: 136px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: hsla(192, 80%, 55%, 0.35) transparent;
+}
+.cc-vessel-list::-webkit-scrollbar {
+  width: 5px;
+}
+.cc-vessel-list::-webkit-scrollbar-track {
+  background: hsla(220, 20%, 15%, 0.4);
+  border-radius: 4px;
+}
+.cc-vessel-list::-webkit-scrollbar-thumb {
+  background: hsla(192, 80%, 55%, 0.35);
+  border-radius: 4px;
+}
+.cc-vessel-list::-webkit-scrollbar-thumb:hover {
+  background: hsla(192, 80%, 55%, 0.65);
 }
 
 .cc-vessel-row {
@@ -2546,7 +2680,10 @@ select.form-control {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 8px;
+  padding: 6px 8px;
+  min-height: 42px;
+  box-sizing: border-box;
+  flex-shrink: 0;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: transparent;
@@ -3282,11 +3419,7 @@ select.form-control {
   .cc-map-wrap { min-height: 300px; }
   .cc-brief {
     grid-template-columns: 1fr;
-  }
-  .cc-brief-ops,
-  .cc-brief-vessels {
-    border-left: none;
-    border-top: 1px solid var(--border-subtle);
+    gap: 12px;
   }
   .cc-ops-grid {
     grid-template-columns: 1fr 1fr;
