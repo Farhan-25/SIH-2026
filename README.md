@@ -27,7 +27,7 @@ Currently, charterers and procurement managers rely on **daily reactive spot-mar
 - ❌ **Demurrage and lighterage penalties** due to uncoordinated vessel-port draft and LOA constraints (e.g. at Haldia, Paradip, and Vizag).
 - ❌ **Lack of forward risk visibility** regarding Bay of Bengal cyclonic sea states and port anchorage queues.
 
-### 💡 Our Solution
+### 💡 Our Proposed Solution
 **FreightIQ (SIH26006)** is a 4-engine predictive intelligence and constraint optimization system that combines multi-factor machine learning, maritime operational constraints, real-time AIS vessel tracking, and forward rate simulation into an intuitive executive platform.
 
 ---
