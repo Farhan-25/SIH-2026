@@ -10,7 +10,7 @@
 ![XGBoost](https://img.shields.io/badge/XGBoost-1572B6?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)
 
-**An AI-driven decision-support ecosystem for dry bulk cargo procurement and optimized vessel chartering to India's East Coast Ports.**
+**FreightIQ: An AI-driven decision-support ecosystem for dry bulk cargo procurement and optimized vessel chartering to India's East Coast Ports.**
 
 [Quick Start](#-quick-start) • [System Architecture](#-system-architecture) • [Core Engines](#-core-engines) • [Web Platform](#-web-platform) • [Project TODOs](#-project-todos--active-roadmap)
 
