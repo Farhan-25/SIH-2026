@@ -8,7 +8,7 @@ Also consumes news, copilot overview, and map intelligence on the same page.
 
 ## KPI cards
 
-Built in `get_dashboard_data()`:
+Built in `get_dashboard_data()` and wired to live market data via metadata schemas (`models/metrics.json`, `models/model_card.json`, `models/retrain_log.json`):
 
 | KPI | Source |
 | --- | --- |
@@ -17,6 +17,7 @@ Built in `get_dashboard_data()`:
 | USD/INR | FRED `DEXINUS` |
 | Avg East Coast wait (days) | OGD turnaround CSV (Paradip, Vizag, Haldia); fallback random 3.2–4.5 if file missing |
 | Coal / iron ore | FRED `PCOALAUUSDM` / `PIORECRUSDM` |
+| System Retrain Status | Sourced from `models/retrain_log.json` to show the latest ensemble refresh |
 
 FRED fetch is parallel (thread pool), cached 300 s.
 

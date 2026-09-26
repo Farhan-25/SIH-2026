@@ -333,10 +333,11 @@ The `MarketTimingEngine` evaluates forward freight trajectories to recommend:
 | Bearish (rates dropping >5% in 4w) | `WAIT_N_WEEKS` | Defer to price trough |
 | Neutral | `ENTER_NOW_SPOT` | Execute immediate spot charter |
 
-**Key Calculations:**
+**Key Calculations & KPIs:**
 - 4-week short-term average vs. 12-week mid-term average
 - Term contract discount factor (5%)
-- Idle vessel repositioning guidance (triangular routing / coastal backhaul)
+- **Spot → Multi-Voyage Contract Migration KPI**: Tracks the percentage of decisions directed toward term/COA contracts (`spot_to_contract_consolidation_pct`).
+- **Idle Time Minimisation**: Suggests quantified alternate routes to reduce deadheading when rates drop (returns `idle_risk_level`, `idle_days_estimate`, and `savings_vs_ballast_usd`).
 
 ---
 
