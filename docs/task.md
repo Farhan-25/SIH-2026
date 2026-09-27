@@ -24,12 +24,12 @@
 ## 🟢 Phase 1: Data Layer & Reference Datasets
 - [x] Port Infrastructure Master Database (7 Indian East Coast + 11 Global Load Ports)
 - [x] Vessel Class Specifications Master Database (Handysize → Newcastlemax)
-- [x] Trade Routes Master Database (12 key bulk trade routes)
+- [x] Trade Routes Master Database (12 key bulk trade routes with intermediate waypoints)
 - [x] OGD data.gov.in port throughput data ingestion
 - [x] World Bank commodity prices pipeline (`worldbank_pinksheet.py`)
 - [x] Open-Meteo Marine API client (`openmeteo_client.py`)
 - [x] TwelveData FX & energy client (`twelvedata_client.py`)
-- [x] AISStream congestion monitor (`aisstream_client.py`)
+- [x] AISStream & Open Waters live fleet congestion monitor (`aisstream_client.py`)
 - [x] Unified SQLite/CSV dataset generator (`freight_rate_synthesizer.py`)
 - [x] Database Manager query interface (`db_manager.py`)
 
@@ -44,8 +44,8 @@
 ## 🟠 Phase 3: Multi-Factor ML & Vessel Optimization
 - [x] XGBoost multi-factor regressor with exogenous features
 - [x] Multi-horizon recursive forecasting (4/8/12/16/24 weeks)
-- [x] 80% quantile confidence cones
-- [x] Vessel physical constraint solver (draft, LOA, beam)
+- [x] 80% quantile confidence cones (GBRT 10th & 90th percentiles)
+- [x] Vessel physical constraint solver (draft, LOA, beam, lighterage, deadfreight)
 - [x] Full Landed Cost Engine (freight + port + lighterage + demurrage)
 - [x] SHAP feature importance integration
 
@@ -53,8 +53,9 @@
 
 ## 🔴 Phase 4: Market Timing, Risk & Explainability
 - [x] Spot vs Term contract evaluation matrix (`market_timing.py`)
-- [x] Market Timing Signal generator (ENTER_NOW / WAIT / DEFER)
-- [x] Idle scenario & repositioning guidance
+- [x] Market Timing Signal generator (ENTER_NOW_SPOT / ENTER_NOW_TERM_CONTRACT / WAIT_N_WEEKS)
+- [x] **PS Alignment**: Spot-to-Contract Migration consolidation KPI (`spot_to_contract_consolidation_pct`)
+- [x] **PS Alignment**: Idle scenario minimization with 12-route quantified alternate employment (`idle_risk_level`, `savings_vs_ballast_usd`)
 - [x] AIS port queue congestion + marine weather risk alerts (`risk_engine.py`)
 - [x] Corridor composite risk score engine
 
@@ -65,53 +66,46 @@
 - [x] Dark glassmorphism design system (CSS custom properties, Inter font)
 - [x] Animated sidebar navigation with route grouping
 - [x] Framer Motion page transitions
-- [x] **Dashboard** — KPI cards, alerts feed, recent scenarios table, system status
+- [x] **Dashboard** — Dynamic live KPIs, live ML metadata wiring (`metrics.json`/`model_card.json`), alerts feed, system status
 - [x] **Forecast** — Interactive Plotly chart with confidence cone, SHAP drivers, model metrics
 - [x] **Vessel Optimization** — Port/cargo controls, recommendation banner, feasibility matrix, cost breakdown chart
-- [x] **Route Map** — Leaflet dark map, animated trade lanes, port congestion circles, route panel
+- [x] **Route Map** — MapLibre GL dark map, animated trade lanes, port congestion circles, vessel inspector panel
 - [x] **Risk Monitor** — Composite risk gauge, trend chart, weather/congestion/volatility KPIs, alert cards
-- [x] **Strategy** — Signal card with pulse animation, forward freight curve, contract comparison table
-- [x] FastAPI enhanced with risk-assess, market-timing, shap-explain endpoints
+- [x] **Strategy** — Signal card with pulse animation, forward freight curve, contract comparison table, Spot-to-Contract migration tile
+- [x] FastAPI enhanced with risk-assess, market-timing, shap-explain, map-intelligence endpoints
 - [x] Demo fallback data for offline resilience
 
 ---
 
 ## ⚫ Phase 6: Advanced Differentiators (SIH-Winner Tier)
-- [ ] LSTM/TFT deep learning ensemble (`deep_forecasting.py`)
-- [ ] Dynamic ensemble engine (XGBoost + LSTM + Prophet)
-- [ ] Genetic multi-objective optimizer (NSGA-II Pareto frontier)
-- [ ] NLP sentiment analyzer for shipping news
-- [x] PDF procurement briefing export
-- [ ] WebSocket real-time freight rate push alerts
-- [ ] Docker Compose one-command deployment
-- [ ] GitHub Actions CI/CD pipeline
-- [ ] Architecture docs with Mermaid diagrams
-- [ ] User guide with screenshots
+- [x] LSTM/TFT deep learning ensemble (`deep_learning_forecaster.py` with PyTorch BiLSTM + Multi-Head Attention)
+- [x] Dynamic ensemble engine (XGBoost + LightGBM + ElasticNet with inverse-MAPE weighting)
+- [x] NLP sentiment analyzer for shipping news & geopolitical risk (`geopolitical_risk.py`, `nlp_engine.py`)
+- [x] 5 Maritime chokepoints anomaly index & shock alert engine
+- [x] AI Procurement Copilot (`copilot.py` with Gemini integration & rule-based fallback)
+- [x] Architecture docs with comprehensive explanations in `/explanation` and `/docs`
+- [x] Automated test suite verifying physical constraints and Russia trade lanes (`tests/test_system.py`)
+- [ ] Genetic multi-objective optimizer (NSGA-II Pareto frontier for multi-parcel fleet scheduling)
+- [ ] PDF procurement briefing report download
+- [ ] Docker Compose one-command deployment package
+- [ ] GitHub Actions CI/CD workflow
 
 ---
 
-## ✅ Phase 7: Final Verification & Delivery
-- [x] Automated pytest suite (100% pass rate)
-- [x] Frontend build verification (`npm run build`)
+## ✅ Phase 7: Verification & Delivery
+- [x] Automated pytest suite (100% pass rate across physical constraints, routes, and risk engines)
+- [x] Frontend build verification (`npm run build` passes with zero errors)
 - [x] Backend + Frontend simultaneous startup verified
-- [ ] Final git commit & push (on user request)
-- [ ] SIH Pitch/Presentation deck preparation
+- [x] Full codebase synchronization between documentation, API contracts, and UI components
+- [ ] Final git commit & push (on user confirmation)
+- [ ] SIH Pitch/Presentation deck finalization
 
 ---
 
-## 🌌 Phase 8: 3D UI, Map & Advanced Tracking
-- [ ] Upgrade UI with 3D elements and advanced aesthetics
-  - [ ] Integrate React Three Fiber/Three.js dependencies in the frontend
-  - [ ] Implement a 3D animated hero section/background for the dashboard
-  - [ ] Add glassmorphic 3D floating cards for key metrics (KPIs)
-  - [ ] "Humanize" the UI (break away from generic AI-like boilerplate, use organic layouts, custom typography, and curated color palettes)
-- [x] Map improvements (better styling, 3D map views, interactive elements)
-  - [x] Migrate from Leaflet to custom SVG vector map + Three.js 3D scene
-  - [x] Implement custom dark-mode styled base map with glowing animated trade routes
-  - [x] Add 3D models/markers for ports and geographic points of interest
-  - [x] Add interactive camera controls (tilt, rotate, zoom-to-entity)
-- [ ] Real-time ship and entity tracking system
-  - [ ] Set up WebSocket streaming for live vessel AIS coordinate updates
-  - [ ] Render 3D ship models matching vessel class (e.g., Handysize, Newcastlemax) on the map
-  - [ ] Implement predictive trajectory paths with animated particles along routes
-  - [ ] Add click-to-track functionality linking map entities to detailed live data panels
+## 🌌 Phase 8: Map Intelligence & Advanced Tracking
+- [x] MapLibre GL vector basemaps (Carto Dark Matter, Positron, Voyager without Mapbox token requirement)
+- [x] Glowing animated trade route waypoints and port congestion badges
+- [x] Interactive 0–72h time scrubber with auto-play (+6h step interval)
+- [x] Live fleet tracking via AISStream WebSocket + Open Waters REST fallback
+- [x] Vessel side panel inspector with click-to-track details and route corridor assignment
+- [x] Filter sidebar for interactive multi-port and multi-route visibility memoization

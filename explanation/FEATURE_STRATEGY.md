@@ -69,4 +69,25 @@ Strategy page shows the pulse signal card, forward curve (from `/forecast` and/o
 
 ## Link to the SIH objective
 
+### 1. Spot → Multi-Voyage Contract Migration
+
+**Problem Statement:** *"Development of model to facilitate moving from multiple single spot contracts being entered into currently to short term / medium term multiple voyage contracts."*
+
+`MarketTimingEngine.evaluate_strategy()` returns a `spot_to_contract_consolidation_pct` field. Formula:
+`consolidation_pct = (TERM_CONTRACT decisions / total decisions) × 100`
+
+This uses a session-rolling history of `recommended_action` strings (up to 20 entries) to track and visually surface on the **Strategy & Timing** page whether the procurement cadence is shifting toward term/COA structures as intended.
+
+### 2. Idle Time Minimisation
+
+**Problem Statement:** *"Propose strategies for minimising vessel idle time by forecasting periods of low demand and suggesting alternative employment opportunities or optimised positioning to reduce deadheading."*
+
+The `_get_idle_scenario_repositioning()` method derives actual 12-route master alternate employment and returns:
+- `idle_risk_level`: "Low" / "Medium" / "High" graded from the forward curve.
+- `idle_days_estimate`: Numeric estimated idle/ballast days.
+- `savings_vs_ballast_usd`: Headline $ saved vs straight ballast return.
+- `alternate_employment`: List of real alternate routes with per-option savings.
+
+This guidance is rendered on the **Strategy & Timing** page as the **"Idle Risk & Alternate Employment"** card.
+
 This is the explicit “move from many spots to short/medium multi-voyage contracts” module: a COA is recommended only when the model sees a **sustained bullish** path, not on every wiggle.

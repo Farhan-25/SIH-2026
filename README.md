@@ -127,13 +127,13 @@ python sync_and_run.py
 
 ### Manual Setup:
 ```bash
-# 1. Install Python dependencies in editable mode
+# 1. To Install Python dependencies in editable mode:
 pip install -e .
 
-# 2. Start FastAPI Backend (Port 8000)
+# 2. To Start FastAPI Backend (Port 8000):
 python -B -m uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 
-# 3. Start React Frontend (Port 3000)
+# 3. To Start React Frontend (Port 3000):
 cd frontend
 npm install
 npm run dev

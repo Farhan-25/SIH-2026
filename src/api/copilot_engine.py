@@ -286,11 +286,11 @@ class MaritimeCopilotEngine:
             }
         }
 
-        candidate_models = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-flash-lite-latest"]
+        candidate_models = ["gemini-flash-lite-latest", "gemini-3.6-flash"]
         for model in candidate_models:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_api_key}"
             try:
-                res = requests.post(url, json=payload, timeout=5)
+                res = requests.post(url, json=payload, timeout=10)
                 if res.status_code == 200:
                     data = res.json()
                     candidate_parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])

@@ -292,6 +292,20 @@ Compares current spot vs 4-week and 12-week forecast averages and the trough wee
 
 Also returns estimated savings on the parcel and idle / triangular repositioning notes.
 
+#### PS Objective: Spot → Multi-Voyage Contract Migration
+
+**Problem Statement language:** *"Development of model to facilitate moving from multiple single spot contracts being entered into currently to short term / medium term multiple voyage contracts."*
+
+`MarketTimingEngine.evaluate_strategy()` returns a `spot_to_contract_consolidation_pct` field that directly measures this migration. Formula:
+`consolidation_pct = (TERM_CONTRACT decisions / total decisions) × 100`
+This KPI is surfaced on the **Strategy & Timing** page as a **"Spot → Multi-Voyage Contract Migration"** tile.
+
+#### PS Requirement: Idle Time Minimisation
+
+**Problem Statement language:** *"Propose strategies for minimising vessel idle time by forecasting periods of low demand and suggesting alternative employment opportunities or optimised positioning to reduce deadheading."*
+
+`_get_idle_scenario_repositioning()` returns graded `idle_risk_level`, numeric `idle_days_estimate`, real alternate routes from the master catalog with per-option `estimated_savings_usd` vs straight ballast return. This is rendered on the **Strategy & Timing** page as the **"Idle Risk & Alternate Employment"** card.
+
 ### Module D — Risk, NLP, geopolitics
 
 **Files:** `src/risk/risk_engine.py`, `nlp_engine.py`, `geopolitical_risk.py`
