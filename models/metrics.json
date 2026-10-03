@@ -1,6 +1,6 @@
 {
   "version": "3.0",
-  "retrained_at": "2026-09-23T10:26:17.064675+00:00",
+  "retrained_at": "2026-09-27T06:39:34.163039+00:00",
   "triggered_by": "scheduler",
   "evaluation_split": "Temporal 85/15 train/test (no look-ahead bias)",
   "training_data_summary": {
@@ -34,45 +34,45 @@
     "tree_ensemble": {
       "architecture": "Dynamic Inverse-MAPE Ensemble (XGBoost 500est + LightGBM 500est + ElasticNet)",
       "weights": {
-        "xgboost": 0.265,
-        "lightgbm": 0.26,
+        "xgboost": 0.274,
+        "lightgbm": 0.252,
         "elasticnet": 0.475
       },
       "metrics": {
-        "rmse": 2.85,
-        "rmse_usd": 2.85,
-        "mae": 1.785,
-        "mae_usd": 1.785,
-        "mape_pct": 5.7,
-        "mda_pct": 41.97,
-        "r2_score": 0.9632
+        "rmse": 2.866,
+        "rmse_usd": 2.866,
+        "mae": 1.794,
+        "mae_usd": 1.794,
+        "mape_pct": 5.73,
+        "mda_pct": 42.37,
+        "r2_score": 0.9627
       },
       "sub_models": {
         "xgboost": {
-          "rmse": 4.554,
-          "rmse_usd": 4.554,
-          "mae": 2.708,
-          "mae_usd": 2.708,
-          "mape_pct": 8.32,
-          "mda_pct": 51.33,
-          "r2_score": 0.906
+          "rmse": 4.567,
+          "rmse_usd": 4.567,
+          "mae": 2.656,
+          "mae_usd": 2.656,
+          "mape_pct": 8.06,
+          "mda_pct": 51.69,
+          "r2_score": 0.9053
         },
         "lightgbm": {
-          "rmse": 4.205,
-          "rmse_usd": 4.205,
-          "mae": 2.662,
-          "mae_usd": 2.662,
-          "mape_pct": 8.5,
-          "mda_pct": 52.06,
-          "r2_score": 0.9198
+          "rmse": 4.297,
+          "rmse_usd": 4.297,
+          "mae": 2.747,
+          "mae_usd": 2.747,
+          "mape_pct": 8.77,
+          "mda_pct": 53.31,
+          "r2_score": 0.9162
         },
         "elasticnet": {
-          "rmse": 2.068,
-          "rmse_usd": 2.068,
-          "mae": 1.372,
-          "mae_usd": 1.372,
+          "rmse": 2.067,
+          "rmse_usd": 2.067,
+          "mae": 1.371,
+          "mae_usd": 1.371,
           "mape_pct": 4.65,
-          "mda_pct": 32.85,
+          "mda_pct": 32.89,
           "r2_score": 0.9806
         }
       }
@@ -81,16 +81,16 @@
       "architecture": "PyTorch BiLSTM (hidden=128) + Multi-Head Self-Attention (4 heads) + Quantile Heads",
       "epochs_trained": 100,
       "metrics": {
-        "rmse": 7.435,
-        "rmse_usd": 7.435,
-        "mae": 5.474,
-        "mae_usd": 5.474,
-        "mape_pct": 16.04,
-        "mda_pct": 44.55,
-        "r2_score": 0.7493
+        "rmse": 7.014,
+        "rmse_usd": 7.014,
+        "mae": 5.017,
+        "mae_usd": 5.017,
+        "mape_pct": 14.8,
+        "mda_pct": 44.11,
+        "r2_score": 0.7767
       }
     }
   },
   "feature_count": 23,
-  "created_at": "2026-09-23T10:26:17.064675+00:00"
+  "created_at": "2026-09-27T06:39:34.163039+00:00"
 }

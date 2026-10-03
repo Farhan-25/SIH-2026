@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FreightIQ Animated Motion Graphic Intro</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #020617;
+    color: #f8fafc;
+    font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .motion-stage {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(circle at 45% 40%, #0d1527 0%, #020617 100%);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-left: 7vw;
+    overflow: hidden;
+  }
+
+  /* 3D Perspective Digital Grid */
+  .grid-bg {
+    position: absolute;
+    inset: -50%;
+    background-image: 
+      linear-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+    background-size: 70px 70px;
+    transform: perspective(700px) rotateX(62deg);
+    animation: gridDrift 18s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes gridDrift {
+    0% { transform: perspective(700px) rotateX(62deg) translateY(0); }
+    100% { transform: perspective(700px) rotateX(62deg) translateY(70px); }
+  }
+
+  /* Deep Glowing Nebulae / Orbs */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    opacity: 0.65;
+    animation: orbPulse 9s ease-in-out infinite alternate;
+  }
+  .orb-1 { width: 700px; height: 700px; background: rgba(14, 165, 233, 0.22); top: 0%; left: 8%; }
+  .orb-2 { width: 600px; height: 600px; background: rgba(99, 102, 241, 0.16); bottom: 5%; right: 15%; animation-delay: -4s; }
+  .orb-3 { width: 500px; height: 500px; background: rgba(244, 63, 94, 0.12); top: 40%; right: 40%; animation-delay: -7s; }
+
+  @keyframes orbPulse {
+    0% { transform: scale(1); opacity: 0.45; }
+    100% { transform: scale(1.22); opacity: 0.75; }
+  }
+
+  /* Telemetry Top Bar */
+  .top-hud {
+    position: absolute;
+    top: 40px;
+    left: 7vw;
+    right: 7vw;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .hud-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hud-logo {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #0284c7, #38bdf8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+  }
+  .hud-logo svg {
+    width: 22px;
+    height: 22px;
+    fill: #ffffff;
+  }
+  .hud-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #f8fafc;
+  }
+  .hud-title span { color: #38bdf8; }
+
+  .hud-stats {
+    display: flex;
+    gap: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #94a3b8;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 18px;
+    border-radius: 999px;
+    backdrop-filter: blur(12px);
+  }
+  .hud-stats span strong {
+    color: #38bdf8;
+    font-weight: 700;
+  }
+
+  /* Right Side: Maritime Telemetry Radar & Map */
+  .radar-panel {
+    position: absolute;
+    right: 5vw;
+    top: 50%;
+    transform: translateY(-48%);
+    width: 680px;
+    height: 680px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+
+  .radar-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(56, 189, 248, 0.16);
+    box-shadow: inset 0 0 40px rgba(56, 189, 248, 0.04);
+  }
+  .r-1 { width: 640px; height: 640px; }
+  .r-2 { width: 480px; height: 480px; border-style: dashed; border-color: rgba(56, 189, 248, 0.22); }
+  .r-3 { width: 320px; height: 320px; }
+  .r-4 { width: 160px; height: 160px; border-style: dotted; border-color: rgba(56, 189, 248, 0.25); }
+
+  /* Compass crosshairs */
+  .radar-crosshair-h {
+    position: absolute;
+    width: 640px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.2), transparent);
+  }
+  .radar-crosshair-v {
+    position: absolute;
+    height: 640px;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(56, 189, 248, 0.2), transparent);
+  }
+
+  /* Radar sweep beam */
+  .radar-sweep {
+    position: absolute;
+    width: 320px;
+    height: 320px;
+    top: 20px;
+    right: 20px;
+    border-radius: 100% 0 0 0;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.35) 0%, rgba(56, 189, 248, 0.08) 50%, transparent 75%);
+    transform-origin: bottom right;
+    animation: sweep 4.5s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes sweep {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* Coastline & Route SVG */
+  .radar-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  /* Animated Moving Vessel Dots */
+  .vessel-ship {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .vessel-icon {
+    width: 12px;
+    height: 12px;
+    background: #38bdf8;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+    box-shadow: 0 0 12px #38bdf8;
+    transform: rotate(35deg);
+  }
+
+  /* Port Blips on Radar */
+  .radar-blip {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+  }
+  .blip-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #38bdf8;
+    box-shadow: 0 0 16px #38bdf8, 0 0 32px #38bdf8;
+    position: relative;
+  }
+  .blip-ring {
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid #38bdf8;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: ping 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  @keyframes ping {
+    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
+  }
+  .blip-label {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(8px);
+  }
+
+  /* Content Cards (Hero Narrative) */
+  .intro-card {
+    position: absolute;
+    max-width: 820px;
+    z-index: 40;
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+  .intro-card.active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  .badge-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(14, 165, 233, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    padding: 7px 20px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #38bdf8;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    box-shadow: 0 0 24px rgba(14, 165, 233, 0.25);
+    backdrop-filter: blur(8px);
+  }
+  .badge-tag .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #38bdf8;
+    box-shadow: 0 0 12px #38bdf8;
+    animation: blink 1.2s infinite;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .hero-headline {
+    font-size: 56px;
+    font-weight: 900;
+    line-height: 1.12;
+    margin-bottom: 18px;
+    letter-spacing: -1.5px;
+    background: linear-gradient(135deg, #ffffff 40%, #cbd5e1 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .highlight-cyan {
+    background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .highlight-amber {
+    background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .highlight-rose {
+    background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .hero-desc {
+    font-size: 20px;
+    color: #94a3b8;
+    line-height: 1.6;
+    max-width: 680px;
+    margin-bottom: 26px;
+  }
+
+  /* Metric Ticker Counter */
+  .counter-box {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin: 18px 0 26px;
+  }
+  .counter-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 78px;
+    font-weight: 800;
+    color: #38bdf8;
+    text-shadow: 0 0 40px rgba(56, 189, 248, 0.65);
+    letter-spacing: -3px;
+    line-height: 1;
+  }
+  .counter-unit {
+    font-size: 24px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+
+  /* Commodity Badges */
+  .commodity-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .comm-pill {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    padding: 7px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #38bdf8;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  }
+
+  /* Port pills animated chain */
+  .ports-chain {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    max-width: 720px;
+  }
+  .port-chip {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 10px 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #e2e8f0;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+  .port-chip .chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    box-shadow: 0 0 10px #f59e0b;
+  }
+
+  /* Beat 2 & 3: Volatility & Disruption HUD Cards */
+  .grid-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    margin-top: 26px;
+    max-width: 780px;
+  }
+  .metric-card {
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 20px 22px;
+    backdrop-filter: blur(18px);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #38bdf8, transparent);
+  }
+  .metric-card.rose::before { background: linear-gradient(90deg, #f43f5e, transparent); }
+  .metric-card.amber::before { background: linear-gradient(90deg, #f59e0b, transparent); }
+
+  .metric-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+  }
+  .metric-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 30px;
+    font-weight: 800;
+    color: #f8fafc;
+  }
+  .metric-sub {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 6px;
+  }
+
+  /* Fade out container when intro finishes */
+  .fade-out {
+    opacity: 0 !important;
+    filter: blur(12px) !important;
+    transform: scale(1.04) !important;
+    transition: opacity 1.0s cubic-bezier(0.16, 1, 0.3, 1), filter 1.0s ease, transform 1.0s ease !important;
+    pointer-events: none !important;
+  }
+</style>
+</head>
+<body>
+<div class="motion-stage" id="stage">
+  <div class="grid-bg"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <!-- TOP TELEMETRY HUD -->
+  <div class="top-hud">
+    <div class="hud-brand">
+      <div class="hud-logo">
+        <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+      </div>
+      <div class="hud-title">Freight<span>IQ</span> // Intelligence Matrix</div>
+    </div>
+    <div class="hud-stats">
+      <span>TELEMETRY: <strong>LIVE</strong></span>
+      <span>CORRIDOR: <strong>BAY OF BENGAL</strong></span>
+      <span>TARGET: <strong>EAST COAST PORTS</strong></span>
+      <span>STATUS: <strong>MONITORED</strong></span>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDE: MARITIME RADAR TELEMETRY -->
+  <div class="radar-panel" id="radar">
+    <div class="radar-ring r-1"></div>
+    <div class="radar-ring r-2"></div>
+    <div class="radar-ring r-3"></div>
+    <div class="radar-ring r-4"></div>
+    <div class="radar-crosshair-h"></div>
+    <div class="radar-crosshair-v"></div>
+    <div class="radar-sweep"></div>
+
+    <svg class="radar-svg" viewBox="0 0 680 680">
+      <defs>
+        <linearGradient id="cyanGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#0284c7" stop-opacity="0.2"/>
+        </linearGradient>
+        <linearGradient id="amberGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#d97706" stop-opacity="0.2"/>
+        </linearGradient>
+      </defs>
+
+      <!-- East Coast Coastline Silhouette Outline -->
+      <path d="M 280 40 Q 320 120 370 190 T 400 310 T 360 410 T 310 520 T 260 620" 
+            fill="none" stroke="rgba(56, 189, 248, 0.28)" stroke-width="2.5" stroke-dasharray="8 6" />
+
+      <!-- Ingress Ocean Trade Arcs -->
+      <path id="route1" d="M 40 560 Q 240 440 370 310" fill="none" stroke="url(#cyanGlow)" stroke-width="2.5" stroke-dasharray="6 6" />
+      <path id="route2" d="M 100 640 Q 280 520 400 410" fill="none" stroke="url(#amberGlow)" stroke-width="2.5" stroke-dasharray="6 6" />
+      <path id="route3" d="M 580 600 Q 480 440 360 190" fill="none" stroke="rgba(56, 189, 248, 0.5)" stroke-width="3" stroke-dasharray="8 4" />
+
+      <!-- Animated Ship Icons along Routes -->
+      <circle cx="210" cy="460" r="4.5" fill="#38bdf8">
+        <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="290" cy="400" r="4.5" fill="#38bdf8">
+        <animate attributeName="opacity" values="1;0.4;1" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <circle cx="470" cy="420" r="4.5" fill="#f59e0b">
+        <animate attributeName="opacity" values="0.5;1;0.5" dur="1.8s" repeatCount="indefinite"/>
+      </circle>
+    </svg>
+
+    <!-- Radar Port Blips along East Coast of India -->
+    <div class="radar-blip" style="top: 28%; left: 54%;">
+      <div class="blip-ring"></div>
+      <div class="blip-dot"></div>
+      <span class="blip-label">Haldia (8m Draft Limit)</span>
+    </div>
+    <div class="radar-blip" style="top: 36%; left: 60%;">
+      <div class="blip-ring"></div>
+      <div class="blip-dot"></div>
+      <span class="blip-label">Dhamra Deep Port</span>
+    </div>
+    <div class="radar-blip" style="top: 46%; left: 59%;">
+      <div class="blip-ring" style="border-color:#38bdf8; width: 44px; height: 44px;"></div>
+      <div class="blip-dot" style="background:#38bdf8; box-shadow:0 0 20px #38bdf8;"></div>
+      <span class="blip-label" style="border-color:#38bdf8; color:#38bdf8; font-weight:800; font-size:13px;">Paradip Mega Gateway</span>
+    </div>
+    <div class="radar-blip" style="top: 60%; left: 53%;">
+      <div class="blip-ring"></div>
+      <div class="blip-dot"></div>
+      <span class="blip-label">Visakhapatnam Port</span>
+    </div>
+    <div class="radar-blip" style="top: 68%; left: 47%;">
+      <div class="blip-ring" style="border-color:#10b981;"></div>
+      <div class="blip-dot" style="background:#10b981; box-shadow:0 0 16px #10b981;"></div>
+      <span class="blip-label" style="border-color:#10b981; color:#10b981;">Gangavaram (Deepwater Capesize)</span>
+    </div>
+  </div>
+
+  <!-- SLIDE 1 (0:00 - 0:11): 100M+ Tonnes Bulk Imports -->
+  <div class="intro-card active" id="card-1">
+    <div class="badge-tag">
+      <span class="pulse-dot"></span> Maritime Import Intelligence Matrix
+    </div>
+    <h1 class="hero-headline">
+      India Dry Bulk Imports <br><span class="highlight-cyan">Critical Ocean Corridors</span>
+    </h1>
+    <div class="commodity-row">
+      <div class="comm-pill">Thermal Coal</div>
+      <div class="comm-pill">Coking Coal</div>
+      <div class="comm-pill">Iron Ore</div>
+      <div class="comm-pill" style="border-color: rgba(255,255,255,0.2); color:#94a3b8;">East Coast Gateways</div>
+    </div>
+    <div class="counter-box">
+      <div class="counter-num" id="counter-tons">0</div>
+      <div class="counter-unit">Tonnes Annually</div>
+    </div>
+    <div class="ports-chain">
+      <div class="port-chip"><span class="chip-dot"></span> Paradip</div>
+      <div class="port-chip"><span class="chip-dot"></span> Visakhapatnam</div>
+      <div class="port-chip"><span class="chip-dot"></span> Gangavaram</div>
+      <div class="port-chip"><span class="chip-dot"></span> Dhamra</div>
+      <div class="port-chip"><span class="chip-dot"></span> Haldia</div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2 (0:11 - 0:21): Multi-Million Decisions & Spot Volatility -->
+  <div class="intro-card" id="card-2">
+    <div class="badge-tag" style="border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.15); color: #fbbf24;">
+      <span class="pulse-dot" style="background:#fbbf24; box-shadow:0 0 10px #fbbf24;"></span> High-Stakes Chartering & Procurement
+    </div>
+    <h1 class="hero-headline">
+      Multi-Million Dollar Decisions <br><span class="highlight-amber">Limited Forward Visibility</span>
+    </h1>
+    <p class="hero-desc">
+      Chartering and procurement teams make spot commitments with limited forward rate visibility and traditional manual spreadsheets.
+    </p>
+    <div class="grid-metrics">
+      <div class="metric-card">
+        <div class="metric-label">Single Voyage Exposure</div>
+        <div class="metric-val" style="color: #38bdf8;">$1,850,000+</div>
+        <div class="metric-sub">Capesize / Kamsarmax Spot Parcel</div>
+      </div>
+      <div class="metric-card amber">
+        <div class="metric-label">Forward Rate Variance</div>
+        <div class="metric-val" style="color: #fbbf24;">±24.8%</div>
+        <div class="metric-sub">4 to 12-Week Volatility Band</div>
+      </div>
+      <div class="metric-card rose">
+        <div class="metric-label">Chartering Risk</div>
+        <div class="metric-val" style="color: #f43f5e;">High Demurrage</div>
+        <div class="metric-sub">Lack of Predictive Lead Time</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3 (0:21 - 0:33): Chokepoints, Monsoons & Vessel Restrictions -->
+  <div class="intro-card" id="card-3">
+    <div class="badge-tag" style="border-color: rgba(244, 63, 94, 0.4); background: rgba(244, 63, 94, 0.15); color: #f43f5e;">
+      <span class="pulse-dot" style="background:#f43f5e; box-shadow:0 0 10px #f43f5e;"></span> Disruption & Draft Bottlenecks
+    </div>
+    <h1 class="hero-headline">
+      Fuel • Monsoons • <span class="highlight-rose">Chokepoints</span>
+    </h1>
+    <p class="hero-desc">
+      Disruptions around routes like the Suez Canal & Red Sea trigger sharp freight spikes, lighterage penalties, and vessel draft rejections.
+    </p>
+    <div class="grid-metrics">
+      <div class="metric-card rose">
+        <div class="metric-label">Suez / Red Sea Risk</div>
+        <div class="metric-val" style="color: #f43f5e;">+12-14 Days</div>
+        <div class="metric-sub">Cape of Good Hope Diversion</div>
+      </div>
+      <div class="metric-card amber">
+        <div class="metric-label">Monsoon Swell Index</div>
+        <div class="metric-val" style="color: #fbbf24;">4.8m Waves</div>
+        <div class="metric-sub">Paradeep & Vizag Queue Delays</div>
+      </div>
+      <div class="metric-card rose">
+        <div class="metric-label">Draft Constraints</div>
+        <div class="metric-val" style="color: #f43f5e;">8m Limit</div>
+        <div class="metric-sub">Haldia Incompatibility & Lighterage</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Animated Ticker for 100,000,000+ Tonnes
+  let tons = 0;
+  const targetTons = 100000000;
+  const counterEl = document.getElementById('counter-tons');
+  const timer = setInterval(() => {
+    tons += 2500000;
+    if (tons >= targetTons) {
+      tons = targetTons;
+      clearInterval(timer);
+    }
+    counterEl.innerText = (tons / 1000000).toFixed(0) + ',000,000+';
+  }, 25);
+
+  window.setIntroBeat = (beat) => {
+    document.querySelectorAll('.intro-card').forEach(c => c.classList.remove('active'));
+    const target = document.getElementById('card-' + beat);
+    if (target) target.classList.add('active');
+  };
+
+  window.fadeOutIntro = () => {
+    const stage = document.getElementById('stage');
+    if (stage) stage.classList.add('fade-out');
+  };
+</script>
+</body>
+</html>

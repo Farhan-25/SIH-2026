@@ -6,8 +6,8 @@ from pathlib import Path
 import imageio_ffmpeg
 from playwright.async_api import async_playwright
 
-TOTAL_DURATION = 152.0  # seconds (matches 151.89s voiceover)
-AUDIO_FILE = r"C:\Users\Farhan\Downloads\WhatsApp Audio 2026-09-04 at 01.58.57.mp4"
+TOTAL_DURATION = 269.78  # matches WhatsApp Audio 2026-09-26 (00:04:29.78)
+AUDIO_FILE = r"C:\Users\Farhan\Downloads\WhatsApp Audio 2026-09-26 at 23.58.43.mp4"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = PROJECT_ROOT / "artifacts_video"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -15,8 +15,33 @@ RAW_VIDEO_DIR = OUTPUT_DIR / "raw"
 RAW_VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 FINAL_OUTPUT_MP4 = OUTPUT_DIR / "freightiq_sih_walkthrough_final.mp4"
 
+INTRO_IFRAME_HTML = """
+<iframe id="intro-motion-frame" src="/intro_motion.html" style="position:fixed;inset:0;width:100vw;height:100vh;border:none;z-index:999999;transition:opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1);"></iframe>
+"""
+
+OUTRO_HTML = """
+<div id="ai-cinematic-outro" style="position:fixed;inset:0;z-index:999999;background:#030712;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;font-family:Inter,system-ui,sans-serif;transition:opacity 0.8s ease;">
+  <div style="position:absolute;inset:0;background-image:url('/video_assets/outro_branding.jpg');background-size:cover;background-position:center;filter:brightness(1.05);"></div>
+  <div style="position:relative;z-index:10;margin-top:40px;display:flex;flex-direction:column;align-items:center;gap:12px;">
+    <div style="display:inline-flex;align-items:center;gap:10px;background:rgba(15,23,42,0.85);border:1px solid rgba(14,165,233,0.7);padding:8px 24px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:2px;color:#38bdf8;text-transform:uppercase;box-shadow:0 0 30px rgba(14,165,233,0.4);backdrop-filter:blur(12px);">
+      <span style="width:8px;height:8px;border-radius:50%;background:#38bdf8;box-shadow:0 0 10px #38bdf8;"></span>
+      Smart India Hackathon 2026 • SIH26006
+    </div>
+  </div>
+</div>
+"""
+
+
+async def wait_until(start_time: float, target_sec: float, label: str = ""):
+    """Hold until wall-clock recording time hits the voiceover cue."""
+    remaining = target_sec - (time.time() - start_time)
+    if remaining > 0.05:
+        if label:
+            print(f"  sync wait {remaining:.1f}s → {label}")
+        await asyncio.sleep(remaining)
+
+
 async def setup_helpers(page):
-    """Inject glowing virtual cursor and smooth transition controllers into DOM."""
     await page.evaluate("""() => {
         let cursor = document.getElementById('virtual-cursor');
         if (!cursor) {
@@ -30,7 +55,7 @@ async def setup_helpers(page):
             cursor.style.border = '2px solid #ffffff';
             cursor.style.boxShadow = '0 0 14px rgba(14, 165, 233, 0.95), 0 0 4px rgba(255, 255, 255, 0.8)';
             cursor.style.pointerEvents = 'none';
-            cursor.style.zIndex = '9999999';
+            cursor.style.zIndex = '99999999';
             cursor.style.transform = 'translate(-50%, -50%)';
             cursor.style.transition = 'left 0.4s cubic-bezier(0.25, 1, 0.5, 1), top 0.4s cubic-bezier(0.25, 1, 0.5, 1), transform 0.15s ease';
             cursor.style.left = '960px';
@@ -54,27 +79,27 @@ async def setup_helpers(page):
         };
     }""")
 
+
 async def move_cursor(page, x, y, ms=500):
-    """Smoothly animate the virtual cursor to (x, y)."""
     await page.evaluate(f"window.__moveCursor({x}, {y}, {ms})")
     await asyncio.sleep(ms / 1000.0)
 
-async def scroll_to(page, y, wait_sec=1.5):
-    """Smooth scroll the page to y position."""
+
+async def scroll_to(page, y, wait_sec=1.2):
     await page.evaluate(f"window.scrollTo({{ top: {y}, behavior: 'smooth' }})")
     await asyncio.sleep(wait_sec)
 
+
 async def click_element(page, loc):
-    """Move virtual cursor smoothly to element, pulse, and click."""
     try:
         box = await loc.bounding_box()
         if box:
-            x = box['x'] + box['width'] / 2
-            y = box['y'] + box['height'] / 2
+            x = box["x"] + box["width"] / 2
+            y = box["y"] + box["height"] / 2
             await page.evaluate(f"window.__moveCursor({x}, {y}, 350)")
             await asyncio.sleep(0.35)
             await page.evaluate("window.__pulseCursor()")
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.08)
         await loc.click()
     except Exception as e:
         print(f"[Click notice]: {e}")
@@ -83,12 +108,22 @@ async def click_element(page, loc):
         except Exception:
             pass
 
+
+async def goto_app(page, path):
+    loc = page.locator(f"a[href='{path}']").first
+    if await loc.count() > 0:
+        await click_element(page, loc)
+    else:
+        await page.goto(f"http://127.0.0.1:5173{path}")
+    await asyncio.sleep(0.6)
+    await setup_helpers(page)
+
+
 async def record():
     print("=" * 60)
-    print("FREIGHTIQ SIH 2:30 AUTOMATED HIGH QUALITY VIDEO RECORDING")
+    print("FREIGHTIQ WALKTHROUGH — synchronized to 4:29.78 narration")
     print("=" * 60)
 
-    # Clean old webm videos in raw directory
     for f in RAW_VIDEO_DIR.glob("*.webm"):
         try:
             f.unlink()
@@ -99,21 +134,20 @@ async def record():
         browser = await p.chromium.launch(
             headless=True,
             args=[
-                "--start-maximized",
                 "--disable-blink-features=AutomationControlled",
                 "--enable-font-antialiasing",
-                "--force-device-scale-factor=1",
-            ]
+            ],
         )
+        # 4K UHD recording with 2x Device Scale Factor (Razor-sharp text & vectors)
         context = await browser.new_context(
             viewport={"width": 1920, "height": 1080},
+            device_scale_factor=2,
             record_video_dir=str(RAW_VIDEO_DIR),
-            record_video_size={"width": 1920, "height": 1080}
+            record_video_size={"width": 3840, "height": 2160},
         )
         page = await context.new_page()
 
-        # Step 0: Clear state to guarantee clean onboarding run
-        print("[Setup] Clearing localStorage and loading landing page...")
+        print("[Setup] Loading landing page...")
         await page.goto("http://127.0.0.1:5173/")
         await page.evaluate("() => localStorage.clear()")
         await page.reload()
@@ -121,346 +155,307 @@ async def record():
         await setup_helpers(page)
 
         start_time = time.time()
-        print(f"[*] Started recording clock at {time.strftime('%H:%M:%S')}")
+        print("[*] Recording clock started")
 
-        # -------------------------------------------------------------
-        # 0:00–0:12 (12s) — COLD OPEN
-        # -------------------------------------------------------------
-        print("[0:00 - 0:12] Cold Open — Product Landing Hero")
-        await asyncio.sleep(4.0)
-        # Move cursor over key metrics
-        await move_cursor(page, 300, 680, ms=800)
-        await asyncio.sleep(2.0)
-        await move_cursor(page, 500, 680, ms=800)
-        await asyncio.sleep(2.0)
-        await move_cursor(page, 440, 530, ms=800)
-        await asyncio.sleep(2.4)
+        # ─── 0:00–0:11 DYNAMIC ANIMATED INTRO: BEAT 1 (India Dry Bulk Imports) ───
+        print("[0:00] Motion Graphic Intro: Beat 1 (100M+ Tonnes Bulk Imports & East Coast Radar)")
+        await page.evaluate(f"() => {{ document.body.insertAdjacentHTML('beforeend', `{INTRO_IFRAME_HTML}`); }}")
+        await move_cursor(page, 450, 480, ms=700)
+        await wait_until(start_time, 11.0, "0:11 Beat 2 Million Dollar Decisions")
 
-        # -------------------------------------------------------------
-        # 0:12–0:28 (16s) — THE PROBLEM
-        # -------------------------------------------------------------
-        print("[0:12 - 0:28] The Problem — Showcase Simulator & Core Engines")
-        # Scroll to Live Simulator (#sandbox)
-        await scroll_to(page, 850, wait_sec=1.5)
-        await move_cursor(page, 650, 480, ms=600)
-        await asyncio.sleep(3.5)
+        # ─── 0:11–0:21 DYNAMIC ANIMATED INTRO: BEAT 2 (Decisions & Spot Exposure) ───
+        print("[0:11] Motion Graphic Intro: Beat 2 (Multi-Million Decisions & Spot Exposure)")
+        await page.evaluate("""() => {
+            const frame = document.getElementById('intro-motion-frame');
+            if (frame && frame.contentWindow && frame.contentWindow.setIntroBeat) {
+                frame.contentWindow.setIntroBeat(2);
+            }
+        }""")
+        await move_cursor(page, 480, 520, ms=600)
+        await wait_until(start_time, 21.0, "0:21 Beat 3 Chokepoints & Monsoons")
 
-        # Scroll to Core Engines (#engines)
-        await scroll_to(page, 1750, wait_sec=1.5)
-        await move_cursor(page, 550, 420, ms=600)
-        await asyncio.sleep(3.5)
+        # ─── 0:21–0:33 DYNAMIC ANIMATED INTRO: BEAT 3 (Chokepoints, Monsoons & Draft) ───
+        print("[0:21] Motion Graphic Intro: Beat 3 (Suez Chokepoint, Monsoon Swells & 8m Haldia Draft)")
+        await page.evaluate("""() => {
+            const frame = document.getElementById('intro-motion-frame');
+            if (frame && frame.contentWindow && frame.contentWindow.setIntroBeat) {
+                frame.contentWindow.setIntroBeat(3);
+            }
+        }""")
+        await move_cursor(page, 520, 520, ms=600)
+        await wait_until(start_time, 32.5, "0:32.5 Fade Out Intro")
 
-        # Scroll to Why FreightIQ (#comparison)
-        await scroll_to(page, 2550, wait_sec=1.5)
-        await move_cursor(page, 700, 500, ms=600)
-        await asyncio.sleep(3.4)
-
-        # -------------------------------------------------------------
-        # 0:28–0:36 (8s) — ENTER FREIGHTIQ
-        # -------------------------------------------------------------
-        print("[0:28 - 0:36] Enter FreightIQ — Create Workspace & Sign In")
-        await scroll_to(page, 0, wait_sec=1.0)
-        
-        # Click Enter Command Center
+        # ─── 0:33–0:43 PRODUCT REVEAL → ENTER COMMAND CENTER ───
+        print("[0:33] Smooth dissolve out intro → Reveal FreightIQ Platform")
+        await page.evaluate("""() => {
+            const frame = document.getElementById('intro-motion-frame');
+            if (frame) {
+                if (frame.contentWindow && frame.contentWindow.fadeOutIntro) {
+                    frame.contentWindow.fadeOutIntro();
+                }
+                frame.style.opacity = '0';
+                setTimeout(() => frame.remove(), 900);
+            }
+        }""")
+        await asyncio.sleep(0.9)
+        await scroll_to(page, 0, wait_sec=0.5)
         btn = page.locator("button").filter(has_text="Enter Command Center").first
         await click_element(page, btn)
         await asyncio.sleep(0.5)
         await setup_helpers(page)
+        await page.locator("input[placeholder='Priya Sharma']").first.fill("Priya Sharma")
+        await asyncio.sleep(0.4)
+        await page.locator("input[placeholder='you@company.com']").first.fill("judge@sih.gov.in")
+        await asyncio.sleep(0.4)
+        await page.locator("input[type='password']").first.fill("admin123")
+        await click_element(page, page.locator("button[type='submit']").first)
+        await wait_until(start_time, 43.0, "0:43 Onboarding")
 
-        # Fill Login / Signup form
-        name_input = page.locator("input[placeholder='Priya Sharma']").first
-        await name_input.fill("Priya Sharma")
-        await asyncio.sleep(1.0)
-        
-        email_input = page.locator("input[placeholder='you@company.com']").first
-        await email_input.fill("judge@sih.gov.in")
-        await asyncio.sleep(1.0)
-        
-        pass_input = page.locator("input[type='password']").first
-        await pass_input.fill("admin123")
-        await asyncio.sleep(0.8)
-
-        sub_btn = page.locator("button[type='submit']").first
-        await click_element(page, sub_btn)
-        await asyncio.sleep(1.2)
-
-        # -------------------------------------------------------------
-        # 0:36–0:50 (14s) — ONBOARDING
-        # -------------------------------------------------------------
-        print("[0:36 - 0:50] Onboarding Flow — Paradip, Corridor, Cargoes")
+        # ─── 0:43–0:55 ONBOARDING ───
+        print("[0:43] Onboarding — Ports, Corridors, Cargo")
         await setup_helpers(page)
-
-        # Step 1: Select Paradip Port
-        print("  -> Selecting Paradip Port")
-        p_card = page.locator("text='Paradip Port'").first
-        await click_element(page, p_card)
-        await asyncio.sleep(1.5)
-        next_btn = page.locator("button").filter(has_text="Next").first
-        await click_element(page, next_btn)
-        await asyncio.sleep(1.5)
-
-        # Step 2: Select Corridor Newcastle -> Paradip
-        print("  -> Selecting Newcastle -> Paradip corridor")
-        r_card = page.locator("text='Newcastle (Australia)'").first
-        await click_element(page, r_card)
-        await asyncio.sleep(1.5)
-        next_btn = page.locator("button").filter(has_text="Next").first
-        await click_element(page, next_btn)
-        await asyncio.sleep(1.5)
-
-        # Step 3: Select Cargoes (Thermal Coal, Iron Ore, Bauxite)
-        print("  -> Selecting Cargo types")
+        try:
+            await click_element(page, page.locator("button").filter(has_text="Select All").first)
+        except Exception:
+            await click_element(page, page.locator("text='Paradip Port'").first)
+        await asyncio.sleep(0.6)
+        await click_element(page, page.locator("button").filter(has_text="Next").first)
+        await asyncio.sleep(0.6)
+        await click_element(page, page.locator("text='Newcastle (Australia)'").first)
+        await asyncio.sleep(0.5)
+        await click_element(page, page.locator("button").filter(has_text="Next").first)
+        await asyncio.sleep(0.5)
         await click_element(page, page.locator("text='Thermal Coal'").first)
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(0.3)
+        await click_element(page, page.locator("text='Coking Coal'").first)
+        await asyncio.sleep(0.3)
         await click_element(page, page.locator("text='Iron Ore'").first)
-        await asyncio.sleep(1.0)
-        await click_element(page, page.locator("text='Bauxite'").first)
-        await asyncio.sleep(1.0)
-        
-        print("  -> Launching Dashboard")
-        launch_btn = page.locator("button").filter(has_text="Launch Dashboard").first
-        await click_element(page, launch_btn)
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(0.4)
+        await click_element(page, page.locator("button").filter(has_text="Launch Dashboard").first)
+        await wait_until(start_time, 55.0, "0:55 Command Centre")
 
-        # -------------------------------------------------------------
-        # 0:50–1:08 (18s) — COMMAND CENTER
-        # -------------------------------------------------------------
-        print("[0:50 - 1:08] Command Center — Executive KPIs, Congestion, Risk Wire")
+        # ─── 0:55–1:25 COMMAND CENTRE ───
+        print("[0:55] Command Centre — Market & Operational Indicators")
         await setup_helpers(page)
-
-        # Hover top KPIs (Baltic Dry, Capesize, Supramax)
-        await move_cursor(page, 400, 190, ms=600)
-        await asyncio.sleep(2.5)
-        await move_cursor(page, 720, 190, ms=600)
-        await asyncio.sleep(2.5)
-
-        # Scroll down to Indian Ports Congestion Heatmap / AIS Live map
-        await scroll_to(page, 450, wait_sec=1.5)
-        await move_cursor(page, 620, 520, ms=600)
+        await move_cursor(page, 380, 180, ms=500)
         await asyncio.sleep(3.5)
-
-        # Scroll down to Forward Freight curve & AI risk wire
-        await scroll_to(page, 850, wait_sec=1.5)
-        await move_cursor(page, 950, 480, ms=600)
+        await move_cursor(page, 720, 180, ms=500)
+        await asyncio.sleep(3.5)
+        await move_cursor(page, 1080, 180, ms=500)
         await asyncio.sleep(3.0)
+        await scroll_to(page, 420, wait_sec=1.2)
+        await move_cursor(page, 640, 500, ms=500)
+        await asyncio.sleep(5.0)
+        await scroll_to(page, 820, wait_sec=1.2)
+        await move_cursor(page, 960, 460, ms=500)
+        await asyncio.sleep(4.0)
+        await wait_until(start_time, 85.0, "1:25 AI Copilot")
 
-        # Scroll back up smoothly
-        await scroll_to(page, 0, wait_sec=1.4)
-
-        # -------------------------------------------------------------
-        # 1:08–1:25 (17s) — AI COPILOT
-        # -------------------------------------------------------------
-        print("[1:08 - 1:25] AI Copilot — Natural Language & Port Constraint Checks")
-        copilot_link = page.locator("a[href='/copilot']").first
-        await click_element(page, copilot_link)
-        await asyncio.sleep(1.0)
-        await setup_helpers(page)
-
-        # Click prompt input and type question
+        # ─── 1:25–1:46 AI COPILOT ───
+        print("[1:25] AI Copilot — Natural Language Market Briefing")
+        await goto_app(page, "/copilot")
         copilot_input = page.locator("input[placeholder*='Ask Copilot']").first
         await click_element(page, copilot_input)
-        prompt_text = "Recommend vessel for 75,000 MT Coal from Newcastle to Paradip"
-        await copilot_input.fill(prompt_text)
-        await asyncio.sleep(1.5)
+        await copilot_input.fill("Why is Newcastle to Paradip freight rising, and what is Red Sea risk?")
+        await asyncio.sleep(1.0)
         await page.keyboard.press("Enter")
-
-        # Allow response to render and showcase
-        await asyncio.sleep(4.5)
-        await move_cursor(page, 520, 450, ms=600)
-        await asyncio.sleep(2.0)
-        await scroll_to(page, 260, wait_sec=1.5)
+        await asyncio.sleep(6.0)
+        await move_cursor(page, 540, 430, ms=500)
         await asyncio.sleep(3.0)
+        await scroll_to(page, 240, wait_sec=1.0)
+        await wait_until(start_time, 106.0, "1:46 Freight Forecasting")
 
-        # -------------------------------------------------------------
-        # 1:25–1:43 (18s) — FORECAST ENGINE
-        # -------------------------------------------------------------
-        print("[1:25 - 1:43] Forecast Engine — Multi-factor ML & SHAP Drivers")
-        fc_link = page.locator("a[href='/forecast']").first
-        await click_element(page, fc_link)
-        await asyncio.sleep(1.0)
-        await setup_helpers(page)
-
-        # Select 24W horizon
-        w24_btn = page.locator("button").filter(has_text="24W").first
-        await click_element(page, w24_btn)
-        await asyncio.sleep(1.0)
-
-        # Click Run Forecast
-        run_fc_btn = page.locator("button").filter(has_text="Run Forecast").first
-        await click_element(page, run_fc_btn)
-        await asyncio.sleep(2.5)
-
-        # Hover over the interactive Plotly curve and confidence band
-        await move_cursor(page, 550, 420, ms=600)
-        await asyncio.sleep(2.5)
-        await move_cursor(page, 750, 390, ms=600)
-        await asyncio.sleep(2.5)
-
-        # Scroll down to SHAP Feature Importance drivers
-        await scroll_to(page, 650, wait_sec=1.5)
-        await move_cursor(page, 500, 500, ms=600)
+        # ─── 1:46–2:29 FREIGHT FORECASTING ENGINE ───
+        print("[1:46] Freight Forecasting Engine")
+        await goto_app(page, "/forecast")
+        await click_element(page, page.locator("button").filter(has_text="4W").first)
+        await asyncio.sleep(0.8)
+        await click_element(page, page.locator("button").filter(has_text="24W").first)
+        await asyncio.sleep(0.8)
+        await click_element(page, page.locator("button").filter(has_text="Run Forecast").first)
         await asyncio.sleep(3.5)
+        await move_cursor(page, 560, 410, ms=500)
+        await asyncio.sleep(5.0)
+        await move_cursor(page, 820, 380, ms=500)
+        await asyncio.sleep(5.0)
+        await scroll_to(page, 620, wait_sec=1.2)
+        await move_cursor(page, 520, 500, ms=500)
+        await asyncio.sleep(8.0)
+        await scroll_to(page, 900, wait_sec=1.0)
+        await wait_until(start_time, 149.0, "2:29 Vessel Optimiser")
 
-        # -------------------------------------------------------------
-        # 1:43–1:58 (15s) — VESSEL OPTIMIZER
-        # -------------------------------------------------------------
-        print("[1:43 - 1:58] Vessel Optimizer — Physical Constraint Matrix")
-        v_link = page.locator("a[href='/vessels']").first
-        await click_element(page, v_link)
-        await asyncio.sleep(1.0)
-        await setup_helpers(page)
-
-        # Click Optimize
+        # ─── 2:29–3:03 VESSEL OPTIMISER (HALDIA THEN GANGAVARAM) ───
+        print("[2:29] Vessel Optimiser — Testing Haldia 8m Draft Constraint")
+        await goto_app(page, "/vessels")
+        dest_select = page.locator("select.form-control").nth(1)
+        try:
+            await dest_select.select_option(value="IN_HLD")
+        except Exception:
+            try:
+                await dest_select.select_option(label="Haldia Dock Complex")
+            except Exception as e:
+                print(f"[Haldia select notice]: {e}")
+        await asyncio.sleep(0.6)
+        
+        # Click Optimize for Haldia
         opt_btn = page.locator("button").filter(has_text="Optimize").first
         await click_element(page, opt_btn)
-        await asyncio.sleep(2.0)
-
-        # Hover over recommended vessel card (Panamax)
-        await move_cursor(page, 480, 320, ms=600)
         await asyncio.sleep(2.5)
+        await scroll_to(page, 320, wait_sec=1.0)
+        await move_cursor(page, 620, 480, ms=500)
+        print("  showing Haldia draft constraint & lighterage calculations...")
+        await asyncio.sleep(6.5)
 
-        # Scroll to Vessel Feasibility Matrix (Capesize draft rejection)
-        await scroll_to(page, 400, wait_sec=1.5)
-        await move_cursor(page, 600, 450, ms=600)
-        await asyncio.sleep(2.5)
-
-        # Scroll to Landed Cost Breakdown
-        await scroll_to(page, 800, wait_sec=1.5)
-        await asyncio.sleep(2.0)
-
-        # -------------------------------------------------------------
-        # 1:58–2:09 (11s) — ROUTE INTELLIGENCE
-        # -------------------------------------------------------------
-        print("[1:58 - 2:09] Route Intelligence — Interactive AIS Map & Port Queue")
-        r_link = page.locator("a[href='/routes']").first
-        await click_element(page, r_link)
-        await asyncio.sleep(1.0)
-        await setup_helpers(page)
-
-        # Move mouse across map corridors
-        await move_cursor(page, 850, 480, ms=600)
-        await asyncio.sleep(2.5)
-
-        # Click the Paradip desk chip button
-        try:
-            chip = page.locator(".fr24-desk-chip").filter(has_text="Paradip").first
-            if await chip.is_visible():
-                await click_element(page, chip)
-            else:
-                chips = page.locator(".fr24-desk-chip")
-                if await chips.count() > 0:
-                    await click_element(page, chips.first)
-        except Exception as e:
-            print(f"[Notice clicking port chip]: {e}")
-
-        # Port drawer opens showing ships in queue, wait times, and draft restrictions
-        await asyncio.sleep(1.5)
-        await move_cursor(page, 1550, 400, ms=600)
-        await asyncio.sleep(3.4)
-
-        # -------------------------------------------------------------
-        # 2:09–2:19 (10s) — RISK MONITOR
-        # -------------------------------------------------------------
-        print("[2:09 - 2:19] Risk Monitor — Geopolitical Chokepoint Matrix")
-        rk_link = page.locator("a[href='/risk']").first
-        await click_element(page, rk_link)
-        await asyncio.sleep(1.0)
-        await setup_helpers(page)
-
-        # View top risk scores & Red Sea critical card
-        await move_cursor(page, 520, 260, ms=600)
-        await asyncio.sleep(2.5)
-
-        # Scroll to Maritime Chokepoint Risk Matrix
-        await scroll_to(page, 450, wait_sec=1.5)
-        await move_cursor(page, 620, 480, ms=600)
-        await asyncio.sleep(3.0)
-
-        # -------------------------------------------------------------
-        # 2:19–2:26 (7s) — STRATEGY ENGINE
-        # -------------------------------------------------------------
-        print("[2:19 - 2:26] Strategy Engine — Spot vs Term Recommendation")
-        st_link = page.locator("a[href='/strategy']").first
-        await click_element(page, st_link)
-        await asyncio.sleep(1.0)
-        await setup_helpers(page)
-
-        # Highlight ENTER NOW — SPOT recommendation & 82% confidence
-        await move_cursor(page, 460, 240, ms=600)
-        await asyncio.sleep(2.0)
-
-        # Scroll to Forward Freight curve & comparison table
-        await scroll_to(page, 380, wait_sec=1.5)
-        await asyncio.sleep(1.5)
-
-        # -------------------------------------------------------------
-        # 2:26–2:32 (6s) — FINAL CLOSE
-        # -------------------------------------------------------------
-        print("[2:26 - 2:32] Final Close — Product Landing Page")
-        home_link = page.locator("a[href='/']").first
-        await click_element(page, home_link)
-        await asyncio.sleep(1.0)
-        await setup_helpers(page)
+        # Switch destination to Gangavaram Deepwater Port
+        print("[2:48] Switching destination to Gangavaram Port")
         await scroll_to(page, 0, wait_sec=0.8)
-        await move_cursor(page, 960, 380, ms=600)
+        try:
+            await dest_select.select_option(value="IN_GNV")
+        except Exception:
+            try:
+                await dest_select.select_option(label="Gangavaram Port")
+            except Exception as e:
+                print(f"[Gangavaram select notice]: {e}")
+        await asyncio.sleep(0.8)
+        
+        # Click Optimize for Gangavaram
+        await click_element(page, opt_btn)
+        await asyncio.sleep(2.5)
+        print("  showing Gangavaram deepwater feasible vessels & landed cost...")
+        await move_cursor(page, 480, 290, ms=500)
+        await asyncio.sleep(3.0)
+        await scroll_to(page, 340, wait_sec=1.0)
+        await move_cursor(page, 560, 480, ms=500)
+        await wait_until(start_time, 183.0, "3:03 Route Intelligence Map")
 
-        # Ensure total duration hits 152.0s
-        elapsed = time.time() - start_time
-        remaining = TOTAL_DURATION - elapsed
-        if remaining > 0:
-            print(f"Holding on closing screen for remaining {remaining:.1f}s...")
-            await asyncio.sleep(remaining)
+        # ─── 3:03–3:14 ROUTE INTELLIGENCE MAP ───
+        print("[3:03] Route Intelligence Map — Live Corridor & Vessels")
+        await goto_app(page, "/routes")
+        await asyncio.sleep(1.5)
+        
+        # Click Paradip Port Chip to zoom in & display queue intelligence
+        chip = page.locator(".fr24-desk-chip").filter(has_text="Paradip").first
+        if await chip.count() > 0 and await chip.is_visible():
+            print("  clicking Paradip port chip...")
+            await click_element(page, chip)
+            await asyncio.sleep(2.0)
 
-        print("[*] Recording completed. Closing browser context to flush video...")
+        # Search for MV BROAD BONNIE to open live telemetry card
+        search_input = page.locator(".fr24-search-input").first
+        if await search_input.count() > 0:
+            print("  selecting MV BROAD BONNIE to display vessel trajectory & telemetry...")
+            await click_element(page, search_input)
+            await search_input.fill("Bonnie")
+            await asyncio.sleep(0.8)
+            dropdown_item = page.locator(".dropdown-item").first
+            if await dropdown_item.count() > 0:
+                await click_element(page, dropdown_item)
+                await asyncio.sleep(2.0)
+        
+        await move_cursor(page, 240, 420, ms=600)
+        await wait_until(start_time, 194.0, "3:14 Corridor Risk Monitor")
+
+        # ─── 3:14–3:39 CORRIDOR RISK MONITOR (ALL 4 TABS) ───
+        print("[3:14] Risk Monitor — Tab 1: Chokepoints & Geopolitics")
+        await goto_app(page, "/risk")
+        await asyncio.sleep(1.0)
+        await move_cursor(page, 520, 250, ms=500)
+        await asyncio.sleep(4.0)
+
+        # Tab 2: FinBERT Sentiment
+        print("[3:20] Risk Monitor — Tab 2: FinBERT Sentiment")
+        tab_sentiment = page.locator("button").filter(has_text="FinBERT Sentiment").first
+        if await tab_sentiment.count() > 0:
+            await click_element(page, tab_sentiment)
+            await asyncio.sleep(1.0)
+            await move_cursor(page, 480, 360, ms=500)
+            await asyncio.sleep(4.0)
+
+        # Tab 3: Live News Feed
+        print("[3:26] Risk Monitor — Tab 3: Live News Feed")
+        tab_news = page.locator("button").filter(has_text="Live News Feed").first
+        if await tab_news.count() > 0:
+            await click_element(page, tab_news)
+            await asyncio.sleep(1.0)
+            await move_cursor(page, 620, 420, ms=500)
+            await asyncio.sleep(4.0)
+
+        # Tab 4: Corridor & Weather
+        print("[3:32] Risk Monitor — Tab 4: Corridor & Weather")
+        tab_weather = page.locator("button").filter(has_text="Corridor & Weather").first
+        if await tab_weather.count() > 0:
+            await click_element(page, tab_weather)
+            await asyncio.sleep(1.0)
+            await scroll_to(page, 250, wait_sec=0.8)
+            await move_cursor(page, 520, 460, ms=500)
+
+        await wait_until(start_time, 219.0, "3:39 Strategy Engine")
+
+        # ─── 3:39–4:10 STRATEGY & TIMING ENGINE ───
+        print("[3:39] Strategy & Timing Engine — Procurement Decisions")
+        await goto_app(page, "/strategy")
+        await move_cursor(page, 460, 230, ms=500)
+        await asyncio.sleep(5.0)
+        await scroll_to(page, 360, wait_sec=1.1)
+        await move_cursor(page, 700, 420, ms=500)
+        await asyncio.sleep(7.0)
+        await scroll_to(page, 620, wait_sec=1.0)
+        await wait_until(start_time, 250.0, "4:10 AI Outro Branding")
+
+        # ─── 4:10–4:30 AI CINEMATIC OUTRO SLATE ───
+        print("[4:10] AI Outro Branding Slate — FreightIQ Closing")
+        await page.evaluate(f"() => {{ document.body.insertAdjacentHTML('beforeend', `{OUTRO_HTML}`); }}")
+        await move_cursor(page, 960, 500, ms=800)
+        await wait_until(start_time, TOTAL_DURATION, "end of narration")
+
+        print("[*] Closing browser to flush video...")
         await page.close()
         video_path = await page.video.path()
         await context.close()
         await browser.close()
 
-    print(f"[+] Raw video recorded to: {video_path}")
+    print(f"[+] Raw video recorded: {video_path}")
     return video_path
 
+
 def merge_audio_video(raw_video_path, audio_path, output_mp4):
-    """Mux the raw Playwright video and voiceover audio using ffmpeg."""
     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
     print("=" * 60)
-    print("MERGING VIDEO AND AUDIO TRACK")
+    print("MERGING VIDEO + NARRATION")
     print(f"Video: {raw_video_path}")
     print(f"Audio: {audio_path}")
     print(f"Output: {output_mp4}")
     print("=" * 60)
-
     cmd = [
         ffmpeg_exe,
         "-y",
         "-i", str(raw_video_path),
         "-i", str(audio_path),
+        "-filter:v", "crop=1920:1080:0:0",
         "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "14",
         "-pix_fmt", "yuv420p",
-        "-preset", "fast",
-        "-crf", "18",
         "-c:a", "aac",
-        "-b:a", "192k",
+        "-b:a", "320k",
         "-map", "0:v:0",
         "-map", "1:a:0",
         "-shortest",
-        str(output_mp4)
+        str(output_mp4),
     ]
-
-    print(f"Running ffmpeg command: {' '.join(cmd)}")
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
-        print(f"[Error] FFmpeg failed with code {res.returncode}:\n{res.stderr}")
+        print(res.stderr[-2000:])
         raise RuntimeError("FFmpeg merge failed")
-    print(f"[+] Successfully merged final video: {output_mp4}")
+    print(f"[+] Final video: {output_mp4}")
+
 
 def main():
     raw_video = asyncio.run(record())
     merge_audio_video(raw_video, AUDIO_FILE, FINAL_OUTPUT_MP4)
-    print("\n" + "=" * 60)
-    print("ALL STEPS COMPLETED!")
-    print(f"Final Walkthrough MP4: {FINAL_OUTPUT_MP4}")
-    print("=" * 60)
+    print("\nALL STEPS COMPLETED!")
+    print(f"Final MP4: {FINAL_OUTPUT_MP4}")
+
 
 if __name__ == "__main__":
     main()
