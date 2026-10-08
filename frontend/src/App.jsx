@@ -56,7 +56,7 @@ const pageTransition = {
 
 const pageTitles = {
   '/': 'Product Landing Page',
-  '/dashboard': 'Command Center',
+  '/dashboard': 'The Command Center',
   '/copilot': 'AI Maritime Intelligence Copilot',
   '/forecast': 'Freight Rate Forecasting',
   '/vessels': 'Vessel Optimization',
